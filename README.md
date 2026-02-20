@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/24601/surreal-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/24601/surreal-skills/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/24601/surreal-skills/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/24601/surreal-skills/releases)
 [![skills.sh](https://img.shields.io/badge/skills.sh-surrealdb-purple.svg)](https://skills.sh)
 
 Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, WASM extensions, and the full SurrealDB ecosystem.
@@ -227,6 +227,9 @@ surreal-skills/
 | `schema.py` | `uv run scripts/schema.py table <name>` | Inspect a single table in detail |
 | `schema.py` | `uv run scripts/schema.py export --format surql` | Export schema as reproducible DEFINE statements |
 | `schema.py` | `uv run scripts/schema.py export --format json` | Export schema as structured JSON |
+| `check_upstream.py` | `uv run scripts/check_upstream.py` | Compare upstream repos against skill snapshot; shows what changed |
+| `check_upstream.py` | `uv run scripts/check_upstream.py --stale` | Only show repos with new commits since snapshot |
+| `check_upstream.py` | `uv run scripts/check_upstream.py --json` | JSON-only output (no Rich table) |
 
 All scripts follow the dual-output convention: stderr for Rich-formatted human output, stdout for machine-readable JSON.
 
@@ -299,6 +302,25 @@ Set these environment variables to configure the skill scripts. All are optional
 | `SURREAL_DB` | Default database | `test` |
 
 These variables are also recognized by the surreal CLI and official SurrealDB SDKs.
+
+## Source Provenance
+
+This skill was built on **2026-02-19** from these upstream sources. Use `check_upstream.py`
+to detect what changed since this snapshot for incremental updates.
+
+| Repository | Release | SHA | Snapshot Date | Rules Affected |
+|------------|---------|-----|---------------|----------------|
+| [surrealdb/surrealdb](https://github.com/surrealdb/surrealdb) | v3.0.0 | `2e0a61fd4daf` | 2026-02-19 | surrealql, data-modeling, security, performance, deployment, surrealism |
+| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | v3.7.1 | `c47de27db8d5` | 2026-02-19 | surrealist |
+| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v1.3.2 | `d4f8bae88360` | 2026-02-18 | sdks |
+| [surrealdb/surrealdb.py](https://github.com/surrealdb/surrealdb.py) | v1.0.8 | `1ff4470e6ec0` | 2026-02-03 | sdks |
+| [surrealdb/surrealdb.go](https://github.com/surrealdb/surrealdb.go) | v1.3.0 | `89d0f8d1b4c6` | 2026-02-12 | sdks |
+| [surrealdb/surreal-sync](https://github.com/surrealdb/surreal-sync) | v0.3.4 | `8166b2b041b1` | 2026-02-12 | surreal-sync |
+| [surrealdb/surrealfs](https://github.com/surrealdb/surrealfs) | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
+
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-19.
+
+Machine-readable provenance: [`SOURCES.json`](SOURCES.json).
 
 ## Contributing
 

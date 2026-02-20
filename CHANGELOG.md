@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.1] - 2026-02-19
+
+### Added
+- SOURCES.json with commit SHAs, release tags, and dates for all 7 upstream repos
+- check_upstream.py script to diff current upstream state against skill snapshot
+- Source provenance tables in AGENTS.md, SKILL.md, and README.md with dates
+- Detailed Claude Code plugin installation instructions (4 methods)
+
+### Fixed
+- KNN operator syntax in AGENTS.md (`<|K,EF|>` takes two numeric params, not distance metric)
+- Added `--check` alias for `--quick` flag in doctor.py
+- Added exit code 1 on unhealthy status in doctor.py
+
 ## [1.0.0] - 2026-02-19
 
 ### Added
