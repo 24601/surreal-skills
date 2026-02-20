@@ -24,15 +24,82 @@ Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, m
 
 ## Installation
 
+### Claude Code (recommended)
+
+**Option 1 -- Install as a Claude Code skill (global)**
+
 ```bash
-npx skills add 24601/surreal-skills
+npx skills add 24601/surreal-skills -a claude-code -g -y
 ```
 
-### Agent-specific installation
+This installs the skill globally so it is available in every Claude Code session. The `-g` flag installs globally, `-y` auto-confirms prompts.
+
+**Option 2 -- Install per-project via CLAUDE.md**
+
+Clone the repo and reference it from your project's `CLAUDE.md`:
 
 ```bash
-# Claude Code
-npx skills add 24601/surreal-skills -a claude-code -g -y
+git clone https://github.com/24601/surreal-skills.git ~/.claude/skills/surrealdb
+```
+
+Then add to your project's `CLAUDE.md` (or `~/.claude/CLAUDE.md` for global):
+
+```markdown
+# SurrealDB Skill
+
+@import ~/.claude/skills/surrealdb/AGENTS.md
+```
+
+Or inline the reference:
+
+```markdown
+# SurrealDB Skill
+
+For SurrealDB work, read the rules at ~/.claude/skills/surrealdb/rules/ and
+use the scripts at ~/.claude/skills/surrealdb/scripts/ for health checks
+and schema introspection.
+```
+
+**Option 3 -- Add as a Claude Code custom slash command**
+
+Create `~/.claude/commands/surrealdb.md`:
+
+```markdown
+Load the SurrealDB 3 skill from ~/.claude/skills/surrealdb/AGENTS.md
+and use its rules for all SurrealDB architecture, development, and operations tasks.
+Available rules: surrealql, data-modeling, graph-queries, vector-search, security,
+deployment, performance, sdks, surrealism, surrealist, surreal-sync, surrealfs.
+```
+
+Then invoke with `/surrealdb` in any Claude Code session.
+
+**Option 4 -- Project-scoped slash commands**
+
+Add SurrealDB-specific commands to your project:
+
+```bash
+mkdir -p .claude/commands
+```
+
+Create `.claude/commands/surreal-doctor.md`:
+
+```markdown
+Run the SurrealDB health check: uv run ~/.claude/skills/surrealdb/scripts/doctor.py
+Report any issues found and suggest fixes based on the deployment rules.
+```
+
+Create `.claude/commands/surreal-schema.md`:
+
+```markdown
+Introspect the current SurrealDB schema: uv run ~/.claude/skills/surrealdb/scripts/schema.py introspect
+Analyze the output using the data-modeling rules and suggest improvements.
+```
+
+### Other AI Agents
+
+```bash
+# skills.sh (universal -- works with all supported agents)
+npx skills add 24601/surreal-skills
 
 # Amp
 npx skills add 24601/surreal-skills -a amp -g -y
@@ -51,18 +118,32 @@ npx skills add 24601/surreal-skills -a pi -g -y
 
 # OpenClaw / Clawdbot
 npx skills add 24601/surreal-skills -a openclaw -g -y
+```
 
-# GitHub Copilot (manual: add AGENTS.md to .github/copilot-instructions.md)
-# Cursor (manual: add AGENTS.md to .cursorrules)
+### IDE Integrations
+
+```bash
+# GitHub Copilot -- append AGENTS.md to your instructions file
+cat ~/.claude/skills/surrealdb/AGENTS.md >> .github/copilot-instructions.md
+
+# Cursor -- append AGENTS.md to .cursorrules
+cat ~/.claude/skills/surrealdb/AGENTS.md >> .cursorrules
+
+# Windsurf -- append AGENTS.md to .windsurfrules
+cat ~/.claude/skills/surrealdb/AGENTS.md >> .windsurfrules
+
+# Cline / Continue -- reference in your config
+# Add the AGENTS.md path to your system prompt configuration
 ```
 
 ### Manual installation
 
 ```bash
-# Clone to any agent's skills directory
-git clone https://github.com/24601/surreal-skills.git ~/.agents/skills/surrealdb
+# Clone to any location
+git clone https://github.com/24601/surreal-skills.git ~/.claude/skills/surrealdb
 
-# Or reference AGENTS.md directly in your agent's configuration
+# Verify installation
+uv run ~/.claude/skills/surrealdb/scripts/doctor.py --check
 ```
 
 ## Quick Start
