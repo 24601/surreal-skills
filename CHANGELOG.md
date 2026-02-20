@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.2] - 2026-02-19
+
+### Added
+- JavaScript/TypeScript SDK v2.0.0-beta.1 coverage in rules/sdks.md
+  - Engine-based architecture (createRemoteEngines, createNodeEngines, createWasmEngines, createWasmWorkerEngines)
+  - Multi-session support (newSession, forkSession, await using)
+  - Query builder pattern (.fields, .where, .fetch, .content, .merge, .replace, .patch)
+  - Query method overhaul (.collect, .json, .responses, .stream)
+  - Expressions API (eq, or, and, between, inside, raw, surql template tag)
+  - Redesigned live queries (.subscribe, for await, .liveOf)
+  - Auto token refresh (renewAccess)
+  - User-defined API invocation (.api)
+  - Diagnostics API (applyDiagnostics)
+  - Codec visitor API (valueDecodeVisitor, valueEncodeVisitor)
+  - v1 to v2 migration guide table
+- Tracked surrealdb.js v2.0.0-beta.1 (SHA 6383698daccf) in SOURCES.json
+
 ## [1.0.1] - 2026-02-19
 
 ### Added

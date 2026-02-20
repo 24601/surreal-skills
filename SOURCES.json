@@ -1,7 +1,7 @@
 {
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
-  "skill_version": "1.0.0",
+  "skill_version": "1.0.2",
   "snapshot_date": "2026-02-19",
   "repos": {
     "surrealdb/surrealdb": {
@@ -32,6 +32,16 @@
       "date": "2026-02-18T10:53:21Z",
       "release": "v1.3.2",
       "url": "https://github.com/surrealdb/surrealdb.js",
+      "rules_affected": [
+        "rules/sdks.md"
+      ]
+    },
+    "surrealdb/surrealdb.js@beta": {
+      "sha": "6383698daccf237ebcc92b2732fb46a0a5df885f",
+      "date": "2026-02-17T20:18:37Z",
+      "release": "v2.0.0-beta.1",
+      "url": "https://github.com/surrealdb/surrealdb.js",
+      "note": "Pre-release beta SDK. Engine-based architecture, multi-session, query builder, streaming, auto token refresh.",
       "rules_affected": [
         "rules/sdks.md"
       ]

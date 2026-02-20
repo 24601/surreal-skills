@@ -303,6 +303,334 @@ await db.close();
 
 ---
 
+## JavaScript / TypeScript SDK v2 (beta)
+
+**Package**: `surrealdb@beta` on npm (v2.0.0-beta.1+)
+**Status**: Pre-release beta -- API may change before GA. Use for new projects or
+early adoption; production apps should evaluate stability requirements.
+
+The v2 SDK is a ground-up rewrite with an engine-based architecture, multi-session
+support, query builder patterns, streaming responses, and automatic token refresh.
+The v1 API above remains the stable release.
+
+### Installation
+
+```bash
+npm install surrealdb@beta
+
+# Embedded engines (published in sync with the SDK)
+npm install @surrealdb/node@beta
+npm install @surrealdb/wasm@beta
+```
+
+### Engine Architecture (v2)
+
+The v2 SDK separates engines from the Surreal class. You compose engines
+explicitly in the constructor.
+
+```typescript
+import { Surreal, createRemoteEngines } from "surrealdb";
+import { createNodeEngines } from "@surrealdb/node";
+import { createWasmEngines, createWasmWorkerEngines } from "@surrealdb/wasm";
+
+// Remote only (HTTP + WebSocket)
+const db = new Surreal({
+  engines: createRemoteEngines(),
+});
+
+// Remote + embedded Node.js
+const db = new Surreal({
+  engines: {
+    ...createRemoteEngines(),
+    ...createNodeEngines(),
+  },
+});
+
+// Remote + WASM (browser)
+const db = new Surreal({
+  engines: {
+    ...createRemoteEngines(),
+    ...createWasmEngines(),
+  },
+});
+
+// WASM in a Web Worker (offloads DB ops from main thread)
+const db = new Surreal({
+  engines: {
+    ...createRemoteEngines(),
+    ...createWasmWorkerEngines(),
+  },
+});
+```
+
+### Connection with Auto Token Refresh (v2)
+
+```typescript
+const db = new Surreal();
+
+await db.connect("wss://host:8000", {
+  namespace: "test",
+  database: "test",
+  renewAccess: true,  // auto-refresh expired tokens (default: true)
+  authentication: {
+    username: "root",
+    password: "root",
+  },
+});
+
+// Or use a callable for async/deferred auth
+await db.connect("wss://host:8000", {
+  namespace: "test",
+  database: "test",
+  authentication: () => ({
+    username: "root",
+    password: "root",
+  }),
+});
+```
+
+### Event Listeners (v2)
+
+```typescript
+// Type-safe event subscriptions (replaces v1 .on() pattern)
+const unsub = db.subscribe("connected", () => {
+  console.log("Connected");
+});
+
+// Cleanup
+unsub();
+
+// Access internal state
+console.log(db.namespace);     // current namespace
+console.log(db.database);      // current database
+console.log(db.accessToken);   // current access token
+console.log(db.refreshToken);  // current refresh token
+console.log(db.params);        // defined connection params
+```
+
+### Multi-Session Support (v2)
+
+```typescript
+// Create an isolated session (own namespace, database, auth state)
+const session = await db.newSession();
+await session.signin({ username: "other_user", password: "pass" });
+await session.use({ namespace: "other_ns", database: "other_db" });
+
+// Fork a session (clone its state)
+const forked = await session.forkSession();
+
+// Close a session
+await session.closeSession();
+
+// Automatic cleanup with await using (TC39 Explicit Resource Management)
+{
+  await using session = await db.newSession();
+  // session is automatically closed at end of scope
+}
+```
+
+### Query Builder Pattern (v2)
+
+v2 introduces chainable builder methods on all query functions. `update` and
+`upsert` no longer take contents as a second argument; use `.content()`,
+`.merge()`, `.replace()`, or `.patch()` instead.
+
+```typescript
+import { Table, RecordId } from "surrealdb";
+
+const usersTable = new Table("users");
+
+// Select with field selection and fetch
+const record = await db.select(new RecordId("person", "alice"))
+  .fields("age", "firstname", "lastname")
+  .fetch("orders");
+
+// Select with where filter
+const active = await db.select(usersTable)
+  .where(eq("active", true));
+
+// Update with merge (v2 pattern)
+await db.update(new RecordId("person", "alice")).merge({
+  age: 32,
+  verified: true,
+});
+
+// Update with content (full replace)
+await db.update(new RecordId("person", "alice")).content({
+  name: "Alice Smith",
+  age: 32,
+});
+
+// Upsert with merge
+await db.upsert(new RecordId("person", "bob")).merge({
+  name: "Bob",
+  active: true,
+});
+```
+
+**IMPORTANT (v2 breaking change)**: Query functions no longer accept plain strings
+as table names. You must use the `Table` class:
+
+```typescript
+// v1 (still works in v1 SDK)
+await db.select("person");
+
+// v2 (required)
+await db.select(new Table("person"));
+```
+
+### Query Method Overhaul (v2)
+
+```typescript
+// Basic typed query
+const [user] = await db.query<[User]>("SELECT * FROM user:foo");
+
+// Collect specific result indexes from multi-statement queries
+const [users, orders] = await db.query(
+  "LET $u = SELECT * FROM user; LET $o = SELECT * FROM order; RETURN $u; RETURN $o"
+).collect<[User[], Order[]]>(2, 3);
+
+// Auto-jsonify results
+const [products] = await db.query<[Product[]]>(
+  "SELECT * FROM product"
+).json();
+
+// Get full response objects (including status, time, etc.)
+const responses = await db.query<[Product[]]>(
+  "SELECT * FROM product"
+).responses();
+
+// Stream responses (prepare for future per-record streaming)
+const stream = db.query("SELECT * FROM large_table").stream();
+
+for await (const frame of stream) {
+  if (frame.isValue<Product>()) {
+    console.log(frame.value);
+  } else if (frame.isDone()) {
+    console.log("Stats:", frame.stats);
+  } else if (frame.isError()) {
+    console.error(frame.error);
+  }
+}
+```
+
+### Expressions API (v2)
+
+Compose dynamic, param-safe WHERE expressions:
+
+```typescript
+import { eq, or, and, between, inside, raw, surql } from "surrealdb";
+
+// Use with query builder .where()
+await db.select(usersTable).where(eq("active", true));
+
+// Compose complex expressions
+await db.select(usersTable).where(
+  or(
+    eq("role", "admin"),
+    and(
+      eq("active", true),
+      between("age", 18, 65)
+    )
+  )
+);
+
+// Use with surql template tag
+const isActive = true;
+await db.query(surql`SELECT * FROM users WHERE ${eq("active", isActive)}`);
+
+// Raw expression insertion (use with caution)
+await db.query(surql`SELECT * FROM users ${raw("WHERE active = true")}`);
+```
+
+### Redesigned Live Queries (v2)
+
+```typescript
+const live = await db.live(new Table("users"));
+
+// Callback-based (action, result, recordId)
+live.subscribe((action, result, record) => {
+  console.log(action, result, record);
+});
+
+// Async iteration
+for await (const { action, value } of live) {
+  console.log(action, value);
+}
+
+// Kill the live query
+live.kill();
+
+// Attach to an existing live query ID
+const [id] = await db.query("LIVE SELECT * FROM users");
+const existing = await db.liveOf(id);
+```
+
+### User-Defined API Invocation (v2)
+
+```typescript
+// Call user-defined APIs registered in SurrealDB
+const result = await db.api("my_custom_endpoint", {
+  param1: "value",
+});
+```
+
+### Diagnostics API (v2)
+
+Intercept protocol-level communication for debugging:
+
+```typescript
+import { applyDiagnostics, createRemoteEngines } from "surrealdb";
+
+const db = new Surreal({
+  engines: applyDiagnostics(createRemoteEngines(), (event) => {
+    // event: { type, key, phase, duration?, success?, result? }
+    console.log(`[${event.type}] ${event.phase}`, event.duration);
+  }),
+});
+```
+
+Event types: `open`, `version`, `use`, `signin`, `query`, `reset`.
+Each event has `before`, `progress` (queries only), and `after` phases.
+
+### Codec Visitor API (v2)
+
+Custom encode/decode processing for SurrealDB values:
+
+```typescript
+const db = new Surreal({
+  codecOptions: {
+    valueDecodeVisitor(value) {
+      // Transform RecordIds, Dates, or custom types on decode
+      return value;
+    },
+    valueEncodeVisitor(value) {
+      // Transform values before sending to SurrealDB
+      return value;
+    },
+  },
+});
+```
+
+### Migration Guide: v1 to v2
+
+| v1 Pattern | v2 Equivalent |
+|------------|---------------|
+| `new Surreal()` | `new Surreal({ engines: createRemoteEngines() })` |
+| `db.connect("wss://...")` | Same, but with `authentication` option for auto-refresh |
+| `db.on("connected", fn)` | `db.subscribe("connected", fn)` -- returns unsub function |
+| `db.select("person")` | `db.select(new Table("person"))` |
+| `db.update(id, data)` | `db.update(id).content(data)` or `.merge(data)` |
+| `db.merge(id, data)` | `db.update(id).merge(data)` |
+| `db.query(q).then(([r]) => ...)` | `db.query(q).collect<[T]>(0)` |
+| `db.live("person")` then iterate | `db.live(new Table("person"))` then `.subscribe()` or `for await` |
+| N/A | `db.newSession()` -- isolated sessions |
+| N/A | `db.query(q).stream()` -- streaming responses |
+| N/A | `db.api("endpoint")` -- user-defined APIs |
+| N/A | `applyDiagnostics()` -- protocol inspection |
+
+---
+
 ## Python SDK
 
 **Package**: `surrealdb` on PyPI
