@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.surreal-state.json
+test-outputs/
+midscene_run/
+.letta/
+*.db
+*.wal
+.DS_Store
+node_modules/
+dist/
+build/
+*.log

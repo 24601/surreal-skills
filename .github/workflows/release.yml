@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  validate-and-publish:
+    name: Validate and Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Python syntax validation
+        run: |
+          for script in scripts/*.py; do
+            echo "Compiling $script"
+            python3 -m py_compile "$script"
+          done
+
+      - name: Validate SKILL.md
+        run: |
+          if [ ! -f SKILL.md ]; then
+            echo "ERROR: SKILL.md not found"
+            exit 1
+          fi
+          head -1 SKILL.md | grep -q "^---" || { echo "ERROR: SKILL.md missing frontmatter"; exit 1; }
+          grep -q "^name:" SKILL.md || { echo "ERROR: SKILL.md missing 'name' field"; exit 1; }
+          grep -q "^description:" SKILL.md || { echo "ERROR: SKILL.md missing 'description' field"; exit 1; }
+          echo "SKILL.md is valid."
+
+      - name: Bump version in SKILL.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Setting version to $VERSION"
+          sed -i "s/^  version: .*/  version: \"$VERSION\"/" SKILL.md
+          for subskill in skills/*/SKILL.md; do
+            sed -i "s/^  version: .*/  version: \"$VERSION\"/" "$subskill"
+          done
+
+      - name: Publish to clawhub.ai
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          echo "Publishing skill to clawhub.ai..."
+          curl -sf -X POST \
+            -H "Authorization: Bearer $CLAWHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"repository\": \"$GITHUB_REPOSITORY\", \"version\": \"${GITHUB_REF_NAME#v}\"}" \
+            "https://api.clawhub.ai/v1/skills/publish" \
+            || { echo "ERROR: Failed to publish to clawhub.ai"; exit 1; }
+          echo "Published successfully."
+
+      - name: Trigger skills.sh reindex
+        run: |
+          echo "Triggering skills.sh reindex..."
+          curl -sf -X POST \
+            "https://skills.sh/api/reindex?repo=$GITHUB_REPOSITORY" \
+            || echo "WARNING: skills.sh reindex trigger failed (non-fatal)"
+          echo "Reindex triggered."
