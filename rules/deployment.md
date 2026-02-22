@@ -9,26 +9,34 @@ This document covers installation, deployment patterns, operational tasks, and m
 ### Installation
 
 ```bash
-# macOS (Homebrew)
+# macOS (Homebrew) -- RECOMMENDED
 brew install surrealdb/tap/surreal
 
-# Linux / macOS (install script)
-curl -sSf https://install.surrealdb.com | sh
+# Linux (apt / package manager)
+# See https://surrealdb.com/docs/surrealdb/installation for distro-specific instructions
 
-# Windows (PowerShell)
-iwr https://install.surrealdb.com -useb | iex
+# Docker (no host install required)
+docker pull surrealdb/surrealdb:v3
 
 # Verify installation
 surreal version
 ```
 
+> **Security note**: SurrealDB's website offers a `curl | sh` installer. For
+> auditable installs, prefer your OS package manager (brew, apt, dnf) or Docker.
+> If you must use a remote installer, download the script first, review it, then
+> execute: `curl -sSf https://install.surrealdb.com -o install.sh && less install.sh && sh install.sh`
+
 ### Starting the Server
 
+> **Credential warning**: Examples below use `root/root` for local development.
+> For production, use strong credentials and DEFINE USER with least-privilege access.
+
 ```bash
-# In-memory (data lost on restart, suitable for development)
+# In-memory (data lost on restart, LOCAL DEVELOPMENT ONLY)
 surreal start --log trace --user root --pass root memory
 
-# RocksDB persistent storage
+# RocksDB persistent storage (local dev)
 surreal start --log info --user root --pass root rocksdb:./mydata.db
 
 # SurrealKV persistent storage

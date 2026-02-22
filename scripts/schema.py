@@ -44,6 +44,26 @@ def _env(name: str) -> str | None:
     return val if val else None
 
 
+import re as _re
+
+_SAFE_IDENT = _re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
+def _sanitize_identifier(name: str) -> str:
+    """Validate that a name is a safe SurrealQL identifier.
+
+    Prevents SurrealQL injection by rejecting names that contain
+    anything other than alphanumeric characters and underscores.
+    """
+    name = name.strip()
+    if not name or not _SAFE_IDENT.match(name):
+        raise ValueError(
+            f"Invalid identifier: {name!r}. "
+            "Identifiers must match [a-zA-Z_][a-zA-Z0-9_]*."
+        )
+    return name
+
+
 async def _ws_query(endpoint: str, user: str, password: str, ns: str, db: str, query: str) -> Any:
     """Connect via WebSocket RPC, authenticate, USE ns/db, and execute a query."""
     import websockets  # type: ignore[import-untyped]
@@ -168,7 +188,7 @@ def cmd_export(args: argparse.Namespace) -> None:
     for tbl_name in sorted(tables.keys()):
         statements.append(f"-- TABLE: {tbl_name}")
         try:
-            tbl_info_raw = run_query(ep, user, password, ns, db, f"INFO FOR TABLE {tbl_name}")
+            tbl_info_raw = run_query(ep, user, password, ns, db, f"INFO FOR TABLE {_sanitize_identifier(tbl_name)}")
             tbl_info = _extract_result(tbl_info_raw)
             if isinstance(tbl_info, dict):
                 for section_key in ("fields", "fd", "indexes", "ix", "events", "ev", "lives", "lv"):
@@ -251,7 +271,7 @@ def cmd_inspect(args: argparse.Namespace) -> None:
         tbl_detail: dict[str, Any] = {"fields": {}, "indexes": {}, "events": {}, "accesses": {}}
 
         try:
-            tbl_info_raw = run_query(ep, user, password, ns, db, f"INFO FOR TABLE {tbl_name}")
+            tbl_info_raw = run_query(ep, user, password, ns, db, f"INFO FOR TABLE {_sanitize_identifier(tbl_name)}")
             tbl_info = _extract_result(tbl_info_raw)
             if isinstance(tbl_info, dict):
                 section_map = {

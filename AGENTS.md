@@ -34,10 +34,10 @@ uv run {baseDir}/scripts/onboard.py --agent
    uv run {baseDir}/scripts/doctor.py
 
 2. Is surreal CLI installed?
-   NO  -> curl -sSf https://install.surrealdb.com | sh
+   NO  -> brew install surrealdb/tap/surreal (or see https://surrealdb.com/install)
    YES -> Continue
 
-3. Choose storage engine:
+3. Choose storage engine (LOCAL DEV -- use scoped credentials in production):
    Development     -> surreal start memory --user root --pass root
    Single-node     -> surreal start rocksdb://data/mydb.db --user root --pass root
    Time-travel     -> surreal start surrealkv://data/mydb --user root --pass root
@@ -267,9 +267,9 @@ uv run {baseDir}/scripts/schema.py introspect --endpoint $SURREAL_ENDPOINT
 
 | Requirement | How to Check | How to Fix |
 |-------------|-------------|------------|
-| surreal CLI | `surreal version` | `curl -sSf https://install.surrealdb.com \| sh` |
+| surreal CLI | `surreal version` | `brew install surrealdb/tap/surreal` or see [install docs](https://surrealdb.com/install) |
 | Python 3.10+ | `python3 --version` | Install from python.org or use system package manager |
-| uv runtime | `which uv` | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| uv runtime | `which uv` | `brew install uv` or `pip install uv` |
 | SurrealDB server | `uv run {baseDir}/scripts/doctor.py` | `surreal start memory --user root --pass root` |
 
 Environment variables (optional, all have defaults):
@@ -388,7 +388,7 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 
 Common errors:
 
-- **surreal CLI not found**: Install with `curl -sSf https://install.surrealdb.com | sh`
+- **surreal CLI not found**: Install with `brew install surrealdb/tap/surreal` or see https://surrealdb.com/install
 - **Server not reachable**: Start a server with `surreal start memory --user root --pass root`
 - **Authentication failed**: Verify `SURREAL_USER` and `SURREAL_PASS` environment variables
 - **Namespace/database not found**: Create with `DEFINE NAMESPACE ...` / `DEFINE DATABASE ...` or use `USE NS ... DB ...` in SurrealQL
@@ -400,7 +400,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.0.0+ |
-| Skill version | 1.0.2 |
+| Skill version | 1.0.4 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 

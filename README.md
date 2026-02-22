@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/24601/surreal-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/24601/surreal-skills/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.2-blue.svg)](https://github.com/24601/surreal-skills/releases)
+[![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)](https://github.com/24601/surreal-skills/releases)
 [![skills.sh](https://img.shields.io/badge/skills.sh-surrealdb-purple.svg)](https://skills.sh)
 
 Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, WASM extensions, and the full SurrealDB ecosystem.
@@ -148,11 +148,14 @@ uv run ~/.claude/skills/surrealdb/scripts/doctor.py --check
 
 ## Quick Start
 
-```bash
-# Start SurrealDB in-memory for development
-surreal start memory --user root --pass root --bind 0.0.0.0:8000
+> **Credential warning**: Examples below use `root/root` for **local development
+> only**. Never use default credentials against production or shared instances.
 
-# Connect via CLI REPL
+```bash
+# Start SurrealDB in-memory for LOCAL DEVELOPMENT ONLY
+surreal start memory --user root --pass root --bind 127.0.0.1:8000
+
+# Connect via CLI REPL (local dev)
 surreal sql --endpoint http://localhost:8000 --user root --pass root --ns test --db test
 
 # Create records with SurrealQL
@@ -346,16 +349,47 @@ This skill declares the following security properties in `SKILL.md` frontmatter:
 
 | Property | Value | Meaning |
 |----------|-------|---------|
-| `no_network` | true | Rules and references do not make network calls |
-| `no_credentials` | true | No API keys, tokens, or secrets stored in the skill |
+| `no_network` | **false** | Scripts connect to a user-specified SurrealDB endpoint for health checks and schema introspection. No third-party network calls. |
+| `no_credentials` | **false** | Scripts accept `SURREAL_USER`/`SURREAL_PASS` for DB auth. No credentials are stored in the skill itself. |
 | `no_env_write` | true | Scripts do not modify environment variables |
 | `no_file_write` | true | Rules are read-only; scripts write only to stdout/stderr |
-| `no_shell_exec` | false | Scripts invoke `surreal` CLI and `gh` for health checks |
+| `no_shell_exec` | false | Scripts invoke `surreal` CLI for health checks |
 | `scripts_auditable` | true | All scripts are readable Python with no obfuscation |
 | `scripts_use_pep723` | true | Dependencies declared inline via PEP 723, no requirements.txt |
 | `no_obfuscated_code` | true | No obfuscated, encoded, or encrypted code |
 | `no_binary_blobs` | true | No compiled binaries or WASM files |
 | `no_minified_scripts` | true | No minified JavaScript or compressed code |
+| `no_curl_pipe_sh` | **false** | Documentation mentions `curl\|sh` as one install option; safer alternatives (brew, Docker) are listed first. The skill itself never executes `curl\|sh`. |
+
+### Required Environment Variables
+
+Declared in `SKILL.md` `requires.env_vars`:
+
+| Variable | Sensitive | Default | Purpose |
+|----------|-----------|---------|---------|
+| `SURREAL_ENDPOINT` | No | `http://localhost:8000` | SurrealDB server URL |
+| `SURREAL_USER` | **Yes** | `root` | Authentication username |
+| `SURREAL_PASS` | **Yes** | `root` | Authentication password |
+| `SURREAL_NS` | No | `test` | Default namespace |
+| `SURREAL_DB` | No | `test` | Default database |
+
+### Required Binaries
+
+Declared in `SKILL.md` `requires.binaries`:
+
+| Binary | Required | Install |
+|--------|----------|---------|
+| `surreal` | Yes | `brew install surrealdb/tap/surreal` |
+| `python3` (>=3.10) | Yes | System package manager |
+| `uv` | Yes | `brew install uv` or `pip install uv` |
+| `docker` | No | Optional for containerized instances |
+
+### Script Safety
+
+- All user-provided table names are validated against `[a-zA-Z_][a-zA-Z0-9_]*` before interpolation into SurrealQL queries (prevents SurrealQL injection)
+- Scripts connect only to the endpoint specified by the user (via env var or CLI flag)
+- No data is sent to third-party services
+- Credential warning labels are present on all `root/root` examples
 
 ## License
 

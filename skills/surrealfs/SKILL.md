@@ -3,13 +3,32 @@ name: surrealfs
 description: "SurrealFS virtual filesystem for AI agents. Rust core + Python agent (Pydantic AI). Persistent file operations backed by SurrealDB. Part of the surreal-skills collection."
 license: MIT
 metadata:
-  version: "1.0.2"
+  version: "1.0.4"
   author: "24601"
   parent_skill: "surrealdb"
-  snapshot_date: "2026-02-19"
+  snapshot_date: "2026-02-22"
   upstream:
     repo: "surrealdb/surrealfs"
     sha: "0008a3a94dbe"
+requires:
+  env_vars:
+    - name: SURREAL_ENDPOINT
+      purpose: "SurrealDB server URL (for remote backend)"
+      sensitive: false
+    - name: SURREAL_USER
+      purpose: "SurrealDB authentication username"
+      sensitive: true
+    - name: SURREAL_PASS
+      purpose: "SurrealDB authentication password"
+      sensitive: true
+security:
+  no_network: false
+  no_network_note: "Connects to user-specified SurrealDB endpoint. Python agent hosts HTTP on localhost by default."
+  no_credentials: false
+  no_credentials_note: "Requires SurrealDB credentials for remote backend connections."
+  scripts_auditable: true
+  no_obfuscated_code: true
+  no_binary_blobs: true
 ---
 
 # SurrealFS -- Virtual Filesystem for AI Agents
@@ -68,10 +87,10 @@ uvicorn.run(app, host="127.0.0.1", port=7932)
 
 Features:
 - Default LLM: Claude Haiku
-- Telemetry via Pydantic Logfire (OpenTelemetry)
+- Telemetry via Pydantic Logfire (OpenTelemetry) -- see Security section for opt-out
 - All filesystem operations available as agent tools
-- HTTP hosting (default port 7932)
-- Path normalization (cannot escape `/`)
+- HTTP hosting (default port 7932, bound to 127.0.0.1)
+- Path normalization: virtual FS root `/` is isolated; paths cannot escape to host filesystem
 
 ## Quick Start
 
@@ -99,6 +118,31 @@ python -m surrealfs_ai --host 127.0.0.1 --port 7932
 - Multi-agent shared file access with SurrealDB permissions
 - Content strategy and knowledge management
 - Project scaffolding and template management
+
+## Security Considerations
+
+**Credentials**: Remote SurrealDB connections require `--user`/`--pass`. Use
+dedicated, least-privilege credentials scoped to a specific namespace/database.
+Never use `root` credentials in shared or production environments.
+
+**Telemetry**: The Python agent uses Pydantic Logfire (OpenTelemetry). To
+disable telemetry, set: `export LOGFIRE_SEND_TO_LOGFIRE=false` or configure
+Logfire with `send_to_logfire=False` in code. Audit telemetry endpoints before
+enabling in environments with sensitive data.
+
+**HTTP binding**: The agent binds to `127.0.0.1` by default. Do not expose to
+`0.0.0.0` or public networks without authentication and TLS. If running in a
+container, use network isolation.
+
+**Pipe commands**: The Rust core supports `curl URL > /path` syntax for content
+ingress. This executes the pipe source command on the host. Use only with
+trusted URLs in controlled environments. Do not allow untrusted input to
+construct pipe commands.
+
+**Sandboxing**: The virtual FS root (`/`) is a SurrealDB-backed abstraction,
+not the host filesystem. Path traversal (e.g., `../../etc/passwd`) is
+normalized and rejected. However, pipe commands execute on the host -- run
+in a container or sandbox if accepting untrusted agent input.
 
 ## Full Documentation
 

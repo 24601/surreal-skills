@@ -3,6 +3,30 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.4] - 2026-02-22
+
+### Security Fixes (addressing OpenClaw/VirusTotal scan findings)
+- SKILL.md frontmatter: changed no_network and no_credentials to false with
+  explanatory notes (scripts DO connect to user-specified endpoints)
+- SKILL.md frontmatter: added requires.binaries declaring surreal, python3, uv, docker
+- SKILL.md frontmatter: added requires.env_vars declaring all SURREAL_* vars
+  with sensitive: true on SURREAL_USER and SURREAL_PASS
+- Replaced all curl|sh install instructions with brew/package manager alternatives
+  in SKILL.md, AGENTS.md, README.md, and rules/deployment.md
+- Added security notes on curl|sh (download-and-review alternative documented)
+- Added credential warnings on all root/root examples across all files
+- Changed bind address from 0.0.0.0 to 127.0.0.1 in quick start examples
+- Added SurrealQL injection prevention: _sanitize_identifier() in schema.py
+  validates table names against [a-zA-Z_][a-zA-Z0-9_]* before query interpolation
+- surrealfs sub-skill: added Security Considerations section covering telemetry
+  opt-out (LOGFIRE_SEND_TO_LOGFIRE=false), HTTP binding, pipe command risks,
+  sandboxing, credential scoping
+- surrealfs sub-skill: added requires.env_vars and security block to frontmatter
+- README: corrected security properties table (no_network=false, no_credentials=false)
+- README: added Required Environment Variables table with sensitivity markers
+- README: added Required Binaries table
+- README: added Script Safety section
+
 ## [1.0.3] - 2026-02-22
 
 ### Added
