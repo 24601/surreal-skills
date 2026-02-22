@@ -3,9 +3,21 @@ name: surrealdb
 description: "Expert SurrealDB 3 architect and developer skill. SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust), Surrealism WASM extensions, and full ecosystem (Surrealist, Surreal-Sync, SurrealFS). Universal skill for 30+ AI agents."
 license: MIT
 metadata:
-  version: "1.0.2"
+  version: "1.0.3"
   author: "24601"
-  snapshot_date: "2026-02-19"
+  snapshot_date: "2026-02-22"
+  repository: "https://github.com/24601/surreal-skills"
+security:
+  no_network: true
+  no_credentials: true
+  no_env_write: true
+  no_file_write: true
+  no_shell_exec: false
+  scripts_auditable: true
+  scripts_use_pep723: true
+  no_obfuscated_code: true
+  no_binary_blobs: true
+  no_minified_scripts: true
 ---
 
 # SurrealDB 3 Skill
@@ -285,15 +297,15 @@ This skill was built on **2026-02-19** from these upstream sources:
 | Repository | Release | Snapshot Date |
 |------------|---------|---------------|
 | [surrealdb/surrealdb](https://github.com/surrealdb/surrealdb) | v3.0.0 | 2026-02-19 |
-| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | v3.7.1 | 2026-02-19 |
-| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v1.3.2 | 2026-02-18 |
-| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) (v2 beta) | v2.0.0-beta.1 | 2026-02-17 |
+| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | v3.7.2 | 2026-02-21 |
+| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v1.3.2 | 2026-02-20 |
+| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) (v2 beta) | v2.0.0-beta.1 | 2026-02-20 |
 | [surrealdb/surrealdb.py](https://github.com/surrealdb/surrealdb.py) | v1.0.8 | 2026-02-03 |
 | [surrealdb/surrealdb.go](https://github.com/surrealdb/surrealdb.go) | v1.3.0 | 2026-02-12 |
 | [surrealdb/surreal-sync](https://github.com/surrealdb/surreal-sync) | v0.3.4 | 2026-02-12 |
 | [surrealdb/surrealfs](https://github.com/surrealdb/surrealfs) | -- | 2026-01-29 |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-19.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-22.
 
 Machine-readable provenance: `SOURCES.json`.
 

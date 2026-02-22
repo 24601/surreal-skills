@@ -3,6 +3,27 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.3] - 2026-02-22
+
+### Added
+- Nightly upstream freshness check GHA workflow (.github/workflows/upstream-check.yml)
+  - Runs at 06:00 UTC daily, auto-creates/updates GitHub issue when repos drift
+  - Manual trigger via workflow_dispatch
+- ClawHub/OpenClaw publishing (clawhub.ai registry)
+- Security metadata in SKILL.md frontmatter (no_network, no_credentials, scripts_auditable, etc.)
+- Registries section in README with skills.sh, ClawHub, OpenClaw install commands
+- Security properties table in README
+- GitHub topics: openclaw, clawhub, agentskills (replacing lower-value topics)
+- Opened surrealdb/surrealdb#6958 for community resource listing
+
+### Changed
+- Synced upstream sources to latest HEAD (snapshot 2026-02-22):
+  - Surrealist v3.7.1 -> v3.7.2 (migration export fix, misc UI fixes)
+  - surrealdb.js WASM SDK updated to 3.x, WebWorker Vite compatibility fix
+- Updated provenance tables in AGENTS.md, SKILL.md, README.md
+- Updated sub-skills with provenance metadata and corrected upstream CLI syntax
+- Updated repo description and homepage on GitHub
+
 ## [1.0.2] - 2026-02-19
 
 ### Added

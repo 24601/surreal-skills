@@ -417,14 +417,14 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 | Repository | Release | SHA (short) | Snapshot Date | Rules Affected |
 |------------|---------|-------------|---------------|----------------|
 | surrealdb/surrealdb | v3.0.0 | `2e0a61fd4daf` | 2026-02-19 | surrealql, data-modeling, security, performance, deployment, surrealism |
-| surrealdb/surrealist | v3.7.1 | `c47de27db8d5` | 2026-02-19 | surrealist |
-| surrealdb/surrealdb.js | v1.3.2 | `d4f8bae88360` | 2026-02-18 | sdks |
-| surrealdb/surrealdb.js (v2 beta) | v2.0.0-beta.1 | `6383698daccf` | 2026-02-17 | sdks |
+| surrealdb/surrealist | v3.7.2 | `a87e89e23796` | 2026-02-21 | surrealist |
+| surrealdb/surrealdb.js | v1.3.2 | `48894dfe70bd` | 2026-02-20 | sdks |
+| surrealdb/surrealdb.js (v2 beta) | v2.0.0-beta.1 | `48894dfe70bd` | 2026-02-20 | sdks |
 | surrealdb/surrealdb.py | v1.0.8 | `1ff4470e6ec0` | 2026-02-03 | sdks |
 | surrealdb/surrealdb.go | v1.3.0 | `89d0f8d1b4c6` | 2026-02-12 | sdks |
 | surrealdb/surreal-sync | v0.3.4 | `8166b2b041b1` | 2026-02-12 | surreal-sync |
 | surrealdb/surrealfs | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-19.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-22.
 
 Full provenance data: `SOURCES.json` (machine-readable).

@@ -305,23 +305,34 @@ These variables are also recognized by the surreal CLI and official SurrealDB SD
 
 ## Source Provenance
 
-This skill was built on **2026-02-19** from these upstream sources. Use `check_upstream.py`
+This skill was built on **2026-02-22** from these upstream sources. Use `check_upstream.py`
 to detect what changed since this snapshot for incremental updates.
 
 | Repository | Release | SHA | Snapshot Date | Rules Affected |
 |------------|---------|-----|---------------|----------------|
 | [surrealdb/surrealdb](https://github.com/surrealdb/surrealdb) | v3.0.0 | `2e0a61fd4daf` | 2026-02-19 | surrealql, data-modeling, security, performance, deployment, surrealism |
-| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | v3.7.1 | `c47de27db8d5` | 2026-02-19 | surrealist |
-| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v1.3.2 | `d4f8bae88360` | 2026-02-18 | sdks |
-| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) (v2 beta) | v2.0.0-beta.1 | `6383698daccf` | 2026-02-17 | sdks |
+| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | v3.7.2 | `a87e89e23796` | 2026-02-21 | surrealist |
+| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v1.3.2 | `48894dfe70bd` | 2026-02-20 | sdks |
+| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) (v2 beta) | v2.0.0-beta.1 | `48894dfe70bd` | 2026-02-20 | sdks |
 | [surrealdb/surrealdb.py](https://github.com/surrealdb/surrealdb.py) | v1.0.8 | `1ff4470e6ec0` | 2026-02-03 | sdks |
 | [surrealdb/surrealdb.go](https://github.com/surrealdb/surrealdb.go) | v1.3.0 | `89d0f8d1b4c6` | 2026-02-12 | sdks |
 | [surrealdb/surreal-sync](https://github.com/surrealdb/surreal-sync) | v0.3.4 | `8166b2b041b1` | 2026-02-12 | surreal-sync |
 | [surrealdb/surrealfs](https://github.com/surrealdb/surrealfs) | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-19.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-22.
 
 Machine-readable provenance: [`SOURCES.json`](SOURCES.json).
+
+## Registries
+
+This skill is published to multiple agent skill registries:
+
+| Registry | Install Command |
+|----------|----------------|
+| [skills.sh](https://skills.sh) | `npx skills add 24601/surreal-skills` |
+| [ClawHub](https://clawhub.ai) | `npx clawhub install surrealdb` |
+| [OpenClaw / Clawdbot](https://github.com/openclaw) | `clawhub install surrealdb` |
+| GitHub | `git clone https://github.com/24601/surreal-skills.git` |
 
 ## Contributing
 
@@ -331,7 +342,20 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and PR
 
 To report a vulnerability, use [GitHub Security Advisories](https://github.com/24601/surreal-skills/security/advisories/new). See [SECURITY.md](SECURITY.md) for details.
 
-This skill contains no obfuscated code, no binary blobs, and no minified scripts. Every file is readable Python or Markdown. Scripts use PEP 723 inline metadata and are executed via `uv run` with explicit dependency declarations.
+This skill declares the following security properties in `SKILL.md` frontmatter:
+
+| Property | Value | Meaning |
+|----------|-------|---------|
+| `no_network` | true | Rules and references do not make network calls |
+| `no_credentials` | true | No API keys, tokens, or secrets stored in the skill |
+| `no_env_write` | true | Scripts do not modify environment variables |
+| `no_file_write` | true | Rules are read-only; scripts write only to stdout/stderr |
+| `no_shell_exec` | false | Scripts invoke `surreal` CLI and `gh` for health checks |
+| `scripts_auditable` | true | All scripts are readable Python with no obfuscation |
+| `scripts_use_pep723` | true | Dependencies declared inline via PEP 723, no requirements.txt |
+| `no_obfuscated_code` | true | No obfuscated, encoded, or encrypted code |
+| `no_binary_blobs` | true | No compiled binaries or WASM files |
+| `no_minified_scripts` | true | No minified JavaScript or compressed code |
 
 ## License
 
@@ -341,4 +365,4 @@ This skill contains no obfuscated code, no binary blobs, and no minified scripts
 
 Built for the [SurrealDB](https://surrealdb.com) community. SurrealDB is created and maintained by [SurrealDB Ltd](https://github.com/surrealdb/surrealdb).
 
-Skill framework powered by [skills.sh](https://skills.sh).
+Published on [skills.sh](https://skills.sh), [ClawHub](https://clawhub.ai), and [GitHub](https://github.com/24601/surreal-skills).

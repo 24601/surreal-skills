@@ -313,6 +313,12 @@ The v2 SDK is a ground-up rewrite with an engine-based architecture, multi-sessi
 support, query builder patterns, streaming responses, and automatic token refresh.
 The v1 API above remains the stable release.
 
+**Recent changes** (since v2.0.0-beta.1):
+- WASM SDK updated to SurrealDB 3.x embedded engine
+- Fixed WebWorker Vite compatibility (`createWasmWorkerEngines` now works with Vite bundler)
+- Bumped minimum SurrealDB version requirement
+- Updated package exports for better tree-shaking
+
 ### Installation
 
 ```bash

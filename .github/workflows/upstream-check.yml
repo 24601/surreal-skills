@@ -1,0 +1,101 @@
+name: Upstream Freshness Check
+
+on:
+  schedule:
+    # Run at 06:00 UTC every day
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Check upstream repos
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uv run scripts/check_upstream.py --json > /tmp/upstream-report.json 2>/dev/null
+          STALE_COUNT=$(jq '.stale_count' /tmp/upstream-report.json)
+          echo "stale_count=$STALE_COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$STALE_COUNT" -gt 0 ]; then
+            RULES=$(jq -r '.rules_to_update | join(", ")' /tmp/upstream-report.json)
+            echo "rules_to_update=$RULES" >> "$GITHUB_OUTPUT"
+
+            DETAILS=""
+            for repo in $(jq -r '.repos[] | select(.status == "changed") | .repo' /tmp/upstream-report.json); do
+              commits=$(jq -r --arg r "$repo" '.repos[] | select(.repo == $r) | .commits_behind' /tmp/upstream-report.json)
+              baseline=$(jq -r --arg r "$repo" '.repos[] | select(.repo == $r) | .baseline_sha' /tmp/upstream-report.json)
+              current=$(jq -r --arg r "$repo" '.repos[] | select(.repo == $r) | .current_sha' /tmp/upstream-report.json)
+              DETAILS="${DETAILS}- **${repo}**: ${commits} new commits (${baseline} -> ${current})\n"
+            done
+            echo "details<<EOF" >> "$GITHUB_OUTPUT"
+            echo -e "$DETAILS" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create issue if stale
+        if: steps.check.outputs.stale_count > 0
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check for existing open issue to avoid duplicates
+          EXISTING=$(gh issue list --label "upstream-update" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$(cat <<BODY
+          ## Nightly Upstream Check -- $(date -u +%Y-%m-%d)
+
+          ${{ steps.check.outputs.stale_count }} upstream repo(s) have new commits.
+
+          **Changed repos:**
+          ${{ steps.check.outputs.details }}
+          **Rules to review:** ${{ steps.check.outputs.rules_to_update }}
+
+          Run \`uv run scripts/check_upstream.py\` locally for full details.
+          BODY
+          )"
+          else
+            gh issue create \
+              --title "Upstream update: ${{ steps.check.outputs.stale_count }} repo(s) changed" \
+              --label "upstream-update" \
+              --body "$(cat <<BODY
+          ## Nightly Upstream Check -- $(date -u +%Y-%m-%d)
+
+          ${{ steps.check.outputs.stale_count }} upstream repo(s) have new commits since the last skill snapshot.
+
+          **Changed repos:**
+          ${{ steps.check.outputs.details }}
+          **Rules to review:** ${{ steps.check.outputs.rules_to_update }}
+
+          ### Next steps
+          1. Run \`uv run scripts/check_upstream.py\` to see full diff
+          2. Review changelogs for each changed repo
+          3. Update affected rules files
+          4. Bump SOURCES.json SHAs
+          5. Release new skill version
+          BODY
+          )"
+          fi
+
+      - name: Summary
+        run: |
+          echo "### Upstream Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check.outputs.stale_count }}" = "0" ]; then
+            echo "All upstream sources are current. No updates needed." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "${{ steps.check.outputs.stale_count }} repo(s) have new commits." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Rules to review:** ${{ steps.check.outputs.rules_to_update }}" >> $GITHUB_STEP_SUMMARY
+          fi

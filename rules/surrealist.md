@@ -2,6 +2,8 @@
 
 Surrealist is the official graphical management interface for SurrealDB. It is available as a web application at app.surrealdb.com and as a standalone desktop application built with Tauri.
 
+Current version: **v3.7.2** (2026-02-21). Fixes migration exports and miscellaneous UI issues.
+
 ---
 
 ## Overview
