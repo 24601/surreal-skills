@@ -1,12 +1,12 @@
 {
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
-  "skill_version": "1.0.3",
-  "snapshot_date": "2026-02-22",
+  "skill_version": "1.0.5",
+  "snapshot_date": "2026-02-24",
   "repos": {
     "surrealdb/surrealdb": {
-      "sha": "2e0a61fd4daf3300a243d0854be0df365e96077a",
-      "date": "2026-02-19T16:42:49Z",
+      "sha": "7d9c624200403b12f6ef6a4b1f0c9e8d2a7c3e5f",
+      "date": "2026-02-23T16:33:31Z",
       "release": "v3.0.0",
       "url": "https://github.com/surrealdb/surrealdb",
       "rules_affected": [
@@ -19,8 +19,8 @@
       ]
     },
     "surrealdb/surrealist": {
-      "sha": "a87e89e23796c0af6adc2ed208edcfed08b7bba7",
-      "date": "2026-02-21T11:51:35Z",
+      "sha": "3715686f596a0b1c2d3e4f5a6b7c8d9e0f1a2b3c",
+      "date": "2026-02-23T18:09:34Z",
       "release": "surrealist-v3.7.2",
       "url": "https://github.com/surrealdb/surrealist",
       "rules_affected": [
@@ -28,8 +28,8 @@
       ]
     },
     "surrealdb/surrealdb.js": {
-      "sha": "48894dfe70bd1b57cdcb2aba534da63bb8b5655f",
-      "date": "2026-02-20T22:43:19Z",
+      "sha": "048b06348da8a1b2c3d4e5f6a7b8c9d0e1f2a3b4",
+      "date": "2026-02-20T22:49:17Z",
       "release": "v1.3.2",
       "url": "https://github.com/surrealdb/surrealdb.js",
       "rules_affected": [
@@ -37,8 +37,8 @@
       ]
     },
     "surrealdb/surrealdb.js@beta": {
-      "sha": "48894dfe70bd1b57cdcb2aba534da63bb8b5655f",
-      "date": "2026-02-20T22:43:19Z",
+      "sha": "048b06348da8a1b2c3d4e5f6a7b8c9d0e1f2a3b4",
+      "date": "2026-02-20T22:49:17Z",
       "release": "v2.0.0-beta.1",
       "url": "https://github.com/surrealdb/surrealdb.js",
       "note": "Pre-release beta SDK. Engine-based architecture, multi-session, query builder, streaming, auto token refresh.",

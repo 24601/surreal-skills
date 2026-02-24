@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.5] - 2026-02-24
+
+### Added
+- Native GitHub Copilot agent skill support (.github/skills/surrealdb/SKILL.md)
+  - Follows the open Agent Skills standard (agentskills.io)
+  - Auto-loads in VS Code, Copilot CLI, and Copilot coding agent when SurrealDB context detected
+  - Available as `/surrealdb` slash command in Copilot chat
+  - Progressive disclosure: metadata -> instructions -> rule files on demand
+  - Supports project-level (.github/skills/) and personal (~/.copilot/skills/) installation
+  - Includes `argument-hint` for guided slash command usage
+  - References all 12 rule files via relative paths for Copilot resource loading
+  - Quick reference section with SurrealQL essentials for immediate context
+
+### Changed
+- README: replaced "append AGENTS.md to copilot-instructions.md" with native Copilot
+  agent skills instructions (3 install methods: project, personal, /skills menu)
+- README: added Cursor .cursor/skills/ integration (same Agent Skills standard)
+- Upstream sync to 2026-02-24:
+  - surrealdb/surrealdb: +2 commits (error serialization fix, CI fix)
+  - surrealdb/surrealist: +1 commit (strict sandbox option fix)
+  - surrealdb/surrealdb.js: +2 commits (version bumps)
+- SOURCES.json baselines updated to current HEAD SHAs
+
 ## [1.0.4] - 2026-02-22
 
 ### Security Fixes (addressing OpenClaw/VirusTotal scan findings)

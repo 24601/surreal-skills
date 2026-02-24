@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/24601/surreal-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/24601/surreal-skills/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)](https://github.com/24601/surreal-skills/releases)
+[![Version](https://img.shields.io/badge/version-1.0.5-blue.svg)](https://github.com/24601/surreal-skills/releases)
 [![skills.sh](https://img.shields.io/badge/skills.sh-surrealdb-purple.svg)](https://skills.sh)
 
 Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, WASM extensions, and the full SurrealDB ecosystem.
@@ -120,17 +120,57 @@ npx skills add 24601/surreal-skills -a pi -g -y
 npx skills add 24601/surreal-skills -a openclaw -g -y
 ```
 
-### IDE Integrations
+### GitHub Copilot (native agent skills)
+
+Copilot supports the [Agent Skills standard](https://agentskills.io/) natively in VS Code,
+Copilot CLI, and the Copilot coding agent. This skill ships a Copilot-native
+`.github/skills/surrealdb/SKILL.md` that Copilot auto-loads when your prompt
+is SurrealDB-related.
+
+**Option 1 -- Project-level (recommended for teams)**
+
+Copy the entire skill into your project's `.github/skills/` directory:
 
 ```bash
-# GitHub Copilot -- append AGENTS.md to your instructions file
-cat ~/.claude/skills/surrealdb/AGENTS.md >> .github/copilot-instructions.md
+# From the surreal-skills repo
+cp -r .github/skills/surrealdb <your-project>/.github/skills/surrealdb
+cp -r rules/ <your-project>/.github/skills/surrealdb/rules/
+```
 
-# Cursor -- append AGENTS.md to .cursorrules
-cat ~/.claude/skills/surrealdb/AGENTS.md >> .cursorrules
+Copilot discovers this automatically -- no config needed. Type `/surrealdb` in
+chat or let Copilot auto-load it when it detects SurrealQL context.
+
+**Option 2 -- Personal (all projects)**
+
+Clone into `~/.copilot/skills/`:
+
+```bash
+git clone https://github.com/24601/surreal-skills.git ~/.copilot/skills/surrealdb
+```
+
+Or add a custom search location in VS Code settings:
+
+```json
+{
+  "chat.agentSkillsLocations": [
+    "~/.copilot/skills"
+  ]
+}
+```
+
+**Option 3 -- Use `/skills` menu**
+
+Type `/skills` in Copilot chat to open the Configure Skills menu, then browse
+to the cloned `surrealdb` directory.
+
+### Other IDE Integrations
+
+```bash
+# Cursor -- add skill to .cursor/skills/ (same Agent Skills standard)
+cp -r .github/skills/surrealdb <your-project>/.cursor/skills/surrealdb
 
 # Windsurf -- append AGENTS.md to .windsurfrules
-cat ~/.claude/skills/surrealdb/AGENTS.md >> .windsurfrules
+cat AGENTS.md >> .windsurfrules
 
 # Cline / Continue -- reference in your config
 # Add the AGENTS.md path to your system prompt configuration
