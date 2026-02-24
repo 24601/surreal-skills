@@ -24,6 +24,10 @@ requires:
     - name: docker
       purpose: "Containerized SurrealDB instances"
       optional: true
+    - name: gh
+      install: "brew install gh"
+      purpose: "GitHub CLI -- used only by check_upstream.py for comparing upstream repo SHAs"
+      optional: true
   env_vars:
     - name: SURREAL_ENDPOINT
       purpose: "SurrealDB server URL"
@@ -47,7 +51,7 @@ requires:
       sensitive: false
 security:
   no_network: false
-  no_network_note: "Scripts connect to a user-specified SurrealDB endpoint for health checks and schema introspection. No external/third-party network calls."
+  no_network_note: "doctor.py and schema.py connect to a user-specified SurrealDB endpoint (WebSocket) for health checks and schema introspection. check_upstream.py calls GitHub API via gh CLI to compare upstream repo SHAs. No other third-party network calls."
   no_credentials: false
   no_credentials_note: "Scripts accept SURREAL_USER/SURREAL_PASS for DB authentication. No credentials are stored in the skill itself."
   no_env_write: true

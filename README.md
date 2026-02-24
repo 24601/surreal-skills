@@ -389,11 +389,11 @@ This skill declares the following security properties in `SKILL.md` frontmatter:
 
 | Property | Value | Meaning |
 |----------|-------|---------|
-| `no_network` | **false** | Scripts connect to a user-specified SurrealDB endpoint for health checks and schema introspection. No third-party network calls. |
+| `no_network` | **false** | `doctor.py`/`schema.py` connect to user-specified SurrealDB endpoint (WebSocket). `check_upstream.py` calls GitHub API via `gh` CLI. No other third-party calls. |
 | `no_credentials` | **false** | Scripts accept `SURREAL_USER`/`SURREAL_PASS` for DB auth. No credentials are stored in the skill itself. |
 | `no_env_write` | true | Scripts do not modify environment variables |
 | `no_file_write` | true | Rules are read-only; scripts write only to stdout/stderr |
-| `no_shell_exec` | false | Scripts invoke `surreal` CLI for health checks |
+| `no_shell_exec` | false | Scripts invoke `surreal` CLI and `gh` CLI |
 | `scripts_auditable` | true | All scripts are readable Python with no obfuscation |
 | `scripts_use_pep723` | true | Dependencies declared inline via PEP 723, no requirements.txt |
 | `no_obfuscated_code` | true | No obfuscated, encoded, or encrypted code |
@@ -423,11 +423,13 @@ Declared in `SKILL.md` `requires.binaries`:
 | `python3` (>=3.10) | Yes | System package manager |
 | `uv` | Yes | `brew install uv` or `pip install uv` |
 | `docker` | No | Optional for containerized instances |
+| `gh` | No | Optional -- only used by `check_upstream.py` to compare upstream repo SHAs via GitHub API |
 
 ### Script Safety
 
 - All user-provided table names are validated against `[a-zA-Z_][a-zA-Z0-9_]*` before interpolation into SurrealQL queries (prevents SurrealQL injection)
-- Scripts connect only to the endpoint specified by the user (via env var or CLI flag)
+- `doctor.py` and `schema.py` connect only to the SurrealDB endpoint specified by the user (via env var or CLI flag)
+- `check_upstream.py` calls GitHub API via `gh` CLI to compare upstream repo SHAs (optional maintenance script, not needed for normal usage)
 - No data is sent to third-party services
 - Credential warning labels are present on all `root/root` examples
 
