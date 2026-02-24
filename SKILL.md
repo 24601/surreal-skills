@@ -3,7 +3,7 @@ name: surrealdb
 description: "Expert SurrealDB 3 architect and developer skill. SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust), Surrealism WASM extensions, and full ecosystem (Surrealist, Surreal-Sync, SurrealFS). Universal skill for 30+ AI agents."
 license: MIT
 metadata:
-  version: "1.0.5"
+  version: "1.0.6"
   author: "24601"
   snapshot_date: "2026-02-24"
   repository: "https://github.com/24601/surreal-skills"

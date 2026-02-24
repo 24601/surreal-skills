@@ -2033,3 +2033,29 @@ COMMIT TRANSACTION;
 - `RETURN NONE` suppresses output; omitting `RETURN` returns the affected records by default
 - `DELETE table` deletes all records; `REMOVE TABLE table` removes the table definition entirely
 - Graph edges created with `RELATE` are themselves records in a table; they can be queried directly
+- Indexes cannot be created on computed fields (enforced since v3.0.1)
+- Durations can be multiplied/divided by numbers and incremented/decremented (since v3.0.1)
+
+---
+
+## v3.0.1 Patch Notes (2026-02-24)
+
+Key fixes and changes in SurrealDB v3.0.1:
+
+- **Duration arithmetic**: Durations can now be multiplied and divided by numbers, and incremented/decremented like numbers (`1h * 2` = `2h`, `30m + 15m` = `45m`)
+- **Computed field index prevention**: Creating indexes on computed fields is now correctly rejected (prevents silent index corruption)
+- **Record ID dereference fix**: Record IDs are now properly dereferenced when a field is computed on them
+- **Error serialization fix**: Error objects are correctly serialized across all protocols
+- **GraphQL string enum fix**: String enum literals now work correctly in GraphQL queries
+- **Root user permission fix**: Permission check conditions for root users are now evaluated correctly
+- **Parallel index compaction**: Index compaction now runs in parallel across distinct indexes (performance improvement)
+- **WASM compatibility**: Improved compatibility for embedded WASM deployments
+- **RouterFactory trait**: New `RouterFactory` trait exposed for embedders to compose custom HTTP routers (advanced)
+
+### v3.1.0-alpha (in progress on main)
+
+The main branch is tracking toward v3.1.0 with work on:
+- Code coverage for language tests
+- Test fixtures for v3.0 compatibility
+- Query planner deduplication and tidying
+- Environment variable handling improvements

@@ -48,8 +48,8 @@ surreal start --log info --user root --pass root surrealkv+versioned:./mydata.db
 # TiKV distributed storage
 surreal start --log info --user root --pass root tikv://pd0:2379
 
-# Custom bind address and port
-surreal start --bind 0.0.0.0:9000 --user root --pass root memory
+# Custom bind address and port (use 127.0.0.1 for local dev, 0.0.0.0 only in containers)
+surreal start --bind 127.0.0.1:9000 --user root --pass root memory
 
 # With TLS
 surreal start --user root --pass root \
@@ -122,20 +122,20 @@ surreal upgrade --path ./mydata.db
 ```bash
 # In-memory
 docker run --rm -p 8000:8000 \
-  surrealdb/surrealdb:v3.0.0 \
+  surrealdb/surrealdb:v3 \
   start --log info --user root --pass root memory
 
 # With persistent volume
 docker run --rm -p 8000:8000 \
   -v $(pwd)/data:/data \
-  surrealdb/surrealdb:v3.0.0 \
+  surrealdb/surrealdb:v3 \
   start --log info --user root --pass root rocksdb:/data/mydb
 ```
 
 ### Dockerfile
 
 ```dockerfile
-FROM surrealdb/surrealdb:v3.0.0
+FROM surrealdb/surrealdb:v3
 
 # Default environment variables
 ENV SURREAL_LOG=info
@@ -159,7 +159,7 @@ version: "3.8"
 
 services:
   surrealdb:
-    image: surrealdb/surrealdb:v3.0.0
+    image: surrealdb/surrealdb:v3
     command: start --log info --user root --pass root surrealkv:/data/db
     ports:
       - "8000:8000"
@@ -243,7 +243,7 @@ services:
       - pd0
 
   surrealdb:
-    image: surrealdb/surrealdb:v3.0.0
+    image: surrealdb/surrealdb:v3
     command: start --log info --user root --pass root tikv://pd0:2379
     ports:
       - "8000:8000"
@@ -333,7 +333,7 @@ spec:
     spec:
       containers:
         - name: surrealdb
-          image: surrealdb/surrealdb:v3.0.0
+          image: surrealdb/surrealdb:v3
           args:
             - start
             - --log
@@ -401,7 +401,7 @@ spec:
     spec:
       containers:
         - name: surrealdb
-          image: surrealdb/surrealdb:v3.0.0
+          image: surrealdb/surrealdb:v3
           args:
             - start
             - --log
@@ -675,7 +675,7 @@ spec:
         spec:
           containers:
             - name: backup
-              image: surrealdb/surrealdb:v3.0.0
+              image: surrealdb/surrealdb:v3
               command:
                 - /bin/sh
                 - -c

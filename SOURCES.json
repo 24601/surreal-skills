@@ -1,13 +1,14 @@
 {
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
-  "skill_version": "1.0.5",
+  "skill_version": "1.0.6",
   "snapshot_date": "2026-02-24",
   "repos": {
     "surrealdb/surrealdb": {
-      "sha": "7d9c624200403b12f6ef6a4b1f0c9e8d2a7c3e5f",
-      "date": "2026-02-23T16:33:31Z",
-      "release": "v3.0.0",
+      "sha": "4fa92440133d",
+      "date": "2026-02-24T17:26:55Z",
+      "release": "v3.0.1",
+      "main_tracking": "v3.1.0-alpha",
       "url": "https://github.com/surrealdb/surrealdb",
       "rules_affected": [
         "rules/surrealql.md",
@@ -19,8 +20,8 @@
       ]
     },
     "surrealdb/surrealist": {
-      "sha": "3715686f596a0b1c2d3e4f5a6b7c8d9e0f1a2b3c",
-      "date": "2026-02-23T18:09:34Z",
+      "sha": "9c29f70b4457",
+      "date": "2026-02-24T18:47:56Z",
       "release": "surrealist-v3.7.2",
       "url": "https://github.com/surrealdb/surrealist",
       "rules_affected": [
@@ -28,8 +29,8 @@
       ]
     },
     "surrealdb/surrealdb.js": {
-      "sha": "048b06348da8a1b2c3d4e5f6a7b8c9d0e1f2a3b4",
-      "date": "2026-02-20T22:49:17Z",
+      "sha": "0548db4ae402",
+      "date": "2026-02-24T18:48:46Z",
       "release": "v1.3.2",
       "url": "https://github.com/surrealdb/surrealdb.js",
       "rules_affected": [
@@ -37,18 +38,18 @@
       ]
     },
     "surrealdb/surrealdb.js@beta": {
-      "sha": "048b06348da8a1b2c3d4e5f6a7b8c9d0e1f2a3b4",
-      "date": "2026-02-20T22:49:17Z",
-      "release": "v2.0.0-beta.1",
+      "sha": "0548db4ae402",
+      "date": "2026-02-24T18:48:46Z",
+      "release": "v2.0.0-beta.2",
       "url": "https://github.com/surrealdb/surrealdb.js",
-      "note": "Pre-release beta SDK. Engine-based architecture, multi-session, query builder, streaming, auto token refresh.",
+      "note": "Pre-release beta SDK. Engine-based architecture, multi-session, query builder, streaming, auto token refresh. Minimum SurrealDB version: 2.1.0.",
       "rules_affected": [
         "rules/sdks.md"
       ]
     },
     "surrealdb/surrealdb.py": {
-      "sha": "1ff4470e6ec0df85386e145360a7e804e9d85763",
-      "date": "2026-02-03T11:57:03Z",
+      "sha": "57473ef3742c",
+      "date": "2026-02-24T14:32:26Z",
       "release": "v1.0.8",
       "url": "https://github.com/surrealdb/surrealdb.py",
       "rules_affected": [
@@ -56,7 +57,7 @@
       ]
     },
     "surrealdb/surrealdb.go": {
-      "sha": "89d0f8d1b4c645b5d21af7260f138edbc15c0a96",
+      "sha": "89d0f8d1b4c6",
       "date": "2026-02-12T03:16:42Z",
       "release": "v1.3.0",
       "url": "https://github.com/surrealdb/surrealdb.go",
@@ -65,7 +66,7 @@
       ]
     },
     "surrealdb/surreal-sync": {
-      "sha": "8166b2b041b160cc477269fbce7ab3b0dfc02fa7",
+      "sha": "8166b2b041b1",
       "date": "2026-02-12T03:22:32Z",
       "release": "v0.3.4",
       "url": "https://github.com/surrealdb/surreal-sync",
@@ -74,7 +75,7 @@
       ]
     },
     "surrealdb/surrealfs": {
-      "sha": "0008a3a94dbebbd28091937ba2fb44a112c98cc2",
+      "sha": "0008a3a94dbe",
       "date": "2026-01-29T18:39:18Z",
       "release": null,
       "url": "https://github.com/surrealdb/surrealfs",
@@ -86,7 +87,7 @@
   "docs": {
     "surrealdb.com/docs": {
       "url": "https://surrealdb.com/docs",
-      "snapshot_date": "2026-02-19",
+      "snapshot_date": "2026-02-24",
       "sections_used": [
         "surrealdb/surrealql/statements",
         "surrealdb/surrealql/functions",

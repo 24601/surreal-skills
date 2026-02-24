@@ -3,6 +3,28 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.6] - 2026-02-24
+
+### Added
+- SurrealDB v3.0.1 patch notes in rules/surrealql.md: duration arithmetic, computed
+  field index prevention, record ID dereference fix, error serialization, GraphQL
+  string enum fix, root user permission fix, parallel index compaction, WASM compat,
+  RouterFactory trait for embedders
+- v3.1.0-alpha tracking notes (main branch: planner tidy-up, test fixtures, code coverage)
+- JS SDK v2.0.0-beta.2 changes: ne (!=) operator, error cause property, createWorker
+  factory for Vite-compatible Web Worker engines, minimum SurrealDB version bump to 2.1.0
+- Python SDK error handling improvements (#233)
+
+### Changed
+- All upstream repos synced to HEAD as of 2026-02-24
+- SOURCES.json: surrealdb release updated v3.0.0 -> v3.0.1, added main_tracking field
+- SOURCES.json: surrealdb.js@beta release updated beta.1 -> beta.2
+- Docker image tags updated from v3.0.0 to v3 (tracks latest v3.x)
+- AGENTS.md: fixed remaining 0.0.0.0 bind address to 127.0.0.1
+- rules/deployment.md: fixed remaining 0.0.0.0 bind to 127.0.0.1 with comment
+- rules/sdks.md: createWasmWorkerEngines example updated for beta.2 createWorker factory
+- rules/sdks.md: added ne operator to Expressions API imports
+
 ## [1.0.5] - 2026-02-24
 
 ### Added

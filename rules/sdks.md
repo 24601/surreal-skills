@@ -305,19 +305,26 @@ await db.close();
 
 ## JavaScript / TypeScript SDK v2 (beta)
 
-**Package**: `surrealdb@beta` on npm (v2.0.0-beta.1+)
+**Package**: `surrealdb@beta` on npm (v2.0.0-beta.2)
 **Status**: Pre-release beta -- API may change before GA. Use for new projects or
 early adoption; production apps should evaluate stability requirements.
+**Minimum SurrealDB version**: 2.1.0 (bumped in beta.2)
 
 The v2 SDK is a ground-up rewrite with an engine-based architecture, multi-session
 support, query builder patterns, streaming responses, and automatic token refresh.
 The v1 API above remains the stable release.
 
-**Recent changes** (since v2.0.0-beta.1):
-- WASM SDK updated to SurrealDB 3.x embedded engine
-- Fixed WebWorker Vite compatibility (`createWasmWorkerEngines` now works with Vite bundler)
-- Bumped minimum SurrealDB version requirement
+**Changes in v2.0.0-beta.2** (2026-02-20):
+- Fixed WebWorker Vite compatibility (`createWasmWorkerEngines` now requires `createWorker` factory)
+- Bumped minimum SurrealDB version to 2.1.0
 - Updated package exports for better tree-shaking
+- Added `ne` (`!=`) operator to Expressions API
+- Added error `cause` property to SurrealDB errors for better debugging
+- Improved test infrastructure
+
+**Changes in beta.1** (for reference):
+- WASM SDK updated to SurrealDB 3.x embedded engine
+- Initial engine-based architecture
 
 ### Installation
 
@@ -361,10 +368,15 @@ const db = new Surreal({
 });
 
 // WASM in a Web Worker (offloads DB ops from main thread)
+// NOTE: beta.2+ requires createWorker factory for Vite compatibility
+import WorkerAgent from "@surrealdb/wasm/worker?worker";
+
 const db = new Surreal({
   engines: {
     ...createRemoteEngines(),
-    ...createWasmWorkerEngines(),
+    ...createWasmWorkerEngines({
+      createWorker: () => new WorkerAgent(),
+    }),
   },
 });
 ```
@@ -525,7 +537,7 @@ for await (const frame of stream) {
 Compose dynamic, param-safe WHERE expressions:
 
 ```typescript
-import { eq, or, and, between, inside, raw, surql } from "surrealdb";
+import { eq, ne, or, and, between, inside, raw, surql } from "surrealdb";
 
 // Use with query builder .where()
 await db.select(usersTable).where(eq("active", true));
@@ -639,8 +651,10 @@ const db = new Surreal({
 
 ## Python SDK
 
-**Package**: `surrealdb` on PyPI
+**Package**: `surrealdb` on PyPI (v1.0.8)
 **Repository**: github.com/surrealdb/surrealdb.py
+
+**Recent changes**: Improved error handling with structured error types (#233).
 
 ### Installation
 

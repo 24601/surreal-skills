@@ -137,10 +137,10 @@ Migration steps:
 # Health check
 uv run {baseDir}/scripts/doctor.py
 
-# Start dev server
-surreal start memory --user root --pass root --bind 0.0.0.0:8000
+# Start dev server (LOCAL DEV ONLY -- use scoped credentials in production)
+surreal start memory --user root --pass root --bind 127.0.0.1:8000
 
-# Connect
+# Connect (local dev)
 surreal sql --endpoint http://localhost:8000 --user root --pass root --ns test --db test
 ```
 
@@ -400,7 +400,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.0.0+ |
-| Skill version | 1.0.5 |
+| Skill version | 1.0.6 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 
