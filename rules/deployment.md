@@ -100,7 +100,7 @@ surreal upgrade --path ./mydata.db
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--bind` | Listen address and port | `0.0.0.0:8000` |
+| `--bind` | Listen address and port | `0.0.0.0:8000` (use `127.0.0.1:8000` for local dev) |
 | `--log` | Log level (none, full, error, warn, info, debug, trace) | `info` |
 | `--user` | Root username | Required |
 | `--pass` | Root password | Required |

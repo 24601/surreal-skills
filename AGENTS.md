@@ -48,7 +48,7 @@ uv run {baseDir}/scripts/onboard.py --agent
    -> Reference rules/graph-queries.md if domain has relationships
    -> Reference rules/vector-search.md if semantic search needed
 
-5. Apply schema:
+5. Apply schema (local dev credentials -- use scoped users in production):
    surreal import --endpoint $SURREAL_ENDPOINT --user root --pass root \
      --ns <ns> --db <db> schema.surql
 
@@ -400,7 +400,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.0.0+ |
-| Skill version | 1.0.6 |
+| Skill version | 1.1.0 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 

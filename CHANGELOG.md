@@ -3,6 +3,29 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0] - 2026-02-25
+
+### Major
+- JavaScript SDK v2.0.0 GA released (no longer beta). Updated from beta tag to
+  stable: `npm install surrealdb` (not @beta). Full SurrealDB 3.0.1 support,
+  client-side transactions, multi-session, query builder, streaming responses.
+- Python SDK v2.0.0 released. WebSocket session transaction ID fix, musl Linux
+  support for Alpine/containers, improved error handling, README cleanup.
+
+### Changed
+- rules/sdks.md: JS v2 section title changed from "beta" to "GA -- recommended
+  for new projects". Install commands changed from surrealdb@beta to surrealdb.
+  All @surrealdb/wasm@beta and @surrealdb/node@beta tags removed.
+- rules/sdks.md: Python SDK updated to v2.0.0 with changelog
+- rules/surrealql.md: v3.1.0-alpha tracking updated with error chaining
+  infrastructure (#6969), SurrealValue derive convenience (#6970), wasmtime
+  update (#6973)
+- SOURCES.json: All repos synced to HEAD 2026-02-25. Removed surrealdb.js@beta
+  entry (v2 is now GA). surrealdb.js release v2.0.0, surrealdb.py release v2.0.0.
+- Additional credential warning markers on remaining unwarned root/root examples
+  in SKILL.md workflow section and AGENTS.md decision tree
+- deployment.md: --bind flag default annotated with local dev recommendation
+
 ## [1.0.6] - 2026-02-24
 
 ### Added

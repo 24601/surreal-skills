@@ -303,37 +303,38 @@ await db.close();
 
 ---
 
-## JavaScript / TypeScript SDK v2 (beta)
+## JavaScript / TypeScript SDK v2 (GA -- recommended for new projects)
 
-**Package**: `surrealdb@beta` on npm (v2.0.0-beta.2)
-**Status**: Pre-release beta -- API may change before GA. Use for new projects or
-early adoption; production apps should evaluate stability requirements.
-**Minimum SurrealDB version**: 2.1.0 (bumped in beta.2)
+**Package**: `surrealdb` on npm (v2.0.0, released 2026-02-25)
+**Status**: General availability. Full SurrealDB 3.0.1 support. Recommended for
+new projects. The v1 API above is maintained but v2 is the future.
 
 The v2 SDK is a ground-up rewrite with an engine-based architecture, multi-session
-support, query builder patterns, streaming responses, and automatic token refresh.
-The v1 API above remains the stable release.
+support, client-side transactions, query builder patterns, streaming responses,
+automatic token refresh, and full SurrealDB 3.0 compatibility.
 
-**Changes in v2.0.0-beta.2** (2026-02-20):
-- Fixed WebWorker Vite compatibility (`createWasmWorkerEngines` now requires `createWorker` factory)
-- Bumped minimum SurrealDB version to 2.1.0
-- Updated package exports for better tree-shaking
-- Added `ne` (`!=`) operator to Expressions API
-- Added error `cause` property to SurrealDB errors for better debugging
-- Improved test infrastructure
-
-**Changes in beta.1** (for reference):
-- WASM SDK updated to SurrealDB 3.x embedded engine
-- Initial engine-based architecture
+**v2.0.0 GA highlights** (2026-02-25):
+- Full SurrealDB 3.0.1 support (embedded WASM and Node engines updated)
+- Engine-based architecture (createRemoteEngines, createNodeEngines, createWasmEngines)
+- Multi-session support (newSession, forkSession, await using)
+- Client-side transactions
+- Automatic token refreshing with refresh token exchange
+- Redesigned live query API with subscribe/async iteration
+- Query builder pattern with chainable methods
+- Expressions API (eq, ne, or, and, between, inside, raw, surql template tag)
+- Diagnostics API for protocol-level inspection
+- Codec visitor API for custom encode/decode
+- User-defined API invocation (.api())
+- Web Worker support via createWasmWorkerEngines with createWorker factory
 
 ### Installation
 
 ```bash
-npm install surrealdb@beta
+npm install surrealdb
 
 # Embedded engines (published in sync with the SDK)
-npm install @surrealdb/node@beta
-npm install @surrealdb/wasm@beta
+npm install @surrealdb/node
+npm install @surrealdb/wasm
 ```
 
 ### Engine Architecture (v2)
@@ -651,10 +652,15 @@ const db = new Surreal({
 
 ## Python SDK
 
-**Package**: `surrealdb` on PyPI (v1.0.8)
+**Package**: `surrealdb` on PyPI (v2.0.0, released 2026-02-25)
 **Repository**: github.com/surrealdb/surrealdb.py
 
-**Recent changes**: Improved error handling with structured error types (#233).
+**v2.0.0 changes**:
+- Version bump to v2.0.0 aligning with JS SDK v2 release
+- Fixed WebSocket session transaction ID bug (#236)
+- Added musl Linux support for Alpine/container deployments (#241)
+- Improved error handling with structured error types (#233)
+- README and dev docs moved to CONTRIBUTING.md (#243)
 
 ### Installation
 

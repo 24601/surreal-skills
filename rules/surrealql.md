@@ -2055,6 +2055,9 @@ Key fixes and changes in SurrealDB v3.0.1:
 ### v3.1.0-alpha (in progress on main)
 
 The main branch is tracking toward v3.1.0 with work on:
+- **Error chaining infrastructure** (#6969): Structured error chains for better debugging
+- **SurrealValue derive convenience** (#6970): Simpler `#[derive(SurrealValue)]` for SDK embedders
+- **wasmtime update** (#6973): Updated WASM runtime for extensions
 - Code coverage for language tests
 - Test fixtures for v3.0 compatibility
 - Query planner deduplication and tidying
