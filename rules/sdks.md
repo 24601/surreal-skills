@@ -652,14 +652,17 @@ const db = new Surreal({
 
 ## Python SDK
 
-**Package**: `surrealdb` on PyPI (v2.0.0, released 2026-02-25)
+**Package**: `surrealdb` on PyPI (v2.0.0-alpha.1, released 2026-02-26)
 **Repository**: github.com/surrealdb/surrealdb.py
+**Status**: Pre-release alpha. SurrealDB 3.x support, Python 3.10+ required (3.9 dropped).
 
-**v2.0.0 changes**:
-- Version bump to v2.0.0 aligning with JS SDK v2 release
+**v2.0.0-alpha.1 changes**:
+- SurrealDB 3.x feature support added (#230)
+- Python 3.9 dropped; minimum is now Python 3.10
 - Fixed WebSocket session transaction ID bug (#236)
 - Added musl Linux support for Alpine/container deployments (#241)
 - Improved error handling with structured error types (#233)
+- Pydantic Logfire instrumentation with code examples (#229)
 - README and dev docs moved to CONTRIBUTING.md (#243)
 
 ### Installation

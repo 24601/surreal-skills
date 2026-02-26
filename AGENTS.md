@@ -225,6 +225,8 @@ SELECT <->mentors<->person.name AS mentorship_peers FROM person:alice;
 
 ```bash
 # 1. Choose storage engine (see rules/deployment.md)
+# NOTE: 0.0.0.0 is correct for production servers behind a firewall/load balancer.
+# For local dev, use 127.0.0.1 instead.
 surreal start rocksdb://data/production.db \
   --user $SURREAL_USER --pass $SURREAL_PASS \
   --bind 0.0.0.0:8000 \
@@ -400,7 +402,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.0.0+ |
-| Skill version | 1.1.0 |
+| Skill version | 1.1.1 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 

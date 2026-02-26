@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.1] - 2026-02-26
+
+### Fixed
+- Python SDK release corrected from v2.0.0 to v2.0.0-alpha.1 (pre-release alpha,
+  not GA). Python 3.9 dropped; minimum is now 3.10. Added Logfire instrumentation note.
+
+### Added
+- SurrealDB v3.1.0-alpha behavior change: SELECT on non-existent records now returns
+  NONE instead of error (#6978). Documented in rules/surrealql.md with migration note.
+
+### Changed
+- SOURCES.json synced to HEAD 2026-02-26 (surrealdb fa22ecf0ae93, surrealdb.py b21302c05565)
+- AGENTS.md: added context comment on production 0.0.0.0 bind address
+
 ## [1.1.0] - 2026-02-25
 
 ### Major

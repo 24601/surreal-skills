@@ -2055,6 +2055,7 @@ Key fixes and changes in SurrealDB v3.0.1:
 ### v3.1.0-alpha (in progress on main)
 
 The main branch is tracking toward v3.1.0 with work on:
+- **Non-existent record returns None** (#6978): `SELECT` on a record that does not exist now returns `NONE` instead of a confusing error. This is a behavior change from v3.0.x where `SELECT person:nonexistent` would raise an error. Code that catches errors on missing records should be updated to check for `NONE` instead.
 - **Error chaining infrastructure** (#6969): Structured error chains for better debugging
 - **SurrealValue derive convenience** (#6970): Simpler `#[derive(SurrealValue)]` for SDK embedders
 - **wasmtime update** (#6973): Updated WASM runtime for extensions
