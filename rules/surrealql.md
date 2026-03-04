@@ -2052,14 +2052,27 @@ Key fixes and changes in SurrealDB v3.0.1:
 - **WASM compatibility**: Improved compatibility for embedded WASM deployments
 - **RouterFactory trait**: New `RouterFactory` trait exposed for embedders to compose custom HTTP routers (advanced)
 
+## v3.0.2 Patch Notes (2026-03-03)
+
+Key fixes and changes in SurrealDB v3.0.2:
+
+- **Non-existent record returns None** (#6978): `SELECT` on a record that does not exist now returns `NONE` instead of a confusing error. Code that catches errors on missing records should be updated to check for `NONE` instead.
+- **Bind parameter resolution in MATCHES** (#6961): Bind parameters now correctly resolve in the `MATCHES (@N@)` operator and `search::score()` function
+- **Datetime setter functions** (#6981): New functions to set individual parts of datetimes (year, month, day, hour, etc.)
+- **Configurable CORS allow list** (#6998): `--allow-origins` flag now supports multiple origins for production CORS configuration
+- **`--tables-exclude` flag** (#6999): New `surreal export --tables-exclude` flag to exclude specific tables from exports
+- **Compound unique index fix** (#7002): Fixed compound unique indexing for multi-field unique constraints
+- **DELETE live event permission fix** (#6992): Permission checks now correctly apply to DELETE events in live queries
+- **DEFINE FUNCTION parsing fix** (#6987): Fixed parsing of `DEFINE FUNCTION` when loading from disk
+- **Transaction timeout enforcement** (#6975): Transaction timeout is now correctly enforced for all queries
+- **RecordIdKeyType::Object serialization** (#6977): Fixed serialization error for object-typed record ID keys
+- **IndexAppending write-write conflicts** (#6982): Fixed write-write conflicts on `ip` keys during index appending
+- **Executor optimizations** (#6995): New executor bug fixes and performance optimizations
+- **SurrealValue for LinkedList/HashSet** (#6968): SDK embedders can now use `SurrealValue` with `LinkedList` and `HashSet` types
+
 ### v3.1.0-alpha (in progress on main)
 
-The main branch is tracking toward v3.1.0 with work on:
-- **Non-existent record returns None** (#6978): `SELECT` on a record that does not exist now returns `NONE` instead of a confusing error. This is a behavior change from v3.0.x where `SELECT person:nonexistent` would raise an error. Code that catches errors on missing records should be updated to check for `NONE` instead.
-- **Error chaining infrastructure** (#6969): Structured error chains for better debugging
-- **SurrealValue derive convenience** (#6970): Simpler `#[derive(SurrealValue)]` for SDK embedders
-- **wasmtime update** (#6973): Updated WASM runtime for extensions
-- Code coverage for language tests
-- Test fixtures for v3.0 compatibility
-- Query planner deduplication and tidying
-- Environment variable handling improvements
+The main branch tracks toward v3.1.0 with ongoing work on:
+- Error chaining infrastructure (#6969)
+- SurrealValue derive convenience (#6970)
+- Timestamp code refactoring (#6892)

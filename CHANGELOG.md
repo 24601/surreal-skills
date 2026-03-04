@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-03-03
+
+### Major
+- SurrealDB v3.0.2 patch release (2026-03-03): 13 fixes/features documented in
+  rules/surrealql.md including None-on-missing-record, bind parameter resolution
+  in MATCHES operator, datetime setter functions, configurable CORS, --tables-exclude
+  export flag, compound unique index fix, DELETE live event permissions, DEFINE
+  FUNCTION parsing fix, transaction timeout enforcement, executor optimizations
+- Go SDK v1.4.0: SurrealDB v3 structured error handling (new ServerError type),
+  identifier sanitization in restore to prevent SQL injection
+- JS SDK: RPC query stat duration parsing fix (#560)
+
+### Changed
+- SOURCES.json synced to HEAD 2026-03-03 (surrealdb d454269ecb11, surrealdb.js
+  501b167b2155, surrealdb.go a7bf54bc9487)
+- Docker image tags use v3 (auto-tracks v3.0.2)
+- v3.1.0-alpha tracking updated (error chaining, SurrealValue, timestamp refactor)
+
 ## [1.1.1] - 2026-02-26
 
 ### Fixed

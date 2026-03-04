@@ -306,8 +306,10 @@ await db.close();
 ## JavaScript / TypeScript SDK v2 (GA -- recommended for new projects)
 
 **Package**: `surrealdb` on npm (v2.0.0, released 2026-02-25)
-**Status**: General availability. Full SurrealDB 3.0.1 support. Recommended for
+**Status**: General availability. Full SurrealDB 3.0.x support. Recommended for
 new projects. The v1 API above is maintained but v2 is the future.
+
+**Post-GA fix**: RPC query stat duration parsing fix (#560).
 
 The v2 SDK is a ground-up rewrite with an engine-based architecture, multi-session
 support, client-side transactions, query builder patterns, streaming responses,
@@ -841,8 +843,13 @@ The Python SDK integrates with Pydantic Logfire for tracing and observability of
 
 ## Go SDK
 
-**Package**: `github.com/surrealdb/surrealdb.go`
+**Package**: `github.com/surrealdb/surrealdb.go` (v1.4.0, released 2026-03-03)
 **Repository**: github.com/surrealdb/surrealdb.go
+
+**v1.4.0 changes**:
+- SurrealDB v3 structured error handling: new `surrealdb.ServerError` type for extracting v3 error fields. Existing `RPCError` and `QueryError` continue to work for v2 compatibility.
+- Identifier sanitization in restore to prevent SQL injection (#375)
+- Added `models.Table` example for select operations (#379)
 
 ### Installation
 
