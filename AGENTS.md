@@ -402,7 +402,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.0.0+ |
-| Skill version | 1.2.0 |
+| Skill version | 1.2.1 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 

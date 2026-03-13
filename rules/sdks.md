@@ -305,11 +305,15 @@ await db.close();
 
 ## JavaScript / TypeScript SDK v2 (GA -- recommended for new projects)
 
-**Package**: `surrealdb` on npm (v2.0.0, released 2026-02-25)
+**Package**: `surrealdb` on npm (v2.0.2)
 **Status**: General availability. Full SurrealDB 3.0.x support. Recommended for
 new projects. The v1 API above is maintained but v2 is the future.
 
-**Post-GA fix**: RPC query stat duration parsing fix (#560).
+**v2.0.1-v2.0.2 changes**:
+- Streamed imports and exports (#563) -- large dataset import/export via streaming
+- Blob import support with duplex streaming (#568)
+- Return single value for `StringRecordId` (#569) -- no longer wraps in array
+- RPC query stat duration parsing fix (#560)
 
 The v2 SDK is a ground-up rewrite with an engine-based architecture, multi-session
 support, client-side transactions, query builder patterns, streaming responses,

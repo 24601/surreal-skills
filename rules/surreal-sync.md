@@ -2,6 +2,13 @@
 
 Surreal-Sync is SurrealDB's data migration and synchronization tool. It enables full and incremental data transfer from external databases and streaming sources into SurrealDB, supporting both one-time migrations and continuous synchronization.
 
+**Recent updates** (main branch, 2026-03-13):
+- SurrealDB v3 compatibility: version detection, v2/v3 query handling, value sanitization
+- PostgreSQL: foreign key support and automatic relation handling
+- TOML config file support for PostgreSQL sources
+- Neo4j: fixed relationship in/out ID mismatch
+- Improved test infrastructure with shared containers and dynamic port binding
+
 ---
 
 ## Supported Sources

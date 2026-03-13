@@ -3,6 +3,28 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.1] - 2026-03-13
+
+### Major
+- SurrealDB v3.0.4: 20 fixes/features including GraphQL Subscriptions (#7027),
+  BM25 search::score() compaction fix (#7057), HNSW index compaction fix (#7077),
+  UPSERT conditional count fix (#7056), LIMIT with incomplete WHERE fix (#7063),
+  v2 subcommand for migration assistance (#7058), concurrent startup retry (#7055),
+  distributed task lease race fix (#6501), and performance improvements (#7018)
+- JS SDK v2.0.2: streamed imports/exports (#563), blob import support (#568),
+  single value for StringRecordId (#569)
+- Surrealist v3.7.3: PrivateLink support, streamed import/export, org ID in
+  settings, node rendering perf, dataset rename, improved ticket display
+- Surreal-Sync: SurrealDB v3 compatibility, PostgreSQL foreign key relations,
+  TOML config, Neo4j relationship fix, improved test infrastructure
+
+### Changed
+- SOURCES.json synced to HEAD 2026-03-13 (all 7 repos updated)
+- rules/surrealql.md: v3.0.4 patch notes section (20 items)
+- rules/sdks.md: JS SDK v2.0.2 changes
+- rules/surrealist.md: v3.7.3 version and features
+- rules/surreal-sync.md: v3 compatibility notes
+
 ## [1.2.0] - 2026-03-03
 
 ### Major

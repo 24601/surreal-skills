@@ -1,13 +1,13 @@
 {
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
-  "skill_version": "1.2.0",
-  "snapshot_date": "2026-03-03",
+  "skill_version": "1.2.1",
+  "snapshot_date": "2026-03-13",
   "repos": {
     "surrealdb/surrealdb": {
-      "sha": "d454269ecb11",
-      "date": "2026-03-03",
-      "release": "v3.0.2",
+      "sha": "396bdb2a5bc1",
+      "date": "2026-03-13",
+      "release": "v3.0.4",
       "main_tracking": "v3.1.0-alpha",
       "url": "https://github.com/surrealdb/surrealdb",
       "rules_affected": [
@@ -20,18 +20,18 @@
       ]
     },
     "surrealdb/surrealist": {
-      "sha": "9c29f70b4457",
-      "date": "2026-02-24",
-      "release": "surrealist-v3.7.2",
+      "sha": "1f09154ffe38",
+      "date": "2026-03-13",
+      "release": "surrealist-v3.7.3",
       "url": "https://github.com/surrealdb/surrealist",
       "rules_affected": [
         "rules/surrealist.md"
       ]
     },
     "surrealdb/surrealdb.js": {
-      "sha": "501b167b2155",
-      "date": "2026-03-03",
-      "release": "v2.0.0",
+      "sha": "10b32c5d6891",
+      "date": "2026-03-13",
+      "release": "v2.0.2",
       "url": "https://github.com/surrealdb/surrealdb.js",
       "rules_affected": [
         "rules/sdks.md"
@@ -47,8 +47,8 @@
       ]
     },
     "surrealdb/surrealdb.go": {
-      "sha": "a7bf54bc9487",
-      "date": "2026-03-03",
+      "sha": "8660dd78c20d",
+      "date": "2026-03-13",
       "release": "v1.4.0",
       "url": "https://github.com/surrealdb/surrealdb.go",
       "rules_affected": [
@@ -56,8 +56,8 @@
       ]
     },
     "surrealdb/surreal-sync": {
-      "sha": "8166b2b041b1",
-      "date": "2026-02-12",
+      "sha": "59b3166910f0",
+      "date": "2026-03-13",
       "release": "v0.3.4",
       "url": "https://github.com/surrealdb/surreal-sync",
       "rules_affected": [
@@ -77,7 +77,7 @@
   "docs": {
     "surrealdb.com/docs": {
       "url": "https://surrealdb.com/docs",
-      "snapshot_date": "2026-03-03",
+      "snapshot_date": "2026-03-13",
       "sections_used": [
         "surrealdb/surrealql/statements",
         "surrealdb/surrealql/functions",

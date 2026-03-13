@@ -2070,9 +2070,34 @@ Key fixes and changes in SurrealDB v3.0.2:
 - **Executor optimizations** (#6995): New executor bug fixes and performance optimizations
 - **SurrealValue for LinkedList/HashSet** (#6968): SDK embedders can now use `SurrealValue` with `LinkedList` and `HashSet` types
 
+## v3.0.4 Patch Notes (2026-03-13)
+
+Key fixes and changes in SurrealDB v3.0.3 and v3.0.4:
+
+- **GraphQL Subscriptions** (#7027): New real-time GraphQL subscription support via WebSocket
+- **BM25 search::score() fix** (#7057): Fixed `search::score()` returning 0 after index compaction (critical for full-text search ranking)
+- **HNSW index compaction fix** (#7077): Fixed write conflicts during HNSW vector index compaction
+- **UPSERT conditional count fix** (#7056): `UPSERT SET count = IF count THEN count + 1 ELSE 1 END` no longer always evaluates to 1 on existing records
+- **LIMIT with incomplete WHERE fix** (#7063): `LIMIT` with incomplete `WHERE` clauses no longer produces fewer rows than expected
+- **Subquery nested AS fix** (#7053): Subqueries now correctly respect nested fields with `AS key.key`
+- **`+=`/`-=` operator fix** (#7048): Fixed discrepancies between `+=`/`-=` and `+`/`-` operators
+- **Time formatting panic fix** (#7043): Invalid time formatting strings no longer cause a panic
+- **START pushdown fix** (#7047): Fixed `START` issue with pushdown KV skipping records
+- **Concurrent startup retry** (#7055): Added retry logic for initial datastore transactions to prevent conflicts on concurrent startup
+- **Distributed task lease race fix** (#6501): Fixed race condition in distributed task lease acquisition
+- **Index compaction stability** (#7065): Fixed `KeyAlreadyExists` and `TransactionConflict` errors during index compaction
+- **Connection error propagation** (#7044): Propagates actual query errors instead of misleading 'Connection uninitialised'
+- **Performance improvements** (#7018): General performance optimizations
+- **Set increment/decrement** (#7079): More types supported for `TryAdd`/`Sub` operations
+- **SurrealKV 0.21.0** (#7042): Updated embedded storage engine
+- **GraphQL root field comments** (#7032): Comments on root-level GraphQL fields now supported
+- **v2 subcommand** (#7058): New `surreal v2` subcommand to run the old v2 binary for migration assistance
+- **NaiveDate SurrealValue** (#7040): `NaiveDate` now implements `SurrealValue` for SDK embedders
+
 ### v3.1.0-alpha (in progress on main)
 
 The main branch tracks toward v3.1.0 with ongoing work on:
 - Error chaining infrastructure (#6969)
 - SurrealValue derive convenience (#6970)
 - Timestamp code refactoring (#6892)
+- Import overhead reduction and benchmarks (#7069)
