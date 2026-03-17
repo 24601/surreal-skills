@@ -2,11 +2,11 @@
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
   "skill_version": "1.2.1",
-  "snapshot_date": "2026-03-13",
+  "snapshot_date": "2026-03-17",
   "repos": {
     "surrealdb/surrealdb": {
-      "sha": "396bdb2a5bc1",
-      "date": "2026-03-13",
+      "sha": "d0d99f7ad702",
+      "date": "2026-03-17",
       "release": "v3.0.4",
       "main_tracking": "v3.1.0-alpha",
       "url": "https://github.com/surrealdb/surrealdb",
@@ -20,8 +20,8 @@
       ]
     },
     "surrealdb/surrealist": {
-      "sha": "1f09154ffe38",
-      "date": "2026-03-13",
+      "sha": "7080fe31bdc4",
+      "date": "2026-03-17",
       "release": "surrealist-v3.7.3",
       "url": "https://github.com/surrealdb/surrealist",
       "rules_affected": [
@@ -29,8 +29,8 @@
       ]
     },
     "surrealdb/surrealdb.js": {
-      "sha": "10b32c5d6891",
-      "date": "2026-03-13",
+      "sha": "ad2deabb8962",
+      "date": "2026-03-17",
       "release": "v2.0.2",
       "url": "https://github.com/surrealdb/surrealdb.js",
       "rules_affected": [
@@ -77,7 +77,7 @@
   "docs": {
     "surrealdb.com/docs": {
       "url": "https://surrealdb.com/docs",
-      "snapshot_date": "2026-03-13",
+      "snapshot_date": "2026-03-17",
       "sections_used": [
         "surrealdb/surrealql/statements",
         "surrealdb/surrealql/functions",
