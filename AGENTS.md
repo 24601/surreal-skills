@@ -430,3 +430,45 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-22.
 
 Full provenance data: `SOURCES.json` (machine-readable).
+
+## Cursor Cloud specific instructions
+
+### Overview
+
+This is a knowledge-base / tooling repo (not a web app). The "application" consists of 4 Python scripts in `scripts/` and 12 Markdown rule files in `rules/`. There is no build step, no test suite directory, and no virtual environment — scripts use PEP 723 inline metadata resolved by `uv run`.
+
+### Required tools
+
+| Tool | Install location | Purpose |
+|------|-----------------|---------|
+| `uv` | `~/.local/bin/uv` | Runs all Python scripts with auto-resolved deps |
+| `surreal` | `~/.surrealdb/surreal` | SurrealDB CLI v3 (server, SQL REPL, import/export) |
+| `gh` | system | GitHub CLI — only needed for `check_upstream.py` |
+
+Both `uv` and `surreal` are installed to user-local paths and added to `PATH` via `~/.bashrc`. If `PATH` isn't set, run: `export PATH="$HOME/.local/bin:$HOME/.surrealdb:$PATH"`.
+
+### Running the SurrealDB server
+
+Scripts `doctor.py` and `schema.py` require a running SurrealDB instance. Start one with:
+
+```bash
+surreal start memory --user root --pass root --bind 127.0.0.1:8000
+```
+
+This is an in-memory dev server — data is lost on restart. All scripts default to `ws://localhost:8000` with `root`/`root` credentials and `test`/`test` namespace/database.
+
+### Lint / CI checks
+
+No formal linter is configured. The CI workflow (`.github/workflows/ci.yml`) runs:
+
+1. `python3 -m py_compile scripts/*.py` — syntax check
+2. `uv run scripts/onboard.py --help` — smoke test
+3. File existence checks for all 12 rule files and community files
+4. Sub-skill manifest frontmatter validation
+
+### Gotchas
+
+- `doctor.py` reports "DEGRADED" when `SURREAL_*` env vars are not explicitly set, even though defaults work fine. This is a warning, not an error.
+- `onboard.py --check` shows "FAIL" for credentials/namespace if env vars aren't set — same non-blocking issue.
+- The AGENTS.md documents `schema.py` subcommands as `tables` and `table <name>`, but the actual CLI accepts `inspect`, `export`, and `diff`. Use `uv run scripts/schema.py --help` for accurate subcommands.
+- Scripts emit a `DeprecationWarning` about `asyncio.get_event_loop()` — this is cosmetic and does not affect functionality.
