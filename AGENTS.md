@@ -430,3 +430,41 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-22.
 
 Full provenance data: `SOURCES.json` (machine-readable).
+
+## Cursor Cloud specific instructions
+
+This is a **content + scripts** skill package, not a traditional application. There is no build step, no package manager lockfile, and no virtualenv.
+
+### Prerequisites
+
+- **Python 3.10+** (pre-installed in the VM)
+- **uv** (Astral) — installed via `pip install uv`; binary lands in `~/.local/bin/`
+- **SurrealDB CLI v3+** — installed via `curl -sSf https://install.surrealdb.com | sh`; binary lands in `~/.surrealdb/surreal`
+- Both paths must be on `$PATH`: add `export PATH="/home/ubuntu/.local/bin:/home/ubuntu/.surrealdb:$PATH"` to `~/.bashrc`
+
+### Running the scripts
+
+All Python scripts use PEP 723 inline metadata. Run them with `uv run scripts/<name>.py`. On first run, `uv` downloads and caches the declared dependencies (`rich`, `websockets`) automatically — no manual install step.
+
+### Starting SurrealDB for local development
+
+```bash
+surreal start memory --user root --pass root --bind 127.0.0.1:8000
+```
+
+Scripts default to `ws://localhost:8000` with `root/root` credentials when env vars are not set.
+
+### Lint / Validation (mirrors CI)
+
+```bash
+for script in scripts/*.py; do python3 -m py_compile "$script"; done
+uv run scripts/onboard.py --help
+```
+
+See `.github/workflows/ci.yml` for the full CI pipeline (SKILL.md frontmatter, rule file existence, community files, sub-skill manifests).
+
+### Gotchas
+
+- `doctor.py` and `schema.py` use `asyncio.get_event_loop()` which triggers a `DeprecationWarning` on Python 3.12+. This is cosmetic and does not affect functionality.
+- `check_upstream.py` requires `gh` CLI authenticated with GitHub. It is an optional maintenance script and not needed for normal development.
+- The SurrealDB in-memory server loses all data on restart. Use `rocksdb://` or `surrealkv://` for persistent storage when needed.
