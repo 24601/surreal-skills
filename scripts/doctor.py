@@ -30,7 +30,7 @@ from rich.table import Table
 
 stderr_console = Console(stderr=True)
 
-DEFAULT_ENDPOINT = "ws://localhost:8000"
+DEFAULT_ENDPOINT = "http://localhost:8000"
 
 # ---------------------------------------------------------------------------
 # Types
@@ -114,6 +114,18 @@ def _parse_endpoint(endpoint: str) -> tuple[str, int]:
     return url, 8000
 
 
+def _rpc_endpoint(endpoint: str) -> str:
+    """Normalize a user-facing endpoint into a WebSocket RPC endpoint."""
+    ep = endpoint.rstrip("/")
+    if ep.startswith("http://"):
+        ep = "ws://" + ep[len("http://"):]
+    elif ep.startswith("https://"):
+        ep = "wss://" + ep[len("https://"):]
+    elif not ep.startswith(("ws://", "wss://")):
+        ep = f"ws://{ep}"
+    return ep + "/rpc"
+
+
 # ---------------------------------------------------------------------------
 # Full checks (require server connection)
 # ---------------------------------------------------------------------------
@@ -122,7 +134,7 @@ async def _ws_query(endpoint: str, user: str, password: str, ns: str | None, db:
     """Open a WebSocket to SurrealDB, authenticate, optionally USE ns/db, and execute a query."""
     import websockets  # type: ignore[import-untyped]
 
-    ws_ep = endpoint.rstrip("/") + "/rpc"
+    ws_ep = _rpc_endpoint(endpoint)
     async with websockets.connect(ws_ep, open_timeout=5, close_timeout=5) as ws:
         # Sign in
         signin_msg = json.dumps({
@@ -164,9 +176,7 @@ async def _ws_query(endpoint: str, user: str, password: str, ns: str | None, db:
 
 def _run_ws_query(endpoint: str, user: str, password: str, ns: str | None, db: str | None, query: str) -> Any:
     """Synchronous wrapper around _ws_query."""
-    return asyncio.get_event_loop().run_until_complete(
-        _ws_query(endpoint, user, password, ns, db, query),
-    )
+    return asyncio.run(_ws_query(endpoint, user, password, ns, db, query))
 
 
 def check_auth(endpoint: str, user: str, password: str) -> dict[str, Any]:
@@ -192,7 +202,7 @@ def check_auth(endpoint: str, user: str, password: str) -> dict[str, Any]:
 async def _ws_auth_only(endpoint: str, user: str) -> None:
     """Minimal connection test (no auth)."""
     import websockets  # type: ignore[import-untyped]
-    ws_ep = endpoint.rstrip("/") + "/rpc"
+    ws_ep = _rpc_endpoint(endpoint)
     async with websockets.connect(ws_ep, open_timeout=5, close_timeout=5):
         pass
 
@@ -396,7 +406,10 @@ def main() -> None:
     print_results_table(report)
     print(json.dumps(report, indent=2))
 
-    # Exit with non-zero if unhealthy
+    # Fast checks are used as a pass/fail gate in CI and onboarding.
+    if args.quick and report["status"] != "healthy":
+        sys.exit(1)
+
     if report["status"] == "unhealthy":
         sys.exit(1)
 

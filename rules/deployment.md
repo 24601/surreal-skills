@@ -1,6 +1,6 @@
 # SurrealDB Deployment and Operations Guide
 
-This document covers installation, deployment patterns, operational tasks, and monitoring for SurrealDB 3.0.0 across local development, containerized, orchestrated, and cloud environments.
+This document covers installation, deployment patterns, operational tasks, and monitoring for SurrealDB 3.x across local development, containerized, orchestrated, and cloud environments.
 
 ---
 
@@ -22,10 +22,9 @@ docker pull surrealdb/surrealdb:v3
 surreal version
 ```
 
-> **Security note**: SurrealDB's website offers a `curl | sh` installer. For
-> auditable installs, prefer your OS package manager (brew, apt, dnf) or Docker.
-> If you must use a remote installer, download the script first, review it, then
-> execute: `curl -sSf https://install.surrealdb.com -o install.sh && less install.sh && sh install.sh`
+> **Security note**: Prefer auditable installs via your OS package manager
+> (brew, apt, dnf), Cargo, or Docker. Avoid one-line remote shell installers in
+> team or production workflows unless you download and review the script first.
 
 ### Starting the Server
 
@@ -272,7 +271,7 @@ replicaCount: 1
 
 image:
   repository: surrealdb/surrealdb
-  tag: v3.0.0
+  tag: v3.0.5
   pullPolicy: IfNotPresent
 
 service:

@@ -1,6 +1,6 @@
 ---
 name: surrealdb
-description: "Expert SurrealDB 3 skill. Use when working with SurrealDB, SurrealQL queries, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, graph traversal, vector search, security and permissions, deployment and operations, performance tuning, SDK integration (JavaScript, Python, Go, Rust, Java, .NET), Surrealism WASM extensions, Surrealist IDE, Surreal-Sync migrations, or SurrealFS."
+description: "Expert SurrealDB 3 skill. Use when working with SurrealDB, SurrealQL queries, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, graph traversal, vector search, security and permissions, deployment and operations, performance tuning, SDK integration (JavaScript, Python, Go, Rust, Java, .NET), Surrealism WASM extensions, Surrealist IDE, Surreal-Sync migrations, SurrealFS, or SurrealKit."
 argument-hint: "[query or topic, e.g. 'graph traversal patterns' or 'vector search with HNSW']"
 ---
 
@@ -24,7 +24,7 @@ Activate automatically when the user:
 
 ## Rules Reference
 
-This skill contains 12 detailed rule files. Read the relevant rule file when
+This skill contains 13 detailed rule files. Read the relevant rule file when
 the user's request matches its domain:
 
 | Rule File | When to Load | Domain |
@@ -41,6 +41,7 @@ the user's request matches its domain:
 | [surrealist.md](../../../rules/surrealist.md) | Using the Surrealist IDE/GUI | IDE features and schema designer |
 | [surreal-sync.md](../../../rules/surreal-sync.md) | Migrating from other databases | CDC sync from Postgres, Mongo, etc. |
 | [surrealfs.md](../../../rules/surrealfs.md) | AI agent filesystem operations | Virtual FS backed by SurrealDB |
+| [surrealkit.md](../../../rules/surrealkit.md) | Schema sync, rollouts, seeds, and declarative tests | Desired-state schema management for SurrealDB apps |
 
 ## Quick Reference
 
@@ -96,4 +97,4 @@ uv run scripts/check_upstream.py
 - Examples use `root/root` for local development only. Use scoped credentials in production.
 - Scripts connect to user-specified endpoints only. No third-party network calls.
 - Table names are validated against `[a-zA-Z_][a-zA-Z0-9_]*` before query interpolation.
-- Prefer `brew install` over `curl | sh` for installing prerequisites.
+- Prefer package-manager or container installs over remote shell installers.

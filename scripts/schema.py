@@ -8,9 +8,12 @@
 """SurrealDB schema introspection and export tool.
 
 Subcommands:
-  export   -- Export the complete schema as SurrealQL DEFINE statements.
-  inspect  -- Structured view of tables, fields, indexes, events, and access.
-  diff     -- Compare two SurrealQL schema files and show differences.
+  introspect  -- Full schema dump of tables, fields, indexes, events, accesses.
+  tables      -- Table summary with field/index/event counts.
+  table       -- Detailed view of one table.
+  export      -- Export the complete schema as SurrealQL DEFINE statements.
+  inspect     -- Legacy alias for introspect.
+  diff        -- Compare two SurrealQL schema files and show differences.
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ from rich.tree import Tree
 
 stderr_console = Console(stderr=True)
 
-DEFAULT_ENDPOINT = "ws://localhost:8000"
+DEFAULT_ENDPOINT = "http://localhost:8000"
 
 
 # ---------------------------------------------------------------------------
@@ -64,11 +67,23 @@ def _sanitize_identifier(name: str) -> str:
     return name
 
 
+def _rpc_endpoint(endpoint: str) -> str:
+    """Normalize a user-facing endpoint into a WebSocket RPC endpoint."""
+    ep = endpoint.rstrip("/")
+    if ep.startswith("http://"):
+        ep = "ws://" + ep[len("http://"):]
+    elif ep.startswith("https://"):
+        ep = "wss://" + ep[len("https://"):]
+    elif not ep.startswith(("ws://", "wss://")):
+        ep = f"ws://{ep}"
+    return ep + "/rpc"
+
+
 async def _ws_query(endpoint: str, user: str, password: str, ns: str, db: str, query: str) -> Any:
     """Connect via WebSocket RPC, authenticate, USE ns/db, and execute a query."""
     import websockets  # type: ignore[import-untyped]
 
-    ws_ep = endpoint.rstrip("/") + "/rpc"
+    ws_ep = _rpc_endpoint(endpoint)
     async with websockets.connect(ws_ep, open_timeout=10, close_timeout=5) as ws:
         # Sign in
         signin_msg = json.dumps({
@@ -107,9 +122,7 @@ async def _ws_query(endpoint: str, user: str, password: str, ns: str, db: str, q
 
 def run_query(endpoint: str, user: str, password: str, ns: str, db: str, query: str) -> Any:
     """Synchronous wrapper for WebSocket query."""
-    return asyncio.get_event_loop().run_until_complete(
-        _ws_query(endpoint, user, password, ns, db, query),
-    )
+    return asyncio.run(_ws_query(endpoint, user, password, ns, db, query))
 
 
 def _extract_result(raw: Any) -> Any:
@@ -120,6 +133,151 @@ def _extract_result(raw: Any) -> Any:
             return first["result"]
         return first
     return raw
+
+
+def _normalize_db_info(db_info: Any) -> dict[str, dict[str, Any]]:
+    key_aliases = {
+        "ac": "accesses",
+        "az": "analyzers",
+        "fn": "functions",
+        "ml": "models",
+        "pa": "params",
+        "tb": "tables",
+        "us": "users",
+    }
+    normalized: dict[str, dict[str, Any]] = {}
+    if isinstance(db_info, dict):
+        for key, value in db_info.items():
+            canon = key_aliases.get(key, key)
+            if isinstance(value, dict):
+                normalized[canon] = value
+    return normalized
+
+
+def _definition_text(value: Any) -> str:
+    return value if isinstance(value, str) else json.dumps(value, default=str)
+
+
+def _section_data(tbl_info: Any, *keys: str) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    if not isinstance(tbl_info, dict):
+        return merged
+    for key in keys:
+        value = tbl_info.get(key)
+        if isinstance(value, dict):
+            merged.update(value)
+    return merged
+
+
+def _match_clause(pattern: str, definition: str) -> str | None:
+    match = _re.search(pattern, definition, flags=_re.IGNORECASE | _re.DOTALL)
+    if not match:
+        return None
+    return " ".join(match.group(1).strip().split())
+
+
+def _parse_field(name: str, definition: Any) -> dict[str, Any]:
+    text = _definition_text(definition)
+    return {
+        "name": name,
+        "type": _match_clause(r"\bTYPE\s+(.+?)(?=\s+(?:VALUE|ASSERT|DEFAULT|PERMISSIONS)\b|;|$)", text),
+        "default": _match_clause(r"\bDEFAULT\s+(.+?)(?=\s+(?:VALUE|ASSERT|PERMISSIONS)\b|;|$)", text),
+        "assert": _match_clause(r"\bASSERT\s+(.+?)(?=\s+(?:DEFAULT|VALUE|PERMISSIONS)\b|;|$)", text),
+    }
+
+
+def _parse_index(name: str, definition: Any) -> dict[str, Any]:
+    text = _definition_text(definition)
+    fields_raw = _match_clause(
+        r"\bFIELDS\s+(.+?)(?=\s+(?:UNIQUE|SEARCH|HNSW|MTREE|COMMENT|CONCURRENTLY|;)|$)",
+        text,
+    ) or ""
+    fields = [field.strip() for field in fields_raw.split(",") if field.strip()]
+    upper = text.upper()
+    return {
+        "name": name,
+        "fields": fields,
+        "unique": " UNIQUE" in upper,
+        "search": " SEARCH" in upper,
+        "vector": " HNSW" in upper or " MTREE" in upper,
+    }
+
+
+def _parse_permissions(table_definition: str) -> dict[str, str]:
+    permissions = {action: "FULL" for action in ("select", "create", "update", "delete")}
+    upper = table_definition.upper()
+    if "PERMISSIONS NONE" in upper:
+        return {action: "NONE" for action in permissions}
+    if "PERMISSIONS FULL" in upper or " PERMISSIONS" not in upper:
+        return permissions
+
+    matches = _re.findall(
+        r"FOR\s+(select|create|update|delete)\s+WHERE\s+(.+?)(?=\s+FOR\s+(?:select|create|update|delete)\b|;|$)",
+        table_definition,
+        flags=_re.IGNORECASE | _re.DOTALL,
+    )
+    for action, clause in matches:
+        permissions[action.lower()] = " ".join(clause.strip().split())
+    return permissions
+
+
+def _table_type(table_definition: str) -> str:
+    return "relation" if "TYPE RELATION" in table_definition.upper() else "normal"
+
+
+def _schema_mode(table_definition: str) -> str | None:
+    upper = table_definition.upper()
+    if "SCHEMAFULL" in upper:
+        return "schemafull"
+    if "SCHEMALESS" in upper:
+        return "schemaless"
+    return None
+
+
+def _build_table_record(name: str, table_definition: Any, table_info: Any) -> dict[str, Any]:
+    table_def = _definition_text(table_definition)
+    fields = [_parse_field(field_name, field_def) for field_name, field_def in sorted(_section_data(table_info, "fields", "fd").items())]
+    indexes = [_parse_index(index_name, index_def) for index_name, index_def in sorted(_section_data(table_info, "indexes", "ix").items())]
+    events = [
+        {"name": event_name, "definition": _definition_text(event_def)}
+        for event_name, event_def in sorted(_section_data(table_info, "events", "ev").items())
+    ]
+    accesses = [
+        {"name": access_name, "definition": _definition_text(access_def)}
+        for access_name, access_def in sorted(_section_data(table_info, "accesses", "ac").items())
+    ]
+    return {
+        "name": name,
+        "type": _table_type(table_def),
+        "schema_mode": _schema_mode(table_def),
+        "definition": table_def,
+        "fields": fields,
+        "indexes": indexes,
+        "events": events,
+        "accesses": accesses,
+        "permissions": _parse_permissions(table_def),
+    }
+
+
+def _load_connection(args: argparse.Namespace) -> tuple[str, str, str, str, str]:
+    ep = args.endpoint or _env("SURREAL_ENDPOINT") or DEFAULT_ENDPOINT
+    user = args.user or _env("SURREAL_USER") or "root"
+    password = args.password or _env("SURREAL_PASS") or "root"
+    ns = args.ns or _env("SURREAL_NS") or "test"
+    db = args.db or _env("SURREAL_DB") or "test"
+    return ep, user, password, ns, db
+
+
+def _load_schema(ep: str, user: str, password: str, ns: str, db: str) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    db_info_raw = run_query(ep, user, password, ns, db, "INFO FOR DB")
+    normalized = _normalize_db_info(_extract_result(db_info_raw))
+    tables: list[dict[str, Any]] = []
+    for table_name, table_definition in sorted(normalized.get("tables", {}).items()):
+        table_info = _extract_result(
+            run_query(ep, user, password, ns, db, f"INFO FOR TABLE {_sanitize_identifier(table_name)}")
+        )
+        tables.append(_build_table_record(table_name, table_definition, table_info))
+    return normalized, tables
 
 
 # ---------------------------------------------------------------------------
@@ -230,90 +388,130 @@ def _output_schema(statements: list[str], args: argparse.Namespace) -> None:
 
 
 # ---------------------------------------------------------------------------
-# inspect subcommand
+# introspect subcommands
 # ---------------------------------------------------------------------------
 
-def cmd_inspect(args: argparse.Namespace) -> None:
-    """Structured inspection of the database schema."""
-    ep = args.endpoint or _env("SURREAL_ENDPOINT") or DEFAULT_ENDPOINT
-    user = args.user or _env("SURREAL_USER") or "root"
-    password = args.password or _env("SURREAL_PASS") or "root"
-    ns = args.ns or _env("SURREAL_NS") or "test"
-    db = args.db or _env("SURREAL_DB") or "test"
-
-    stderr_console.print(f"Inspecting schema on {ep} / {ns} / {db} ...")
+def cmd_introspect(args: argparse.Namespace) -> None:
+    """Emit a structured full-schema dump."""
+    ep, user, password, ns, db = _load_connection(args)
+    stderr_console.print(f"Introspecting schema on {ep} / {ns} / {db} ...")
 
     try:
-        db_info_raw = run_query(ep, user, password, ns, db, "INFO FOR DB")
+        normalized, tables = _load_schema(ep, user, password, ns, db)
     except Exception as exc:
         stderr_console.print(f"[red]Failed:[/red] {exc}")
         print(json.dumps({"error": str(exc)}))
         sys.exit(1)
 
-    db_info = _extract_result(db_info_raw)
-    key_aliases = {"ac": "accesses", "az": "analyzers", "fn": "functions", "ml": "models",
-                   "pa": "params", "tb": "tables", "us": "users"}
+    summary = Table(title="Schema Summary", show_lines=True)
+    summary.add_column("Metric", style="bold")
+    summary.add_column("Value")
+    summary.add_row("Namespace", ns)
+    summary.add_row("Database", db)
+    summary.add_row("Tables", str(len(tables)))
+    summary.add_row("Fields", str(sum(len(table["fields"]) for table in tables)))
+    summary.add_row("Indexes", str(sum(len(table["indexes"]) for table in tables)))
+    stderr_console.print(summary)
 
-    normalized: dict[str, dict] = {}
-    if isinstance(db_info, dict):
-        for k, v in db_info.items():
-            canon = key_aliases.get(k, k)
-            if isinstance(v, dict):
-                normalized[canon] = v
-
-    # Build a Rich tree for stderr
     tree = Tree(f"[bold]Database: {ns}/{db}[/bold]")
-    inspection: dict[str, Any] = {"namespace": ns, "database": db, "tables": {}}
-
-    tables = normalized.get("tables", {})
-    for tbl_name in sorted(tables.keys()):
-        tbl_branch = tree.add(f"[cyan]{tbl_name}[/cyan]")
-        tbl_detail: dict[str, Any] = {"fields": {}, "indexes": {}, "events": {}, "accesses": {}}
-
-        try:
-            tbl_info_raw = run_query(ep, user, password, ns, db, f"INFO FOR TABLE {_sanitize_identifier(tbl_name)}")
-            tbl_info = _extract_result(tbl_info_raw)
-            if isinstance(tbl_info, dict):
-                section_map = {
-                    "fields": ["fields", "fd"],
-                    "indexes": ["indexes", "ix"],
-                    "events": ["events", "ev"],
-                    "accesses": ["accesses", "ac"],
-                }
-                for label, keys in section_map.items():
-                    section_data: dict = {}
-                    for key in keys:
-                        if key in tbl_info and isinstance(tbl_info[key], dict):
-                            section_data.update(tbl_info[key])
-                    if section_data:
-                        sec_branch = tbl_branch.add(f"[yellow]{label}[/yellow]")
-                        for item_name, item_def in sorted(section_data.items()):
-                            display = item_def if isinstance(item_def, str) else json.dumps(item_def, default=str)
-                            sec_branch.add(f"{item_name}: {display}")
-                        tbl_detail[label] = section_data
-        except Exception as exc:
-            tbl_branch.add(f"[red]Error: {exc}[/red]")
-            tbl_detail["error"] = str(exc)
-
-        inspection["tables"][tbl_name] = tbl_detail
-
-    # Summary table
-    summary_table = Table(title="Schema Summary", show_lines=True)
-    summary_table.add_column("Metric", style="bold")
-    summary_table.add_column("Value")
-    summary_table.add_row("Namespace", ns)
-    summary_table.add_row("Database", db)
-    summary_table.add_row("Tables", str(len(tables)))
-    total_fields = sum(len(t.get("fields", {})) for t in inspection["tables"].values())
-    total_indexes = sum(len(t.get("indexes", {})) for t in inspection["tables"].values())
-    summary_table.add_row("Total Fields", str(total_fields))
-    summary_table.add_row("Total Indexes", str(total_indexes))
-
-    stderr_console.print(summary_table)
+    for table in tables:
+        branch = tree.add(f"[cyan]{table['name']}[/cyan] ({table['type']}, {table['schema_mode'] or 'unspecified'})")
+        if table["fields"]:
+            field_branch = branch.add("[yellow]fields[/yellow]")
+            for field in table["fields"]:
+                field_branch.add(f"{field['name']}: {field.get('type') or 'unknown'}")
+        if table["indexes"]:
+            index_branch = branch.add("[yellow]indexes[/yellow]")
+            for index in table["indexes"]:
+                index_branch.add(
+                    f"{index['name']}: fields={', '.join(index['fields']) or '-'} "
+                    f"unique={index['unique']} search={index['search']} vector={index['vector']}"
+                )
     stderr_console.print(tree)
 
-    # JSON on stdout
-    print(json.dumps(inspection, indent=2, default=str))
+    output = {
+        "namespace": ns,
+        "database": db,
+        "tables": tables,
+        "accesses": sorted(normalized.get("accesses", {}).keys()),
+        "users": sorted(normalized.get("users", {}).keys()),
+    }
+    print(json.dumps(output, indent=2, default=str))
+
+
+def cmd_tables(args: argparse.Namespace) -> None:
+    """Emit a table summary only."""
+    ep, user, password, ns, db = _load_connection(args)
+    stderr_console.print(f"Listing tables on {ep} / {ns} / {db} ...")
+    try:
+        _, tables = _load_schema(ep, user, password, ns, db)
+    except Exception as exc:
+        stderr_console.print(f"[red]Failed:[/red] {exc}")
+        print(json.dumps({"error": str(exc)}))
+        sys.exit(1)
+
+    summary_rows = [
+        {
+            "name": table["name"],
+            "type": table["type"],
+            "fields": len(table["fields"]),
+            "indexes": len(table["indexes"]),
+            "events": len(table["events"]),
+        }
+        for table in tables
+    ]
+
+    table_view = Table(title="Tables", show_lines=True)
+    table_view.add_column("Table", style="bold")
+    table_view.add_column("Type")
+    table_view.add_column("Fields")
+    table_view.add_column("Indexes")
+    table_view.add_column("Events")
+    for row in summary_rows:
+        table_view.add_row(row["name"], row["type"], str(row["fields"]), str(row["indexes"]), str(row["events"]))
+    stderr_console.print(table_view)
+    print(json.dumps({"tables": summary_rows}, indent=2, default=str))
+
+
+def cmd_table(args: argparse.Namespace) -> None:
+    """Emit detailed information for one table."""
+    ep, user, password, ns, db = _load_connection(args)
+    table_name = _sanitize_identifier(args.name)
+    stderr_console.print(f"Inspecting table {table_name} on {ep} / {ns} / {db} ...")
+    try:
+        normalized, tables = _load_schema(ep, user, password, ns, db)
+    except Exception as exc:
+        stderr_console.print(f"[red]Failed:[/red] {exc}")
+        print(json.dumps({"error": str(exc)}))
+        sys.exit(1)
+
+    table = next((item for item in tables if item["name"] == table_name), None)
+    if table is None:
+        stderr_console.print(f"[red]Table not found:[/red] {table_name}")
+        print(json.dumps({"error": f"Table not found: {table_name}", "available_tables": [item['name'] for item in tables]}, indent=2))
+        sys.exit(1)
+
+    detail = Tree(f"[bold]{table['name']}[/bold]")
+    detail.add(f"type: {table['type']}")
+    detail.add(f"schema_mode: {table['schema_mode'] or 'unspecified'}")
+    if table["fields"]:
+        fields = detail.add("[yellow]fields[/yellow]")
+        for field in table["fields"]:
+            fields.add(f"{field['name']}: {field.get('type') or 'unknown'}")
+    if table["indexes"]:
+        indexes = detail.add("[yellow]indexes[/yellow]")
+        for index in table["indexes"]:
+            indexes.add(
+                f"{index['name']}: fields={', '.join(index['fields']) or '-'} "
+                f"unique={index['unique']} search={index['search']} vector={index['vector']}"
+            )
+    stderr_console.print(detail)
+    print(json.dumps({"namespace": ns, "database": db, "table": table, "accesses": sorted(normalized.get("accesses", {}).keys())}, indent=2, default=str))
+
+
+def cmd_inspect(args: argparse.Namespace) -> None:
+    """Legacy alias for older callers."""
+    cmd_introspect(args)
 
 
 # ---------------------------------------------------------------------------
@@ -394,8 +592,18 @@ def build_parser() -> argparse.ArgumentParser:
     add_connection_args(export_parser)
     export_parser.add_argument("--output-dir", type=str, default=None, help="Directory to write schema.surql file")
 
-    # inspect
-    inspect_parser = subparsers.add_parser("inspect", help="Structured schema inspection")
+    introspect_parser = subparsers.add_parser("introspect", help="Full schema dump")
+    add_connection_args(introspect_parser)
+
+    tables_parser = subparsers.add_parser("tables", help="List tables with field/index/event counts")
+    add_connection_args(tables_parser)
+
+    table_parser = subparsers.add_parser("table", help="Inspect a single table in detail")
+    add_connection_args(table_parser)
+    table_parser.add_argument("name", type=str, help="Table name")
+
+    # inspect (legacy alias)
+    inspect_parser = subparsers.add_parser("inspect", help="Legacy alias for introspect")
     add_connection_args(inspect_parser)
 
     # diff
@@ -415,6 +623,9 @@ def main() -> None:
         sys.exit(1)
 
     dispatch = {
+        "introspect": cmd_introspect,
+        "tables": cmd_tables,
+        "table": cmd_table,
         "export": cmd_export,
         "inspect": cmd_inspect,
         "diff": cmd_diff,

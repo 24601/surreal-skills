@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -24,8 +25,23 @@ from rich.table import Table
 stderr_console = Console(stderr=True)
 stdout_console = Console(file=sys.stdout)
 
-SKILL_VERSION = "1.0.0"
-DEFAULT_ENDPOINT = "ws://localhost:8000"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_ENDPOINT = "http://localhost:8000"
+
+
+def _read_skill_version() -> str:
+    """Read the canonical skill version from the root SKILL.md frontmatter."""
+    skill_path = ROOT_DIR / "SKILL.md"
+    try:
+        content = skill_path.read_text(encoding="utf-8")
+    except OSError:
+        return "unknown"
+
+    match = re.search(r'^  version:\s*"([^"]+)"$', content, re.MULTILINE)
+    return match.group(1) if match else "unknown"
+
+
+SKILL_VERSION = _read_skill_version()
 
 
 # ---------------------------------------------------------------------------
@@ -173,10 +189,26 @@ CAPABILITIES_MANIFEST: dict = {
     "skill": "surrealdb",
     "version": SKILL_VERSION,
     "description": "Expert SurrealDB 3 architect and developer",
+    "capabilities": [
+        "surrealql",
+        "data-modeling",
+        "graph-queries",
+        "vector-search",
+        "security",
+        "deployment",
+        "performance",
+        "sdks",
+        "surrealism",
+        "surrealist",
+        "surreal-sync",
+        "surrealfs",
+        "surrealkit",
+    ],
+    "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
     "commands": [
         {"name": "onboard", "subcommands": ["--check", "--agent", "--interactive"], "description": "Setup and capabilities"},
         {"name": "doctor", "subcommands": ["--full", "--quick"], "description": "Environment health check"},
-        {"name": "schema", "subcommands": ["export", "inspect", "diff"], "description": "Schema introspection"},
+        {"name": "schema", "subcommands": ["introspect", "tables", "table", "export", "diff"], "description": "Schema introspection"},
     ],
     "rules": [
         {"file": "surrealql.md", "topic": "SurrealQL syntax, statements, functions, operators"},
@@ -191,6 +223,7 @@ CAPABILITIES_MANIFEST: dict = {
         {"file": "surreal-sync.md", "topic": "Data migration from other databases"},
         {"file": "surrealist.md", "topic": "Surrealist IDE/GUI"},
         {"file": "surrealfs.md", "topic": "AI agent virtual filesystem"},
+        {"file": "surrealkit.md", "topic": "Schema sync, rollouts, seeding, and declarative database testing"},
     ],
     "decision_trees": {
         "new_project": "Run doctor -> Design schema (data-modeling.md) -> Choose deployment (deployment.md) -> Configure security (security.md)",
@@ -200,7 +233,7 @@ CAPABILITIES_MANIFEST: dict = {
         "extension_development": "Read surrealism.md -> Write Rust module -> Compile WASM -> Register with DEFINE MODULE",
     },
     "environment_variables": {
-        "SURREAL_ENDPOINT": "SurrealDB server endpoint (default: ws://localhost:8000)",
+        "SURREAL_ENDPOINT": "SurrealDB server endpoint (default: http://localhost:8000)",
         "SURREAL_USER": "Root/admin username",
         "SURREAL_PASS": "Root/admin password",
         "SURREAL_NS": "Default namespace",
@@ -211,7 +244,15 @@ CAPABILITIES_MANIFEST: dict = {
 
 def run_agent() -> dict:
     """Return the capabilities manifest dict."""
-    return CAPABILITIES_MANIFEST
+    checks = run_check()
+    manifest = dict(CAPABILITIES_MANIFEST)
+    manifest["prerequisites"] = {
+        "surreal_cli": checks["cli_installed"]["status"] == "pass",
+        "python": True,
+        "uv": checks["uv_available"]["status"] == "pass",
+        "server_reachable": checks["server_reachable"]["status"] == "pass",
+    }
+    return manifest
 
 
 # ---------------------------------------------------------------------------

@@ -2070,29 +2070,22 @@ Key fixes and changes in SurrealDB v3.0.2:
 - **Executor optimizations** (#6995): New executor bug fixes and performance optimizations
 - **SurrealValue for LinkedList/HashSet** (#6968): SDK embedders can now use `SurrealValue` with `LinkedList` and `HashSet` types
 
-## v3.0.4 Patch Notes (2026-03-13)
+## v3.0.5 Patch Notes (2026-03-27)
 
-Key fixes and changes in SurrealDB v3.0.3 and v3.0.4:
+Key fixes and changes in SurrealDB v3.0.5:
 
-- **GraphQL Subscriptions** (#7027): New real-time GraphQL subscription support via WebSocket
-- **BM25 search::score() fix** (#7057): Fixed `search::score()` returning 0 after index compaction (critical for full-text search ranking)
-- **HNSW index compaction fix** (#7077): Fixed write conflicts during HNSW vector index compaction
-- **UPSERT conditional count fix** (#7056): `UPSERT SET count = IF count THEN count + 1 ELSE 1 END` no longer always evaluates to 1 on existing records
-- **LIMIT with incomplete WHERE fix** (#7063): `LIMIT` with incomplete `WHERE` clauses no longer produces fewer rows than expected
-- **Subquery nested AS fix** (#7053): Subqueries now correctly respect nested fields with `AS key.key`
-- **`+=`/`-=` operator fix** (#7048): Fixed discrepancies between `+=`/`-=` and `+`/`-` operators
-- **Time formatting panic fix** (#7043): Invalid time formatting strings no longer cause a panic
-- **START pushdown fix** (#7047): Fixed `START` issue with pushdown KV skipping records
-- **Concurrent startup retry** (#7055): Added retry logic for initial datastore transactions to prevent conflicts on concurrent startup
-- **Distributed task lease race fix** (#6501): Fixed race condition in distributed task lease acquisition
-- **Index compaction stability** (#7065): Fixed `KeyAlreadyExists` and `TransactionConflict` errors during index compaction
-- **Connection error propagation** (#7044): Propagates actual query errors instead of misleading 'Connection uninitialised'
-- **Performance improvements** (#7018): General performance optimizations
-- **Set increment/decrement** (#7079): More types supported for `TryAdd`/`Sub` operations
-- **SurrealKV 0.21.0** (#7042): Updated embedded storage engine
-- **GraphQL root field comments** (#7032): Comments on root-level GraphQL fields now supported
-- **v2 subcommand** (#7058): New `surreal v2` subcommand to run the old v2 binary for migration assistance
-- **NaiveDate SurrealValue** (#7040): `NaiveDate` now implements `SurrealValue` for SDK embedders
+- **`REMOVE CONFIG` support** (#7108): configuration objects can now be removed through standard DDL instead of manual cleanup paths
+- **`ALTER` coverage expanded** (#7126): `ALTER` support now applies across the statement surface instead of a narrow subset
+- **Planner pushdown improvements** (#7076): plan-time resolution and `LIMIT` pushdown reduce wasted record scans in more query shapes
+- **`$parent` fixes**: multiple fixes landed for `$parent` resolution in nested and edge-oriented queries
+- **Computed field stability** (#7142, #7202): computed fields now evaluate more consistently in write and query paths
+- **Edge query ordering fixes** (#7193, #7194): `ORDER BY` and related planning on edge-table queries behave correctly again
+- **`encoding::json` restored** (#7197): missing `encoding::json` functions were reintroduced/fixed
+- **GraphQL literal fields** (#7109): schema generation now supports literal fields in GraphQL mappings
+- **Axum router support for embedders** (#7097): embedding use cases have an official axum router path
+- **Validation input from stdin** (#7235): CLI validation flows now accept stdin input cleanly
+- **Auth limits with `ALTER` fixed** (#7233): access-control edge cases introduced by broader `ALTER` support were corrected
+- **Parser v3 work merged** (#6938): parser infrastructure continues moving toward the v3 line and unblocks later syntax work
 
 ### v3.1.0-alpha (in progress on main)
 

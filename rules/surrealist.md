@@ -2,7 +2,7 @@
 
 Surrealist is the official graphical management interface for SurrealDB. It is available as a web application at app.surrealdb.com and as a standalone desktop application built with Tauri.
 
-Current version: **v3.7.3** (2026-03-13). New: PrivateLink support, streamed import/export, org ID in settings, improved node rendering performance, dataset rename, better ticket display/filtering.
+Current version: **v3.7.4** (2026-04-01). Recent changes: sandbox execution moved to a background worker, namespace/database management improved, access/user duration input bugs fixed, editor spacing issues fixed, and compatibility kept with both SurrealDB 2.x and 3.x.
 
 ---
 

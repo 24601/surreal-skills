@@ -1,11 +1,11 @@
 ---
 name: surrealdb
-description: "Expert SurrealDB 3 architect and developer skill. SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust), Surrealism WASM extensions, and full ecosystem (Surrealist, Surreal-Sync, SurrealFS). Universal skill for 30+ AI agents."
+description: "Expert SurrealDB 3 architect and developer skill. SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust), Surrealism WASM extensions, and the wider ecosystem (Surrealist, Surreal-Sync, SurrealFS, SurrealKit). Universal skill for 30+ AI agents."
 license: MIT
 metadata:
-  version: "1.2.1"
+  version: "1.3.0"
   author: "24601"
-  snapshot_date: "2026-03-13"
+  snapshot_date: "2026-04-10"
   repository: "https://github.com/24601/surreal-skills"
 requires:
   binaries:
@@ -55,7 +55,8 @@ security:
   no_credentials: false
   no_credentials_note: "Scripts accept SURREAL_USER/SURREAL_PASS for DB authentication. No credentials are stored in the skill itself."
   no_env_write: true
-  no_file_write: true
+  no_file_write: false
+  no_file_write_note: "schema.py can write exported schema files when --output-dir is set. onboard.py can write a local .env file during interactive setup if the user explicitly confirms."
   no_shell_exec: false
   no_shell_exec_note: "Scripts invoke surreal CLI and gh for health checks."
   scripts_auditable: true
@@ -63,13 +64,12 @@ security:
   no_obfuscated_code: true
   no_binary_blobs: true
   no_minified_scripts: true
-  no_curl_pipe_sh: false
-  no_curl_pipe_sh_note: "Documentation mentions curl|sh as ONE install option alongside safer alternatives (brew, Docker, package managers). The skill itself never executes curl|sh."
+  no_curl_pipe_sh: true
 ---
 
 # SurrealDB 3 Skill
 
-Expert-level SurrealDB 3 architecture, development, and operations. Covers SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, and the full SurrealDB ecosystem.
+Expert-level SurrealDB 3 architecture, development, and operations. Covers SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, and the full SurrealDB ecosystem, including SurrealKit for schema sync, rollouts, seeding, and declarative testing.
 
 ## For AI Agents
 
@@ -100,10 +100,9 @@ Optional:
 - **Docker** -- For containerized SurrealDB instances (`docker run surrealdb/surrealdb:v3`)
 - **SDK of choice** -- JavaScript, Python, Go, Rust, Java, .NET, C, PHP, or Dart
 
-> **Security note**: This skill's documentation references package manager installs
-> (brew, pip, cargo, npm, Docker) as the recommended install method. If you
-> encounter `curl | sh` examples in the rules files, prefer your OS package
-> manager or download-and-review workflow instead.
+> **Security note**: This skill documents package-manager and container installs
+> only. Prefer auditable installs through Homebrew, apt/dnf, Cargo, npm, or
+> Docker rather than remote one-line shell installers.
 
 ## Quick Start
 
@@ -210,9 +209,10 @@ See: `rules/surrealism.md`
 - **Surrealist** -- Official IDE and GUI for SurrealDB (schema designer, query editor, graph visualizer)
 - **Surreal-Sync** -- Change Data Capture (CDC) for migrations from other databases
 - **SurrealFS** -- AI agent filesystem built on SurrealDB
+- **SurrealKit** -- Desired-state schema sync, rollout-based migrations, seeding, and declarative tests
 - **SurrealML** -- Machine learning model management and inference within SurrealDB
 
-See: `rules/surrealist.md`, `rules/surreal-sync.md`, `rules/surrealfs.md`
+See: `rules/surrealist.md`, `rules/surreal-sync.md`, `rules/surrealfs.md`, `rules/surrealkit.md`
 
 ## Doctor / Health Check
 
@@ -266,6 +266,7 @@ Introspection uses `INFO FOR DB`, `INFO FOR TABLE`, and `INFO FOR NS` to reconst
 | `rules/surrealist.md` | Surrealist IDE/GUI usage, schema designer, query editor |
 | `rules/surreal-sync.md` | CDC migration tool, source/target connectors, migration workflows |
 | `rules/surrealfs.md` | AI agent filesystem, file storage, metadata, retrieval patterns |
+| `rules/surrealkit.md` | Desired-state schema sync, rollout-based migrations, seeding, and declarative DB testing |
 
 ## Workflow Examples
 
@@ -351,20 +352,20 @@ baselines in `SOURCES.json`. Use this to plan incremental skill updates.
 
 ## Source Provenance
 
-This skill was built on **2026-02-19** from these upstream sources:
+This skill was refreshed on **2026-04-10** from these upstream sources:
 
 | Repository | Release | Snapshot Date |
 |------------|---------|---------------|
-| [surrealdb/surrealdb](https://github.com/surrealdb/surrealdb) | v3.0.0 | 2026-02-19 |
-| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | v3.7.2 | 2026-02-21 |
-| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v1.3.2 | 2026-02-20 |
-| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) (v2 beta) | v2.0.0-beta.1 | 2026-02-20 |
-| [surrealdb/surrealdb.py](https://github.com/surrealdb/surrealdb.py) | v1.0.8 | 2026-02-03 |
-| [surrealdb/surrealdb.go](https://github.com/surrealdb/surrealdb.go) | v1.3.0 | 2026-02-12 |
-| [surrealdb/surreal-sync](https://github.com/surrealdb/surreal-sync) | v0.3.4 | 2026-02-12 |
+| [surrealdb/surrealdb](https://github.com/surrealdb/surrealdb) | v3.0.5 | 2026-04-10 |
+| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | surrealist-v3.7.4 | 2026-04-01 |
+| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v2.0.3 | 2026-03-25 |
+| [surrealdb/surrealdb.py](https://github.com/surrealdb/surrealdb.py) | v2.0.0-alpha.1 | 2026-02-26 |
+| [surrealdb/surrealdb.go](https://github.com/surrealdb/surrealdb.go) | v1.4.0 | 2026-03-04 |
+| [surrealdb/surreal-sync](https://github.com/surrealdb/surreal-sync) | v0.3.4 | 2026-03-11 |
 | [surrealdb/surrealfs](https://github.com/surrealdb/surrealfs) | -- | 2026-01-29 |
+| [surrealdb/surrealkit](https://github.com/surrealdb/surrealkit) | v0.5.0 | 2026-04-10 |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-22.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-04-10.
 
 Machine-readable provenance: `SOURCES.json`.
 

@@ -264,6 +264,7 @@ uv run {baseDir}/scripts/schema.py introspect --endpoint $SURREAL_ENDPOINT
 | `rules/surrealist.md` | Surrealist IDE/GUI: schema designer, query editor, graph visualizer, table explorer, connection management |
 | `rules/surreal-sync.md` | Surreal-Sync CDC tool: source connectors, target connectors, migration workflows, incremental sync, schema translation |
 | `rules/surrealfs.md` | SurrealFS AI agent filesystem: file storage and retrieval, metadata management, directory structures, agent integration patterns |
+| `rules/surrealkit.md` | SurrealKit schema sync, rollout-based migrations, seeding, and declarative schema/API tests |
 
 ## Configuration Requirements
 
@@ -368,10 +369,10 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 ```json
 {
   "skill": "surrealdb",
-  "version": "1.0.0",
-  "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealist", "surreal-sync", "surrealfs"],
-  "scripts": ["doctor.py", "schema.py", "onboard.py"],
-  "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealist.md", "surreal-sync.md", "surrealfs.md"],
+  "version": "1.3.0",
+  "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
+  "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
+  "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
   "prerequisites": {
     "surreal_cli": true,
     "python": true,
@@ -401,8 +402,8 @@ Common errors:
 
 | Component | Version |
 |-----------|---------|
-| SurrealDB target | 3.0.0+ |
-| Skill version | 1.2.1 |
+| SurrealDB target | 3.0.5+ |
+| Skill version | 1.3.0 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 
@@ -418,15 +419,15 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 
 | Repository | Release | SHA (short) | Snapshot Date | Rules Affected |
 |------------|---------|-------------|---------------|----------------|
-| surrealdb/surrealdb | v3.0.0 | `2e0a61fd4daf` | 2026-02-19 | surrealql, data-modeling, security, performance, deployment, surrealism |
-| surrealdb/surrealist | v3.7.2 | `a87e89e23796` | 2026-02-21 | surrealist |
-| surrealdb/surrealdb.js | v1.3.2 | `48894dfe70bd` | 2026-02-20 | sdks |
-| surrealdb/surrealdb.js (v2 beta) | v2.0.0-beta.1 | `48894dfe70bd` | 2026-02-20 | sdks |
-| surrealdb/surrealdb.py | v1.0.8 | `1ff4470e6ec0` | 2026-02-03 | sdks |
-| surrealdb/surrealdb.go | v1.3.0 | `89d0f8d1b4c6` | 2026-02-12 | sdks |
-| surrealdb/surreal-sync | v0.3.4 | `8166b2b041b1` | 2026-02-12 | surreal-sync |
+| surrealdb/surrealdb | v3.0.5 | `643f80e8d20e` | 2026-04-10 | surrealql, data-modeling, security, performance, deployment, surrealism |
+| surrealdb/surrealist | surrealist-v3.7.4 | `78f7c435cbd7` | 2026-04-01 | surrealist |
+| surrealdb/surrealdb.js | v2.0.3 | `f0fa3cd7d8fb` | 2026-03-25 | sdks |
+| surrealdb/surrealdb.py | v2.0.0-alpha.1 | `b21302c05565` | 2026-02-26 | sdks |
+| surrealdb/surrealdb.go | v1.4.0 | `8660dd78c20d` | 2026-03-04 | sdks |
+| surrealdb/surreal-sync | v0.3.4 | `59b3166910f0` | 2026-03-11 | surreal-sync |
 | surrealdb/surrealfs | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
+| surrealdb/surrealkit | v0.5.0 | `b5c22f745a4e` | 2026-04-10 | surrealkit |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-22.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-04-10.
 
 Full provenance data: `SOURCES.json` (machine-readable).

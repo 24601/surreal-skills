@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -30,6 +31,13 @@ from rich.table import Table
 
 stderr = Console(stderr=True)
 SOURCES_PATH = Path(__file__).resolve().parent.parent / "SOURCES.json"
+
+
+def _same_revision(baseline_sha: str, current_sha: str) -> bool:
+    """Treat short and full SHAs for the same commit as equivalent."""
+    baseline = baseline_sha.strip()
+    current = current_sha.strip()
+    return current.startswith(baseline) or baseline.startswith(current)
 
 
 def _gh_api(endpoint: str) -> Any:
@@ -43,6 +51,24 @@ def _gh_api(endpoint: str) -> Any:
     if result.returncode != 0:
         return None
     return json.loads(result.stdout)
+
+
+def _latest_release_or_tag(name: str, baseline_release: str | None = None) -> str | None:
+    """Return the latest release tag, or the newest Git tag when releases are absent."""
+    release_data = _gh_api(f"repos/{name}/releases/latest")
+    if isinstance(release_data, dict) and "tag_name" in release_data:
+        return release_data["tag_name"]
+
+    tags = _gh_api(f"repos/{name}/tags?per_page=50")
+    if isinstance(tags, list) and tags:
+        if baseline_release and re.fullmatch(r"v\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.]+)?", baseline_release):
+            for tag in tags:
+                name = tag.get("name", "")
+                if re.fullmatch(r"v\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.]+)?", name):
+                    return name
+        return tags[0].get("name")
+
+    return None
 
 
 def load_sources() -> dict[str, Any]:
@@ -61,15 +87,11 @@ def check_repo(name: str, baseline: dict[str, Any]) -> dict[str, Any]:
     current_sha = commits[0]["sha"]
     current_date = commits[0]["commit"]["committer"]["date"]
 
-    release_data = _gh_api(f"repos/{name}/releases/latest")
-    current_release = None
-    if isinstance(release_data, dict) and "tag_name" in release_data:
-        current_release = release_data["tag_name"]
-
     baseline_sha = baseline["sha"]
     baseline_release = baseline.get("release")
+    current_release = _latest_release_or_tag(name, baseline_release)
 
-    sha_changed = current_sha != baseline_sha
+    sha_changed = not _same_revision(baseline_sha, current_sha)
     release_changed = current_release != baseline_release and current_release is not None
 
     # Count commits since baseline

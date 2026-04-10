@@ -2,10 +2,10 @@
 
 [![CI](https://github.com/24601/surreal-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/24601/surreal-skills/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/24601/surreal-skills/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/24601/surreal-skills/releases)
 [![skills.sh](https://img.shields.io/badge/skills.sh-surrealdb-purple.svg)](https://skills.sh)
 
-Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, WASM extensions, and the full SurrealDB ecosystem.
+Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, WASM extensions, and the full SurrealDB ecosystem, including SurrealKit workflows.
 
 ## Features
 
@@ -18,7 +18,7 @@ Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, m
 - **Performance** -- Index strategies, EXPLAIN analysis, batch operations, connection pooling
 - **9+ SDK integrations** -- JavaScript/TypeScript, Python, Go, Rust, Java, .NET, C, PHP, Dart
 - **Surrealism WASM extensions** -- Custom functions and analyzers compiled from Rust (new in v3)
-- **Full ecosystem** -- Surrealist IDE, Surreal-Sync CDC, SurrealFS agent filesystem, SurrealML
+- **Full ecosystem** -- Surrealist IDE, Surreal-Sync CDC, SurrealFS agent filesystem, SurrealKit schema tooling, SurrealML
 - **Health checks and introspection** -- Doctor script and schema introspection for any SurrealDB instance
 - **Universal agent support** -- Works with 30+ AI coding agents via skills.sh
 
@@ -237,6 +237,7 @@ surreal-skills/
     surrealist.md       # Surrealist IDE/GUI
     surreal-sync.md     # CDC migration tool
     surrealfs.md        # AI agent filesystem
+    surrealkit.md       # Desired-state schema sync and rollouts
 ```
 
 ## Rules
@@ -248,13 +249,14 @@ surreal-skills/
 | `graph-queries.md` | Graph edge creation with RELATE, traversal operators (-> outgoing, <- incoming, <-> bidirectional), path expressions, recursive queries, filtering and aggregation on edges, graph-specific DEFINE TABLE TYPE RELATION |
 | `vector-search.md` | Vector field definitions, HNSW and brute-force index creation, distance metrics (cosine, euclidean, manhattan, minkowski), vector::similarity functions, RAG pipeline patterns, hybrid search combining vector + metadata filtering |
 | `security.md` | Row-level permissions with WHERE predicates, DEFINE ACCESS for JWT and record-based auth, DEFINE USER for system users, namespace/database/table permission scoping, $auth and $session runtime variables, authentication flow patterns |
-| `deployment.md` | Installation methods (curl, brew, Docker, binary), storage engine selection (memory, RocksDB, SurrealKV with time-travel, TiKV for distributed), Docker Compose and Kubernetes Helm charts, production hardening, backup/restore, log levels, monitoring |
+| `deployment.md` | Installation methods (package manager, Docker, binary), storage engine selection (memory, RocksDB, SurrealKV with time-travel, TiKV for distributed), Docker Compose and Kubernetes Helm charts, production hardening, backup/restore, log levels, monitoring |
 | `performance.md` | Index strategies (unique, full-text search analyzers, HNSW vector, MTree), EXPLAIN statement for query analysis, batch operations, connection pooling, storage engine trade-offs by workload, parallel queries, resource limits, compute-to-storage ratios |
 | `sdks.md` | Official SDK usage for JavaScript/TypeScript (Node, Deno, Bun, browser), Python, Go, Rust, Java, .NET, C, PHP, Dart: connection setup (HTTP vs WebSocket), authentication flows, CRUD operations, live query subscriptions, typed record handling, error patterns |
 | `surrealism.md` | Surrealism WASM extension system introduced in SurrealDB 3: Rust SDK for authoring, custom function registration, custom analyzer creation, module compilation to wasm32-unknown-unknown, deployment to running instances, versioning, testing |
 | `surrealist.md` | Surrealist IDE and GUI: schema designer with visual table editing, query editor with syntax highlighting and auto-complete, graph visualizer for relationships, table explorer, connection profiles, import/export, embedding in applications |
 | `surreal-sync.md` | Surreal-Sync CDC migration tool: source connectors (PostgreSQL, MySQL, MongoDB, etc.), SurrealDB as target, incremental change data capture, schema translation rules, migration workflow orchestration, conflict resolution, monitoring |
 | `surrealfs.md` | SurrealFS AI agent filesystem: file storage backed by SurrealDB, metadata management with SurrealQL queries, directory structures, file versioning, agent-friendly API patterns, integration with AI agent frameworks |
+| `surrealkit.md` | SurrealKit schema management for SurrealDB apps: desired-state sync for dev, rollout-based migrations for shared/prod, seeds, and declarative schema/permission/API tests |
 
 ## Scripts
 
@@ -289,6 +291,10 @@ Change Data Capture tool for migrating data from external databases (PostgreSQL,
 ### SurrealFS (AI Agent Filesystem)
 
 A filesystem abstraction built on SurrealDB, designed for AI agent workflows. Store files with rich metadata queryable via SurrealQL, version files automatically, and integrate with agent frameworks. See `rules/surrealfs.md`.
+
+### SurrealKit (Schema Sync and Rollouts)
+
+SurrealDB schema management for application teams. Use desired-state `sync` for disposable environments, `rollout` manifests for shared and production databases, `seed` for fixture data, and `test` for declarative schema, permission, and API checks. See `rules/surrealkit.md`.
 
 ## Use Cases
 
@@ -348,21 +354,21 @@ These variables are also recognized by the surreal CLI and official SurrealDB SD
 
 ## Source Provenance
 
-This skill was built on **2026-02-22** from these upstream sources. Use `check_upstream.py`
+This skill was refreshed on **2026-04-10** from these upstream sources. Use `check_upstream.py`
 to detect what changed since this snapshot for incremental updates.
 
 | Repository | Release | SHA | Snapshot Date | Rules Affected |
 |------------|---------|-----|---------------|----------------|
-| [surrealdb/surrealdb](https://github.com/surrealdb/surrealdb) | v3.0.0 | `2e0a61fd4daf` | 2026-02-19 | surrealql, data-modeling, security, performance, deployment, surrealism |
-| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | v3.7.2 | `a87e89e23796` | 2026-02-21 | surrealist |
-| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v1.3.2 | `48894dfe70bd` | 2026-02-20 | sdks |
-| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) (v2 beta) | v2.0.0-beta.1 | `48894dfe70bd` | 2026-02-20 | sdks |
-| [surrealdb/surrealdb.py](https://github.com/surrealdb/surrealdb.py) | v1.0.8 | `1ff4470e6ec0` | 2026-02-03 | sdks |
-| [surrealdb/surrealdb.go](https://github.com/surrealdb/surrealdb.go) | v1.3.0 | `89d0f8d1b4c6` | 2026-02-12 | sdks |
-| [surrealdb/surreal-sync](https://github.com/surrealdb/surreal-sync) | v0.3.4 | `8166b2b041b1` | 2026-02-12 | surreal-sync |
+| [surrealdb/surrealdb](https://github.com/surrealdb/surrealdb) | v3.0.5 | `643f80e8d20e` | 2026-04-10 | surrealql, data-modeling, security, performance, deployment, surrealism |
+| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | surrealist-v3.7.4 | `78f7c435cbd7` | 2026-04-01 | surrealist |
+| [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v2.0.3 | `f0fa3cd7d8fb` | 2026-03-25 | sdks |
+| [surrealdb/surrealdb.py](https://github.com/surrealdb/surrealdb.py) | v2.0.0-alpha.1 | `b21302c05565` | 2026-02-26 | sdks |
+| [surrealdb/surrealdb.go](https://github.com/surrealdb/surrealdb.go) | v1.4.0 | `8660dd78c20d` | 2026-03-04 | sdks |
+| [surrealdb/surreal-sync](https://github.com/surrealdb/surreal-sync) | v0.3.4 | `59b3166910f0` | 2026-03-11 | surreal-sync |
 | [surrealdb/surrealfs](https://github.com/surrealdb/surrealfs) | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
+| [surrealdb/surrealkit](https://github.com/surrealdb/surrealkit) | v0.5.0 | `b5c22f745a4e` | 2026-04-10 | surrealkit |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-02-22.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-04-10.
 
 Machine-readable provenance: [`SOURCES.json`](SOURCES.json).
 
@@ -392,14 +398,14 @@ This skill declares the following security properties in `SKILL.md` frontmatter:
 | `no_network` | **false** | `doctor.py`/`schema.py` connect to user-specified SurrealDB endpoint (WebSocket). `check_upstream.py` calls GitHub API via `gh` CLI. No other third-party calls. |
 | `no_credentials` | **false** | Scripts accept `SURREAL_USER`/`SURREAL_PASS` for DB auth. No credentials are stored in the skill itself. |
 | `no_env_write` | true | Scripts do not modify environment variables |
-| `no_file_write` | true | Rules are read-only; scripts write only to stdout/stderr |
+| `no_file_write` | **false** | `schema.py` can write `schema.surql` when `--output-dir` is used, and `onboard.py --interactive` can write a local `.env` file only after explicit user confirmation. |
 | `no_shell_exec` | false | Scripts invoke `surreal` CLI and `gh` CLI |
 | `scripts_auditable` | true | All scripts are readable Python with no obfuscation |
 | `scripts_use_pep723` | true | Dependencies declared inline via PEP 723, no requirements.txt |
 | `no_obfuscated_code` | true | No obfuscated, encoded, or encrypted code |
 | `no_binary_blobs` | true | No compiled binaries or WASM files |
 | `no_minified_scripts` | true | No minified JavaScript or compressed code |
-| `no_curl_pipe_sh` | **false** | Documentation mentions `curl\|sh` as one install option; safer alternatives (brew, Docker) are listed first. The skill itself never executes `curl\|sh`. |
+| `no_curl_pipe_sh` | true | The skill documents package-manager and container installs only. No pipe-to-shell installer commands are included. |
 
 ### Required Environment Variables
 

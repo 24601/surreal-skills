@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: Validate Skill
@@ -50,6 +53,41 @@ jobs:
         run: |
           uv run scripts/onboard.py --help
 
+      - name: Validate version consistency
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          version_re = re.compile(r'(?m)^  version:\s*"([^"]+)"$')
+
+          def extract_version(path: Path) -> str:
+              match = version_re.search(path.read_text())
+              if not match:
+                  raise SystemExit(f"missing metadata.version in {path}")
+              return match.group(1)
+
+          root_version = extract_version(Path("SKILL.md"))
+
+          for path in sorted(Path("skills").glob("*/SKILL.md")):
+              subskill_version = extract_version(path)
+              if subskill_version != root_version:
+                  raise SystemExit(f"{path} version {subskill_version} != root version {root_version}")
+
+          sources = json.loads(Path("SOURCES.json").read_text())
+          if sources.get("skill_version") != root_version:
+              raise SystemExit(
+                  f"SOURCES.json skill_version {sources.get('skill_version')} != root version {root_version}"
+              )
+          PY
+
+      - name: Smoke test script entrypoints
+        run: |
+          uv run scripts/onboard.py --agent >/tmp/onboard.json
+          uv run scripts/schema.py --help >/dev/null
+          uv run scripts/doctor.py --help >/dev/null
+
       - name: Verify rule files exist
         run: |
           echo "Checking required rule files..."
@@ -66,6 +104,7 @@ jobs:
             "rules/surreal-sync.md"
             "rules/surrealist.md"
             "rules/surrealfs.md"
+            "rules/surrealkit.md"
           )
           missing=0
           for rule in "${expected_rules[@]}"; do

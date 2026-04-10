@@ -3,14 +3,14 @@ name: surreal-sync
 description: "Data migration and synchronization to SurrealDB from MongoDB, PostgreSQL, MySQL, Neo4j, Kafka, and JSONL. Full and incremental CDC sync. Part of the surreal-skills collection."
 license: MIT
 metadata:
-  version: "1.0.4"
+  version: "1.3.0"
   author: "24601"
   parent_skill: "surrealdb"
-  snapshot_date: "2026-02-19"
+  snapshot_date: "2026-04-10"
   upstream:
     repo: "surrealdb/surreal-sync"
     release: "v0.3.4"
-    sha: "8166b2b041b1"
+    sha: "59b3166910f0"
 ---
 
 # Surreal-Sync -- Data Migration and Synchronization

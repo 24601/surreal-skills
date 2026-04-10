@@ -49,13 +49,13 @@ When working with SurrealDB instances:
 - **Development**: Use default `root`/`root` credentials only for local development. Never use these in production.
 - **Production**: Use SurrealDB's built-in access control system with properly scoped credentials.
 - **Connection strings**: Never log or print full connection strings that include credentials.
-- **Scripts**: The `onboard.py` and `schema.py` scripts accept credentials via CLI flags or environment variables. They do not persist credentials to disk.
+- **Scripts**: `doctor.py` and `schema.py` accept credentials via CLI flags or environment variables and do not persist them. `onboard.py --interactive` may write a local `.env` file only after explicit user confirmation.
 
 ## Supported Versions
 
 | Version | Supported |
 | ------- | --------- |
-| 1.0.x   | Yes       |
+| 1.x     | Yes       |
 
 ## Security Best Practices for Users
 

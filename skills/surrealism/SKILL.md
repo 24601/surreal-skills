@@ -3,14 +3,14 @@ name: surrealism
 description: "SurrealDB Surrealism WASM extension development. Write Rust functions, compile to WASM, deploy as database modules. Part of the surreal-skills collection."
 license: MIT
 metadata:
-  version: "1.0.4"
+  version: "1.3.0"
   author: "24601"
   parent_skill: "surrealdb"
-  snapshot_date: "2026-02-19"
+  snapshot_date: "2026-04-10"
   upstream:
     repo: "surrealdb/surrealdb"
-    release: "v3.0.0"
-    sha: "2e0a61fd4daf"
+    release: "v3.0.5"
+    sha: "643f80e8d20e"
     docs: "https://surrealdb.com/docs/surrealdb/extensions"
 ---
 
@@ -22,7 +22,7 @@ New in SurrealDB 3. Write custom functions in Rust, compile them to WebAssembly
 ## Prerequisites
 
 - Rust toolchain (stable) with `wasm32-unknown-unknown` target
-- SurrealDB CLI v3.0.0+ (`surreal` binary with `surreal module` subcommand)
+- SurrealDB CLI v3.0.5+ (`surreal` binary with `surreal module` subcommand)
 - Familiarity with SurrealQL `DEFINE MODULE` and `DEFINE BUCKET`
 
 ## Development Workflow

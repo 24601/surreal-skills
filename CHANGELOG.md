@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] - 2026-04-10
+
+### Major
+- SurrealDB v3.0.5: documented `REMOVE CONFIG`, wider `ALTER` coverage, planner pushdown fixes, `$parent` fixes, computed field fixes, edge query ordering fixes, GraphQL literal fields, and related patch work
+- SurrealKit v0.5.0 added as a first-class part of the skill: desired-state schema sync, rollout-based migrations, seeding, and declarative database/API tests
+- Release and CI workflows hardened: explicit least-privilege permissions, version-consistency validation, smoke tests, and no in-workflow manifest mutation before publish
+
+### Fixed
+- `scripts/check_upstream.py`: short baseline SHAs now compare correctly against full GitHub commit SHAs
+- `scripts/check_upstream.py`: falls back to latest Git tag when a repo does not publish GitHub Releases
+- `scripts/doctor.py` and `scripts/schema.py`: normalize user-facing HTTP endpoints to SurrealDB WebSocket RPC URLs before connecting
+- `scripts/schema.py`: restored the documented `introspect`, `tables`, and `table` commands
+- `scripts/onboard.py`: version now comes from root `SKILL.md`, and the agent manifest now reflects live prerequisites and the full script/rule set
+
+### Changed
+- README, AGENTS.md, SKILL.md, and SOURCES.json synced to upstream state as of 2026-04-10
+- Added `rules/surrealkit.md` and `skills/surrealkit/SKILL.md`
+- Surrealist docs updated to v3.7.4; JavaScript SDK docs updated to v2.0.3
+- Security metadata corrected: file writes are declared accurately, remote shell installer references removed from active documentation, and publish workflow now validates repository content instead of editing it at release time
+
 ## [1.2.1] - 2026-03-13
 
 ### Major
@@ -133,9 +153,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - SKILL.md frontmatter: added requires.binaries declaring surreal, python3, uv, docker
 - SKILL.md frontmatter: added requires.env_vars declaring all SURREAL_* vars
   with sensitive: true on SURREAL_USER and SURREAL_PASS
-- Replaced all curl|sh install instructions with brew/package manager alternatives
+- Replaced remote shell installer instructions with brew/package manager alternatives
   in SKILL.md, AGENTS.md, README.md, and rules/deployment.md
-- Added security notes on curl|sh (download-and-review alternative documented)
+- Added security notes on remote shell installers (download-and-review alternative documented)
 - Added credential warnings on all root/root examples across all files
 - Changed bind address from 0.0.0.0 to 127.0.0.1 in quick start examples
 - Added SurrealQL injection prevention: _sanitize_identifier() in schema.py

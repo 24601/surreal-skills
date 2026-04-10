@@ -4,6 +4,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
   validate-and-publish:
     name: Validate and Publish
@@ -41,24 +44,79 @@ jobs:
           grep -q "^description:" SKILL.md || { echo "ERROR: SKILL.md missing 'description' field"; exit 1; }
           echo "SKILL.md is valid."
 
-      - name: Bump version in SKILL.md
+      - name: Validate version consistency
+        env:
+          RELEASE_VERSION: ${{ github.ref_name }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "Setting version to $VERSION"
-          sed -i "s/^  version: .*/  version: \"$VERSION\"/" SKILL.md
-          for subskill in skills/*/SKILL.md; do
-            sed -i "s/^  version: .*/  version: \"$VERSION\"/" "$subskill"
-          done
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          expected = os.environ["RELEASE_VERSION"]
+          if expected.startswith("v"):
+              expected = expected[1:]
+
+          version_re = re.compile(r'(?m)^  version:\s*"([^"]+)"$')
+          badge_re = re.compile(r'badge/version-([0-9][^-\]]*)-blue')
+          changelog_re = re.compile(r'(?m)^## \[([^\]]+)\] - ')
+
+          def extract_version(path: Path) -> str:
+              match = version_re.search(path.read_text())
+              if not match:
+                  raise SystemExit(f"missing metadata.version in {path}")
+              return match.group(1)
+
+          root_version = extract_version(Path("SKILL.md"))
+          if root_version != expected:
+              raise SystemExit(f"SKILL.md version {root_version} != release tag {expected}")
+
+          for path in sorted(Path("skills").glob("*/SKILL.md")):
+              subskill_version = extract_version(path)
+              if subskill_version != expected:
+                  raise SystemExit(f"{path} version {subskill_version} != release tag {expected}")
+
+          sources = json.loads(Path("SOURCES.json").read_text())
+          if sources.get("skill_version") != expected:
+              raise SystemExit(
+                  f"SOURCES.json skill_version {sources.get('skill_version')} != release tag {expected}"
+              )
+
+          readme = Path("README.md").read_text()
+          badge = badge_re.search(readme)
+          if not badge or badge.group(1) != expected:
+              raise SystemExit("README.md version badge does not match release tag")
+
+          changelog = Path("CHANGELOG.md").read_text()
+          latest = changelog_re.search(changelog)
+          if not latest or latest.group(1) != expected:
+              raise SystemExit("CHANGELOG.md latest entry does not match release tag")
+
+          if not Path("rules/surrealkit.md").exists():
+              raise SystemExit("rules/surrealkit.md is missing")
+          PY
+
+      - name: Script smoke tests
+        run: |
+          uv run scripts/onboard.py --agent >/tmp/onboard.json
+          uv run scripts/schema.py --help >/dev/null
+          uv run scripts/doctor.py --help >/dev/null
 
       - name: Publish to clawhub.ai
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
         run: |
+          [ -n "$CLAWHUB_TOKEN" ] || { echo "ERROR: CLAWHUB_TOKEN is not configured"; exit 1; }
+          VERSION="${GITHUB_REF_NAME#v}"
+          PAYLOAD="$(jq -nc --arg repository "$GITHUB_REPOSITORY" --arg version "$VERSION" '{repository:$repository, version:$version}')"
           echo "Publishing skill to clawhub.ai..."
-          curl -sf -X POST \
+          curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors \
+            --proto '=https' --tlsv1.2 -X POST \
             -H "Authorization: Bearer $CLAWHUB_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"repository\": \"$GITHUB_REPOSITORY\", \"version\": \"${GITHUB_REF_NAME#v}\"}" \
+            -d "$PAYLOAD" \
             "https://api.clawhub.ai/v1/skills/publish" \
             || { echo "ERROR: Failed to publish to clawhub.ai"; exit 1; }
           echo "Published successfully."
@@ -66,7 +124,8 @@ jobs:
       - name: Trigger skills.sh reindex
         run: |
           echo "Triggering skills.sh reindex..."
-          curl -sf -X POST \
+          curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors \
+            --proto '=https' --tlsv1.2 -X POST \
             "https://skills.sh/api/reindex?repo=$GITHUB_REPOSITORY" \
             || echo "WARNING: skills.sh reindex trigger failed (non-fatal)"
           echo "Reindex triggered."

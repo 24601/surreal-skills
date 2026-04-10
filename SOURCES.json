@@ -1,13 +1,13 @@
 {
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
-  "skill_version": "1.2.1",
-  "snapshot_date": "2026-03-17",
+  "skill_version": "1.3.0",
+  "snapshot_date": "2026-04-10",
   "repos": {
     "surrealdb/surrealdb": {
-      "sha": "d0d99f7ad702",
-      "date": "2026-03-17",
-      "release": "v3.0.4",
+      "sha": "643f80e8d20e",
+      "date": "2026-04-10",
+      "release": "v3.0.5",
       "main_tracking": "v3.1.0-alpha",
       "url": "https://github.com/surrealdb/surrealdb",
       "rules_affected": [
@@ -20,18 +20,18 @@
       ]
     },
     "surrealdb/surrealist": {
-      "sha": "7080fe31bdc4",
-      "date": "2026-03-17",
-      "release": "surrealist-v3.7.3",
+      "sha": "78f7c435cbd7",
+      "date": "2026-04-01",
+      "release": "surrealist-v3.7.4",
       "url": "https://github.com/surrealdb/surrealist",
       "rules_affected": [
         "rules/surrealist.md"
       ]
     },
     "surrealdb/surrealdb.js": {
-      "sha": "ad2deabb8962",
-      "date": "2026-03-17",
-      "release": "v2.0.2",
+      "sha": "f0fa3cd7d8fb",
+      "date": "2026-03-25",
+      "release": "v2.0.3",
       "url": "https://github.com/surrealdb/surrealdb.js",
       "rules_affected": [
         "rules/sdks.md"
@@ -48,7 +48,7 @@
     },
     "surrealdb/surrealdb.go": {
       "sha": "8660dd78c20d",
-      "date": "2026-03-13",
+      "date": "2026-03-04",
       "release": "v1.4.0",
       "url": "https://github.com/surrealdb/surrealdb.go",
       "rules_affected": [
@@ -57,7 +57,7 @@
     },
     "surrealdb/surreal-sync": {
       "sha": "59b3166910f0",
-      "date": "2026-03-13",
+      "date": "2026-03-11",
       "release": "v0.3.4",
       "url": "https://github.com/surrealdb/surreal-sync",
       "rules_affected": [
@@ -72,12 +72,21 @@
       "rules_affected": [
         "rules/surrealfs.md"
       ]
+    },
+    "surrealdb/surrealkit": {
+      "sha": "b5c22f745a4e",
+      "date": "2026-04-10",
+      "release": "v0.5.0",
+      "url": "https://github.com/surrealdb/surrealkit",
+      "rules_affected": [
+        "rules/surrealkit.md"
+      ]
     }
   },
   "docs": {
     "surrealdb.com/docs": {
       "url": "https://surrealdb.com/docs",
-      "snapshot_date": "2026-03-17",
+      "snapshot_date": "2026-04-10",
       "sections_used": [
         "surrealdb/surrealql/statements",
         "surrealdb/surrealql/functions",
