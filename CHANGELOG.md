@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.1] - 2026-04-10
+
+### Fixed
+- ClawHub registry metadata now declares the skill's required binaries and `SURREAL_*` environment variables under `metadata.openclaw`, matching the documented publish contract and eliminating the `metadata: null` registry state from `1.3.0`
+- Root `SKILL.md` now carries an explicit top-level `version` field in addition to the repo-local metadata block for better registry compatibility
+- Release workflow now publishes through the supported `clawhub` CLI flow instead of the dead `api.clawhub.ai/v1/skills/publish` endpoint
+
+### Changed
+- Version metadata bumped to `1.3.1` across the root manifest, sub-skills, AGENTS.md, README badge, and SOURCES.json
+
 ## [1.3.0] - 2026-04-10
 
 ### Major

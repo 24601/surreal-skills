@@ -369,7 +369,7 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 ```json
 {
   "skill": "surrealdb",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
   "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
   "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
@@ -403,7 +403,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.0.5+ |
-| Skill version | 1.3.0 |
+| Skill version | 1.3.1 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 

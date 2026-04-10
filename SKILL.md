@@ -1,12 +1,35 @@
 ---
 name: surrealdb
 description: "Expert SurrealDB 3 architect and developer skill. SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust), Surrealism WASM extensions, and the wider ecosystem (Surrealist, Surreal-Sync, SurrealFS, SurrealKit). Universal skill for 30+ AI agents."
+version: "1.3.1"
 license: MIT
 metadata:
-  version: "1.3.0"
+  version: "1.3.1"
   author: "24601"
   snapshot_date: "2026-04-10"
   repository: "https://github.com/24601/surreal-skills"
+  openclaw:
+    requires:
+      env:
+        - SURREAL_ENDPOINT
+        - SURREAL_USER
+        - SURREAL_PASS
+        - SURREAL_NS
+        - SURREAL_DB
+      bins:
+        - surreal
+        - python3
+        - uv
+    primaryEnv: SURREAL_PASS
+    homepage: "https://github.com/24601/surreal-skills"
+    always: false
+    install:
+      - kind: brew
+        formula: surrealdb/tap/surreal
+        bins: [surreal]
+      - kind: brew
+        formula: uv
+        bins: [uv]
 requires:
   binaries:
     - name: surreal

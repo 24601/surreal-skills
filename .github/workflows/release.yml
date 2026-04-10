@@ -110,14 +110,32 @@ jobs:
         run: |
           [ -n "$CLAWHUB_TOKEN" ] || { echo "ERROR: CLAWHUB_TOKEN is not configured"; exit 1; }
           VERSION="${GITHUB_REF_NAME#v}"
-          PAYLOAD="$(jq -nc --arg repository "$GITHUB_REPOSITORY" --arg version "$VERSION" '{repository:$repository, version:$version}')"
+          CHANGELOG_TEXT="$(
+            VERSION="$VERSION" python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          changelog = Path("CHANGELOG.md").read_text()
+          match = re.search(
+              rf"(?ms)^## \[{re.escape(version)}\] - .*?(?=^## \[|\Z)",
+              changelog,
+          )
+          if not match:
+              raise SystemExit(f"missing CHANGELOG.md entry for {version}")
+          print(match.group(0).strip())
+          PY
+          )"
+          export CLAWHUB_CONFIG_PATH="$RUNNER_TEMP/clawhub-config.json"
           echo "Publishing skill to clawhub.ai..."
-          curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors \
-            --proto '=https' --tlsv1.2 -X POST \
-            -H "Authorization: Bearer $CLAWHUB_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            "https://api.clawhub.ai/v1/skills/publish" \
+          npx --yes clawhub login --token "$CLAWHUB_TOKEN" --no-browser
+          npx --yes clawhub publish . \
+            --slug surrealdb \
+            --name "SurrealDB 3" \
+            --version "$VERSION" \
+            --changelog "$CHANGELOG_TEXT" \
+            --tags "latest,ai-agents,database,graph,openclaw,surrealdb,vector" \
             || { echo "ERROR: Failed to publish to clawhub.ai"; exit 1; }
           echo "Published successfully."
 
