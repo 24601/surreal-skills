@@ -109,6 +109,65 @@ Need schema validation?
    e. Use in SurrealQL queries via custom function syntax
 ```
 
+### "User wants to deploy / serve an ML model"
+
+```
+1. Reference rules/surrealml.md
+2. Prerequisites: surrealml Python toolchain (PyTorch / ONNX / sklearn / TF / HF)
+3. Workflow:
+   a. Train or load the model in Python
+   b. Wrap with SurMlFile.from_<framework>(...) and ModelMeta(...)
+   c. Save .surml artifact
+   d. Upload via DEFINE MODEL ... CONTENTS $bytes, surreal ml import, or db.upload_ml(...)
+   e. Call from SurrealQL: ml::name<version>(args)
+   f. For multiple versions, manage with SurrealKit rollouts (rules/surrealkit.md)
+```
+
+### "User wants AI agents to talk to SurrealDB"
+
+```
+1. Reference rules/surrealmcp.md
+2. Choose transport:
+   stdio  -> local Claude Code/Desktop, Cursor, Codex CLI
+   http   -> remote / multi-tenant deployments
+3. Install: cargo install surrealmcp  OR  npm install -g @surrealdb/surrealmcp
+4. Add to host MCP config (~/.claude/mcp.json, .cursor/mcp.json, ~/.codex/mcp.json)
+5. Verify: tools/list returns query/select/create/update/merge/delete/relate/live/schema.*
+6. Production: scoped DB user (DEFINE USER ... ROLE EDITOR/VIEWER), TLS, --auth-token
+```
+
+### "User wants editor / IDE support"
+
+```
+1. Reference rules/editor-tooling.md
+2. Prerequisites: cargo install surrealql-language-server
+3. Pick the editor:
+   VS Code / Cursor / Windsurf -> install "SurrealQL" extension (Marketplace + OpenVSX)
+   JetBrains                    -> install "SurrealQL" plugin (JetBrains Marketplace)
+   Neovim                       -> surrealdb/surrealql-neovim + nvim-treesitter
+   Helix                        -> auto-discovers via languages.toml
+   Zed                          -> install "SurrealQL" via zed: extensions
+4. Configure connection in surrealql.toml for live schema completion
+5. CI: surrealql-language-server lint database/schema --format github
+```
+
+### "User wants LangChain / RAG"
+
+```
+1. Reference rules/langchain.md + rules/vector-search.md
+2. Python:
+   pip install langchain-surrealdb
+   SurrealDBVectorStore.from_endpoint(...)
+3. JS/TS:
+   npm install @langchain/surrealdb
+   await SurrealVectorStore.fromEndpoint({...}, embeddings)
+4. For multi-tenant:
+   DEFINE TABLE document PERMISSIONS FOR select WHERE tenant_id = $auth.tenant_id;
+   Then signin with DEFINE ACCESS record-level user before constructing the store
+5. For server-side embeddings: pair with rules/surrealml.md (BEFORE-write computed
+   field via ml::sentence_encoder<...>(content))
+```
+
 ### "User migrating from another database"
 
 ```
@@ -257,10 +316,14 @@ uv run {baseDir}/scripts/schema.py introspect --endpoint $SURREAL_ENDPOINT
 | `rules/graph-queries.md` | Graph edge creation with RELATE, traversal operators (-> <- <->), path expressions, recursive queries, filtering edges, aggregation |
 | `rules/vector-search.md` | Vector field definitions, HNSW and brute-force indexes, distance metrics, similarity functions, RAG pipeline patterns, hybrid search |
 | `rules/security.md` | Row-level permissions, DEFINE ACCESS (JWT, record), DEFINE USER, namespace/database/table scoping, $auth/$session variables, authentication flows |
-| `rules/deployment.md` | Installation methods, storage engines (memory, RocksDB, SurrealKV, TiKV), Docker, Kubernetes Helm charts, production hardening, backup/restore, monitoring |
+| `rules/deployment.md` | Installation methods, storage engines (memory, RocksDB, SurrealKV, TiKV), Docker, Kubernetes Helm charts, production hardening, backup/restore, monitoring, `setup-surreal` bootstrap CLI |
 | `rules/performance.md` | Index strategies (unique, search, HNSW, MTree), EXPLAIN for query analysis, batch operations, connection pooling, storage engine trade-offs, resource limits |
-| `rules/sdks.md` | Official SDK usage for JS/TS, Python, Go, Rust, Java, .NET, C, PHP, Dart: connection setup, authentication, CRUD, live queries, typed records |
+| `rules/sdks.md` | Official SDK usage for JS/TS, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Dart, Swift, Ruby: connection setup, authentication, CRUD, live queries, typed records |
 | `rules/surrealism.md` | Surrealism WASM extension system (new in v3): Rust SDK, custom functions, custom analyzers, module lifecycle, deployment |
+| `rules/surrealml.md` | SurrealML model upload (.surml), in-database inference via `ml::name<version>(...)`, versioning, rollouts, permissioning |
+| `rules/surrealmcp.md` | Model Context Protocol server: tool catalog (`query`, `select`, `relate`, `live`, `schema.*`), stdio + Streamable HTTP transports, host configs (Claude Code, Cursor, Codex, OpenCode, Amp, Continue), production deployment |
+| `rules/editor-tooling.md` | LSP (`surrealql-language-server`), tree-sitter grammar, VS Code / Cursor / Windsurf / VSCodium, JetBrains, Neovim, Helix, Sublime Text, Zed extensions; CI lint integration |
+| `rules/langchain.md` | LangChain Python + JS integration: vector store, retrievers (similarity / MMR / hybrid), chat message history, multi-tenant permissions |
 | `rules/surrealist.md` | Surrealist IDE/GUI: schema designer, query editor, graph visualizer, table explorer, connection management |
 | `rules/surreal-sync.md` | Surreal-Sync CDC tool: source connectors, target connectors, migration workflows, incremental sync, schema translation |
 | `rules/surrealfs.md` | SurrealFS AI agent filesystem: file storage and retrieval, metadata management, directory structures, agent integration patterns |
@@ -370,9 +433,9 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 {
   "skill": "surrealdb",
   "version": "1.4.0",
-  "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
+  "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealml", "surrealmcp", "editor-tooling", "langchain", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
   "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
-  "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
+  "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealml.md", "surrealmcp.md", "editor-tooling.md", "langchain.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
   "prerequisites": {
     "surreal_cli": true,
     "python": true,

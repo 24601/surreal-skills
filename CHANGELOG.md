@@ -5,7 +5,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [1.4.0] - 2026-05-03
 
-### Major
+### Major (ecosystem expansion)
+- New rule **`rules/surrealmcp.md`** + sub-skill **`skills/surrealmcp/SKILL.md`** covering the official Model Context Protocol server for SurrealDB. Tool catalog (`query`, `select`, `create`, `update`, `merge`, `delete`, `relate`, `live`, `kill`, `schema.introspect`, `schema.tables`, `schema.table`, `info.db`, `info.ns`, `use`, `signin`), stdio + Streamable HTTP transports, host-config snippets for Claude Code, Claude Desktop, Cursor, Codex CLI, OpenCode, Amp, Continue, Windsurf.
+- New rule **`rules/editor-tooling.md`** covering `surrealql-language-server`, `surrealql-tree-sitter`, and the official editor extensions: VS Code / Cursor / Windsurf / VSCodium (`surrealql-vsx` grammar, Marketplace + OpenVSX), JetBrains (`surrealql-jetbrains`), Neovim (`surrealql-neovim` + `nvim-treesitter`), Helix (`surrealql-helix`), Sublime Text (LSP-Sublime), Zed (`surrealql-zed`), Emacs (`surrealql-emacs`). Includes `surrealql.toml` config schema and CI lint pattern.
+- New rule **`rules/langchain.md`** covering `langchain-surrealdb` (Python) and `@langchain/surrealdb` (JS): vector store, retrievers (similarity / MMR / score-threshold), hybrid retriever (vector + keyword + graph), chat message history, async API, multi-tenant permissioning via DEFINE ACCESS.
+- New rule **`rules/surrealml.md`** covering SurrealML model authoring (PyTorch / ONNX / scikit-learn / TensorFlow / HuggingFace), `.surml` artifacts, DEFINE MODEL, `ml::name<version>(...)` invocation, computed-field embeddings, BEFORE-write events, version rollouts via SurrealKit, comparison with Surrealism extensions.
+- `rules/sdks.md` expanded with full **Swift**, **Kotlin / JVM**, and **Ruby** SDK sections (installation, connection, auth, CRUD, live queries, framework integration patterns: SwiftUI, Android lifecycle, Rails / ActiveRecord, Sidekiq pooling). Decision matrix updated from 7 columns to 10.
+- `rules/deployment.md` adds the **`setup-surreal`** opinionated bootstrap CLI: project scaffolding, storage-engine validation, TLS modes (`none` / `self-signed` / `letsencrypt` / `custom`), Helm values export, scoped-user provisioning, integration map with this skill's scripts, production checklist.
+
+### Major (upstream sync)
 - Upstream sync to 2026-05-03 covering five changed repos since the 1.3.1 snapshot:
   - `surrealdb/surrealdb`: +38 commits on `main` past v3.0.5 toward v3.1.0-alpha (HEAD `a97d3af`, 2026-04-29). v3.0.5 remains the latest tagged release.
   - `surrealdb/surrealist`: surrealist-v3.7.4 -> surrealist-v3.8.5 (HEAD `3699b2d`, 2026-05-01). Continued query/explorer/designer iteration; signed release artifacts retained.
@@ -13,15 +21,25 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
   - `surrealdb/surrealdb.go`: +8 commits on `main` since v1.4.0 (HEAD `aef39d3`, 2026-04-30). v1.4.0 still the latest tagged release; pin to v1.4.0 for stability.
   - `surrealdb/surrealkit`: v0.5.0 -> v0.6.0 (HEAD `28f5a1c`, 2026-05-03, pre-release). Iterative patch releases plus procedural-macro publish workflow in CI; CLI surface unchanged.
 
+### Added
+- `skills/surrealmcp/SKILL.md` sub-skill manifest mirroring the surrealkit / surrealfs / surreal-sync / surrealism pattern.
+- `SOURCES.json` now tracks `surrealdb/surrealmcp`, `surrealdb/surrealml`, `surrealdb/surrealql-language-server`, `surrealdb/surrealql-tree-sitter`, `surrealdb/surrealql-vsx`, `surrealdb/surrealql-jetbrains`, `surrealdb/surrealql-neovim`, `surrealdb/surrealql-zed`, `surrealdb/surrealql-helix`, `surrealdb/surrealql-emacs`, `surrealdb/langchain-surrealdb`, `surrealdb/setup-surreal`, `surrealdb/surrealdb.swift`, `surrealdb/surrealdb.kotlin`, `surrealdb/surrealdb.rb`. All 23 tracked repos resolve via `gh api` -- no 404s in `check_upstream.py`.
+- `scripts/onboard.py` capability list and rule index extended with `surrealml`, `surrealmcp`, `editor-tooling`, `langchain`. Decision-tree manifest gains `ml_inference`, `agent_integration`, `editor_setup`, `rag_pipeline` entries.
+- `AGENTS.md` decision trees for: deploying ML models, AI agent integration via MCP, editor / IDE setup, LangChain RAG pipelines.
+
 ### Changed
 - `SOURCES.json`, `SKILL.md`, sub-skill manifests under `skills/*/SKILL.md`, `README.md`, and `AGENTS.md` synced to the 2026-05-03 provenance.
-- `rules/sdks.md`: Python SDK section promoted to v2.0.0 GA. Go SDK section calls out the unreleased main HEAD past v1.4.0 explicitly.
+- `rules/sdks.md`: Python SDK section promoted to v2.0.0 GA. Go SDK section calls out the unreleased main HEAD past v1.4.0 explicitly. New Swift / Kotlin / Ruby sections; decision matrix expanded.
 - `rules/surrealist.md`: pinned to v3.8.5 with current snapshot date.
 - `rules/surrealkit.md` and `skills/surrealkit/SKILL.md`: pinned to v0.6.0 pre-release with continuity note that the public CLI surface is unchanged.
+- `rules/deployment.md`: added `setup-surreal` section between configuration flags and Docker deployment.
+- `README.md`: feature bullet count updated to 12+ SDKs, new sub-skill sections (SurrealMCP, SurrealML, Editor Tooling, LangChain), architecture tree reflects new `rules/` and `skills/` files.
 
 ### Security
-- No regression to declared security posture: no new third-party network endpoints, no new credential surface, no new file-write paths, no new shell-execution surface, no obfuscated code, no binary blobs, no `curl | sh` instructions, no minified scripts. CI and Release workflows retain `permissions: contents: read` (Release also explicitly scopes its publish step). `check_upstream.py` continues to use the GitHub API via the `gh` CLI only.
+- **No regression to declared security posture.** All v1.4.0 changes are documentation-only -- no new scripts, no new binaries vendored, no new third-party network endpoints called by the skill itself, no new credential surface, no new file-write paths, no new shell-execution surface, no obfuscated code, no binary blobs, no `curl | sh` instructions, no minified scripts. The new rule files document upstream tools whose installation continues to use auditable channels (Cargo, Homebrew, npm registry, Docker Hub). CI and Release workflows retain `permissions: contents: read` (Release also explicitly scopes its publish step). `check_upstream.py` continues to use the GitHub API via the `gh` CLI only.
+- New rules' security guidance: `rules/surrealmcp.md` recommends scoped DB users (DEFINE USER ... ROLE EDITOR/VIEWER), TLS for HTTP transport, bearer tokens, and never running MCP as root in production. `rules/langchain.md` recommends row-level DEFINE PERMISSIONS for multi-tenant vector stores. `rules/surrealml.md` recommends DEFINE PERMISSIONS on model functions to scope inference. `rules/deployment.md` `setup-surreal` checklist requires non-`memory` storage, non-`none` TLS, and scoped DB users for production.
 - All upstream version bumps in this release are equal-or-better on the security axis: surrealdb.go retains the v1.4.0 SQL-injection sanitization in restore (#375); surrealdb.py v2.0.0 GA tightens error-handling types; surrealist v3.8.5 keeps signed release artifacts.
+- SKILL.md security frontmatter (`no_network=false note`, `no_credentials=false note`, `no_env_write=true`, `no_file_write=false note`, `no_shell_exec=false note`, `scripts_auditable=true`, `scripts_use_pep723=true`, `no_obfuscated_code=true`, `no_binary_blobs=true`, `no_minified_scripts=true`, `no_curl_pipe_sh=true`) verified accurate after this revision.
 
 ## [1.3.1] - 2026-04-10
 

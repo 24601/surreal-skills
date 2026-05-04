@@ -1353,29 +1353,552 @@ $db->close();
 
 ---
 
+## Swift SDK (`surrealdb.swift` -- via SurrealKit)
+
+**Package**: `SurrealDB` Swift Package
+**Repository**: github.com/surrealdb/surrealdb.swift (and the broader
+`surrealdb/surrealkit` toolkit, which bundles the Swift client alongside
+schema-management tooling)
+
+The Swift SDK targets iOS 16+, macOS 13+, tvOS 16+, watchOS 9+, and
+visionOS 1+, with full Swift Concurrency (`async`/`await`) integration. It
+ships as a SwiftPM package and supports remote (HTTP, WebSocket) and
+embedded engines (in-process via `surrealdb-core` bindings).
+
+### Installation
+
+Add to `Package.swift`:
+
+```swift
+.package(url: "https://github.com/surrealdb/surrealdb.swift.git", from: "1.0.0"),
+```
+
+Then depend on `SurrealDB`:
+
+```swift
+.target(
+    name: "MyApp",
+    dependencies: [
+        .product(name: "SurrealDB", package: "surrealdb.swift"),
+    ]
+)
+```
+
+For Xcode projects, use `File -> Add Package Dependencies...` and paste the
+repository URL.
+
+### Connection
+
+```swift
+import SurrealDB
+
+let db = Surreal()
+
+// WebSocket (recommended for live queries)
+try await db.connect(URL(string: "ws://localhost:8000/rpc")!)
+
+// HTTP (stateless, suitable for CloudKit-style background fetch)
+try await db.connect(URL(string: "http://localhost:8000")!)
+
+// Embedded in-memory (data lost on app termination)
+try await db.connect(URL(string: "mem://")!)
+
+// Embedded SurrealKV in the app's Application Support directory
+let support = FileManager.default.urls(for: .applicationSupportDirectory,
+                                       in: .userDomainMask).first!
+let dbURL = support.appendingPathComponent("myapp.db")
+try await db.connect(URL(string: "surrealkv://\(dbURL.path)")!)
+```
+
+### Authentication and Namespace Selection
+
+```swift
+try await db.signin(.root(username: "root", password: "root"))
+try await db.use(namespace: "my_ns", database: "my_db")
+
+// Record-level access
+let token = try await db.signin(.access(
+    namespace: "my_ns", database: "my_db",
+    access: "user_access",
+    variables: ["email": "alice@example.com", "password": "..."]
+))
+```
+
+### CRUD with `Codable`
+
+```swift
+struct Person: Codable, Identifiable {
+    var id: RecordID?
+    var name: String
+    var age: Int
+    var email: String?
+}
+
+// Create
+let alice: Person = try await db.create(
+    table: "person",
+    Person(name: "Alice", age: 30)
+)
+
+// Create with specific ID
+let bob: Person = try await db.create(
+    id: RecordID(table: "person", id: "bob"),
+    Person(name: "Bob", age: 25)
+)
+
+// Select all
+let people: [Person] = try await db.select(table: "person")
+
+// Select one
+let one: Person? = try await db.select(id: RecordID("person", "bob"))
+
+// Update (full replace)
+let updated: Person = try await db.update(
+    id: RecordID("person", "bob"),
+    Person(name: "Bob Smith", age: 26)
+)
+
+// Merge
+let merged: Person = try await db.merge(
+    id: RecordID("person", "bob"),
+    ["age": 27]
+)
+
+// Delete
+try await db.delete(id: RecordID("person", "bob"))
+```
+
+### Parameterized Queries
+
+```swift
+let results: [Person] = try await db.query(
+    "SELECT * FROM person WHERE age > $min_age",
+    bindings: ["min_age": 21]
+).first()
+
+// Multi-statement queries
+let response = try await db.query("""
+    SELECT * FROM person;
+    SELECT * FROM organization;
+""")
+let people:        [Person]       = try response.take(0)
+let organizations: [Organization] = try response.take(1)
+```
+
+### Live Queries with `AsyncSequence`
+
+```swift
+let live = try await db.live(table: "person")
+
+for try await event in live {
+    switch event.action {
+    case .create: print("Created:", event.value as Person)
+    case .update: print("Updated:", event.value as Person)
+    case .delete: print("Deleted:", event.recordID)
+    }
+}
+
+// Cancellation: simply break out of the loop and the underlying
+// LIVE SELECT is killed automatically.
+```
+
+### SwiftUI Integration Pattern
+
+```swift
+@MainActor
+final class PeopleStore: ObservableObject {
+    @Published var people: [Person] = []
+    private let db: Surreal
+    private var liveTask: Task<Void, Never>?
+
+    init(db: Surreal) { self.db = db }
+
+    func start() {
+        liveTask = Task { [weak self] in
+            guard let self else { return }
+            self.people = (try? await db.select(table: "person")) ?? []
+            guard let stream = try? await db.live(table: "person") else { return }
+            for try? await event in stream {
+                switch event.action {
+                case .create: self.people.append(try event.value())
+                case .update:
+                    if let idx = self.people.firstIndex(where: { $0.id == event.recordID }) {
+                        self.people[idx] = try event.value()
+                    }
+                case .delete:
+                    self.people.removeAll { $0.id == event.recordID }
+                }
+            }
+        }
+    }
+
+    deinit { liveTask?.cancel() }
+}
+```
+
+### iOS Background Considerations
+
+WebSocket connections do not survive when iOS suspends the app. For long-lived
+sync, use `URLSessionWebSocketTask` with a `BGAppRefreshTask` to reconnect in
+the background, or run the embedded engine and sync explicitly. The SDK's
+`db.on(.disconnected) { ... }` event lets you trigger reconnection from a
+background task handler.
+
+---
+
+## Kotlin / JVM SDK (`surrealdb.kotlin`)
+
+**Package**: `com.surrealdb:surrealdb-kotlin` (Maven Central)
+**Repository**: github.com/surrealdb/surrealdb.kotlin
+**Targets**: JVM 11+, Android API 24+, Kotlin Multiplatform (JVM, JS,
+Native via the upcoming KMP target).
+
+The Kotlin SDK is a coroutine-first client that interoperates cleanly with
+the Java SDK's data types -- mixed Kotlin/Java codebases can share record
+types with no glue layer. It is the recommended client for Android and for
+new server-side Kotlin projects (Ktor, Spring Boot with `kotlinx-coroutines`,
+Quarkus Kotlin).
+
+### Installation
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    implementation("com.surrealdb:surrealdb-kotlin:0.4.0")
+    // Coroutines are required transitively; pin if needed:
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+}
+```
+
+For Android projects, also pin `kotlinx-serialization-json` if you use the
+JSON-backed query helpers:
+
+```kotlin
+plugins {
+    kotlin("plugin.serialization") version "2.0.0"
+}
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+}
+```
+
+### Connection
+
+```kotlin
+import com.surrealdb.Surreal
+import com.surrealdb.connection.Engine
+
+val db = Surreal()
+
+// WebSocket
+db.connect("ws://localhost:8000/rpc")
+
+// HTTP
+db.connect("http://localhost:8000")
+
+// Embedded in-memory
+db.connect("mem://")
+
+// Embedded RocksDB
+db.connect("rocksdb://app.db")
+```
+
+### Authentication and Namespace Selection
+
+```kotlin
+import com.surrealdb.auth.Root
+import com.surrealdb.auth.Database
+
+db.signIn(Root(username = "root", password = "root"))
+db.use(namespace = "my_ns", database = "my_db")
+
+// Database-scoped credentials
+db.signIn(Database(
+    namespace = "my_ns", database = "my_db",
+    username = "db_user", password = "..."
+))
+```
+
+### CRUD with `kotlinx.serialization`
+
+```kotlin
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class Person(
+    val id: String? = null,
+    val name: String,
+    val age: Int,
+    val email: String? = null,
+)
+
+// Create
+val alice: Person = db.create("person", Person(name = "Alice", age = 30))
+
+// Select all
+val people: List<Person> = db.select("person")
+
+// Select one
+val one: Person? = db.select("person:bob")
+
+// Update (full replace)
+val updated: Person = db.update("person:alice", Person(name = "Alice Smith", age = 31))
+
+// Merge
+val merged: Person = db.merge("person:alice", mapOf("age" to 32))
+
+// Delete
+db.delete("person:alice")
+```
+
+### Coroutine-Based Queries and Live Updates
+
+```kotlin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+
+val people: List<Person> = db.query<Person>(
+    "SELECT * FROM person WHERE age > \$min_age",
+    mapOf("min_age" to 21)
+)
+
+// Live query as a Flow
+coroutineScope {
+    launch {
+        db.live<Person>("person").collect { event ->
+            when (event.action) {
+                Action.CREATE -> println("Created: ${event.value}")
+                Action.UPDATE -> println("Updated: ${event.value}")
+                Action.DELETE -> println("Deleted: ${event.recordId}")
+            }
+        }
+    }
+}
+```
+
+### Android Lifecycle Integration
+
+The Kotlin SDK plays well with `viewModelScope` and `lifecycleScope` for
+coroutine cancellation. Tie a live query collection to the lifecycle so it
+cancels automatically on screen destruction:
+
+```kotlin
+class PeopleViewModel(private val db: Surreal) : ViewModel() {
+    val people: StateFlow<List<Person>> = flow {
+        emit(db.select<Person>("person"))
+        db.live<Person>("person").collect { /* update emit */ }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+}
+```
+
+### Java Interop
+
+The Kotlin SDK binaries expose `@JvmOverloads` and synchronous `*Blocking`
+counterparts so plain Java code (Spring Boot service classes, legacy modules)
+can call the same client without coroutines:
+
+```java
+List<Person> people = db.selectBlocking("person", Person.class);
+```
+
+This makes the Kotlin SDK a strict superset of the Java SDK for new projects.
+
+---
+
+## Ruby SDK (`surrealdb.rb`)
+
+**Package**: `surrealdb` on RubyGems
+**Repository**: github.com/surrealdb/surrealdb.rb
+**Targets**: Ruby 3.1+ (CRuby and TruffleRuby; JRuby experimental).
+
+The Ruby SDK is built on `async` (the Socketry async runtime) for non-blocking
+I/O while remaining usable from synchronous code via implicit reactor
+management. It supports remote connections (HTTP, WebSocket) and the embedded
+engine via the `surrealdb-embedded` gem (FFI bindings to `surrealdb-core`).
+
+### Installation
+
+```bash
+# Gemfile
+gem "surrealdb", "~> 1.0"
+
+# Optional: embedded engine
+gem "surrealdb-embedded", "~> 1.0"
+```
+
+Then `bundle install`.
+
+### Connection
+
+```ruby
+require "surrealdb"
+
+db = SurrealDB::Client.new
+
+# WebSocket (recommended)
+db.connect("ws://localhost:8000/rpc")
+
+# HTTP
+db.connect("http://localhost:8000")
+
+# Embedded in-memory (requires surrealdb-embedded)
+db.connect("mem://")
+
+# Embedded RocksDB
+db.connect("rocksdb://./tmp/myapp.db")
+```
+
+### Authentication
+
+```ruby
+db.signin(username: "root", password: "root")
+db.use(namespace: "my_ns", database: "my_db")
+
+# Record-level access
+token = db.signin(
+  namespace: "my_ns", database: "my_db",
+  access: "user_access",
+  variables: { email: "alice@example.com", password: "..." }
+)
+```
+
+### CRUD
+
+```ruby
+# Create
+alice = db.create("person", name: "Alice", age: 30)
+
+# Create with specific ID
+db.create("person:alice", name: "Alice", age: 30)
+
+# Select
+people = db.select("person")
+one    = db.select("person:alice")
+
+# Update (full replace)
+db.update("person:alice", name: "Alice Smith", age: 31)
+
+# Merge (partial update)
+db.merge("person:alice", age: 32)
+
+# Delete
+db.delete("person:alice")
+```
+
+### Queries
+
+```ruby
+people = db.query(
+  "SELECT * FROM person WHERE age > $min_age",
+  min_age: 21
+)
+
+# Multi-statement
+people, orgs = db.query(<<~SQL)
+  SELECT * FROM person;
+  SELECT * FROM organization;
+SQL
+```
+
+### Live Queries with `Enumerator::Lazy`
+
+```ruby
+db.live("person").each do |event|
+  case event.action
+  when :create then puts "Created: #{event.value.inspect}"
+  when :update then puts "Updated: #{event.value.inspect}"
+  when :delete then puts "Deleted: #{event.record_id}"
+  end
+end
+
+# Or as a lazy enumerator wired into ActiveSupport::Notifications
+db.live("order")
+  .lazy
+  .filter { |e| e.value[:total] > 1000 }
+  .each   { |e| Rails.logger.info("High-value order: #{e.value[:id]}") }
+```
+
+### Rails / ActiveRecord-Style Integration
+
+For Rails apps, the SDK ships an optional `surrealdb-rails` gem that adapts
+SurrealDB models to ActiveRecord-shaped APIs:
+
+```ruby
+# Gemfile
+gem "surrealdb-rails", "~> 1.0"
+
+# app/models/person.rb
+class Person < SurrealDB::Record
+  table :person
+  field :name,  type: :string
+  field :age,   type: :integer
+  field :email, type: :string, optional: true
+end
+
+# Use it like ActiveRecord
+people = Person.where("age > ?", 21).order(:name).limit(20).to_a
+alice  = Person.find("alice")
+alice.update(age: 33)
+```
+
+The adapter translates query chains to SurrealQL but stops short of
+implementing the full ActiveRecord API surface; for advanced use cases drop
+to `db.query` directly.
+
+### Sidekiq / Background Job Pattern
+
+For background workers, share a single `SurrealDB::Client` per process and
+use the connection pool from the `connection_pool` gem:
+
+```ruby
+SURREAL_POOL = ConnectionPool.new(size: 10, timeout: 5) do
+  SurrealDB::Client.new.tap do |c|
+    c.connect("ws://localhost:8000/rpc")
+    c.signin(username: ENV.fetch("SURREAL_USER"), password: ENV.fetch("SURREAL_PASS"))
+    c.use(namespace: "myapp", database: "prod")
+  end
+end
+
+class IndexWorker
+  include Sidekiq::Worker
+  def perform(record_id)
+    SURREAL_POOL.with do |db|
+      db.merge(record_id, indexed_at: Time.now)
+    end
+  end
+end
+```
+
+---
+
 ## SDK Selection Guide
 
 ### Decision Matrix
 
-| Factor | JS/TS | Python | Go | Rust | Java | .NET | PHP |
-|--------|-------|--------|----|------|------|------|-----|
-| Embedded engine | Yes | Yes | Yes | Yes | No | No | No |
-| WebSocket | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| HTTP | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| Live queries | Yes | Yes | Yes | Yes | Limited | Limited | No |
-| WASM (browser) | Yes | No | No | No | No | No | No |
-| Async API | Yes | Yes | Yes | Yes | Yes | Yes | No |
-| Type safety | TS generics | Type hints | Generics | Strong | Generics | Generics | Weak |
+| Factor | JS/TS | Python | Go | Rust | Java | .NET | PHP | Swift | Kotlin | Ruby |
+|--------|-------|--------|----|------|------|------|-----|-------|--------|------|
+| Embedded engine | Yes | Yes | Yes | Yes | No | No | No | Yes | Yes (RocksDB) | Yes (gem) |
+| WebSocket | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| HTTP | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Live queries | Yes | Yes | Yes | Yes | Limited | Limited | No | Yes (AsyncSeq) | Yes (Flow) | Yes (Enumerator) |
+| WASM (browser) | Yes | No | No | No | No | No | No | No | No | No |
+| Async API | Yes | Yes | Yes | Yes | Yes | Yes | No | Yes (await) | Yes (coroutines) | Yes (async) |
+| Type safety | TS generics | Type hints | Generics | Strong | Generics | Generics | Weak | Codable | Strong | Duck-typed |
+| Mobile target | -- | -- | -- | -- | -- | -- | -- | iOS/iPadOS/visionOS | Android | -- |
 
 ### When to Use Each SDK
 
 - **JavaScript/TypeScript**: Web applications, full-stack JS projects, browser-based apps (WASM), serverless functions, real-time apps with live queries.
-- **Python**: Data science, machine learning pipelines, scripting, backend APIs (FastAPI/Django), prototyping.
+- **Python**: Data science, machine learning pipelines, scripting, backend APIs (FastAPI/Django), prototyping. Pair with `rules/langchain.md` for RAG.
 - **Go**: Microservices, high-concurrency servers, CLI tools, cloud-native applications.
-- **Rust**: Performance-critical applications, systems programming, embedded databases in Rust apps, when you need direct library integration without network overhead.
-- **Java**: Enterprise applications, Spring Boot services, Android development.
+- **Rust**: Performance-critical applications, systems programming, embedded databases in Rust apps, when you need direct library integration without network overhead. Also the substrate for Surrealism extensions (`rules/surrealism.md`).
+- **Java**: Enterprise applications, Spring Boot services, legacy JVM codebases that cannot adopt Kotlin yet.
+- **Kotlin**: New Android apps, server-side Kotlin (Ktor/Spring Boot), Kotlin Multiplatform projects. Strict superset of Java capabilities for greenfield JVM work.
 - **.NET**: ASP.NET applications, Windows services, enterprise C# codebases, Blazor apps.
 - **PHP**: Laravel/Symfony applications, WordPress plugins, traditional web applications.
+- **Swift**: iOS, iPadOS, macOS, tvOS, watchOS, visionOS apps; SwiftUI / UIKit / AppKit projects; embedded SurrealKV for offline-first mobile.
+- **Ruby**: Rails apps (with `surrealdb-rails`), Sidekiq workers, scripting, prototyping; ActiveRecord-shaped APIs for teams already on the Ruby stack.
 
 ### Embedded vs Remote Trade-offs
 
@@ -1385,7 +1908,7 @@ $db->close();
 - No separate database server to manage
 - Limited to single-node (no distributed queries)
 - Uses process memory for database operations
-- Available in: JS/TS (Node.js, WASM), Python, Go, Rust
+- Available in: JS/TS (Node.js, WASM), Python, Go, Rust, Swift (SurrealKV), Kotlin (RocksDB via JNI), Ruby (FFI gem)
 
 **Remote** (HTTP/WebSocket to server):
 - Shared database across multiple application instances
@@ -1399,6 +1922,9 @@ $db->close();
 
 - **Rust SDK**: Lowest overhead; direct library calls when embedded, minimal serialization.
 - **Go SDK**: Low overhead; efficient goroutine-based concurrency.
+- **Swift SDK**: Native compiled code on Apple platforms; embedded SurrealKV uses the same Rust core via direct linkage, near-zero serialization overhead.
+- **Kotlin SDK (JVM)**: Coroutine-based, low-overhead; on Android, the embedded engine adds JNI cost but matches typical Room/SQLite performance.
 - **Node.js embedded**: V8 + native bindings; good for I/O-heavy workloads.
 - **Python SDK**: Higher overhead due to GIL; use async API for I/O-bound workloads.
+- **Ruby SDK**: GVL-bound; use the async-based client and `connection_pool` for concurrent workloads.
 - **WASM (browser)**: Runs entirely client-side; performance depends on browser WASM runtime.

@@ -16,7 +16,8 @@
         "rules/security.md",
         "rules/performance.md",
         "rules/deployment.md",
-        "rules/surrealism.md"
+        "rules/surrealism.md",
+        "rules/surrealml.md"
       ]
     },
     "surrealdb/surrealist": {
@@ -55,6 +56,33 @@
         "rules/sdks.md"
       ]
     },
+    "surrealdb/surrealdb.swift": {
+      "sha": "tracked-via-surrealkit",
+      "date": "2026-05-03",
+      "release": "1.0.x",
+      "url": "https://github.com/surrealdb/surrealdb.swift",
+      "rules_affected": [
+        "rules/sdks.md"
+      ]
+    },
+    "surrealdb/surrealdb.kotlin": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "0.4.x",
+      "url": "https://github.com/surrealdb/surrealdb.kotlin",
+      "rules_affected": [
+        "rules/sdks.md"
+      ]
+    },
+    "surrealdb/surrealdb.rb": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "1.0.x",
+      "url": "https://github.com/surrealdb/surrealdb.rb",
+      "rules_affected": [
+        "rules/sdks.md"
+      ]
+    },
     "surrealdb/surreal-sync": {
       "sha": "59b3166910f0",
       "date": "2026-03-11",
@@ -81,6 +109,115 @@
       "rules_affected": [
         "rules/surrealkit.md"
       ]
+    },
+    "surrealdb/surrealmcp": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "v0.2.0",
+      "url": "https://github.com/surrealdb/surrealmcp",
+      "rules_affected": [
+        "rules/surrealmcp.md",
+        "skills/surrealmcp/SKILL.md"
+      ]
+    },
+    "surrealdb/surrealml": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "v0.5.x",
+      "url": "https://github.com/surrealdb/surrealml",
+      "rules_affected": [
+        "rules/surrealml.md"
+      ]
+    },
+    "surrealdb/surrealql-language-server": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "0.1.2",
+      "url": "https://github.com/surrealdb/surrealql-language-server",
+      "rules_affected": [
+        "rules/editor-tooling.md"
+      ]
+    },
+    "surrealdb/surrealql-tree-sitter": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "current",
+      "url": "https://github.com/surrealdb/surrealql-tree-sitter",
+      "rules_affected": [
+        "rules/editor-tooling.md"
+      ]
+    },
+    "surrealdb/surrealql-vsx": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "current",
+      "url": "https://github.com/surrealdb/surrealql-vsx",
+      "rules_affected": [
+        "rules/editor-tooling.md"
+      ]
+    },
+    "surrealdb/surrealql-jetbrains": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "current",
+      "url": "https://github.com/surrealdb/surrealql-jetbrains",
+      "rules_affected": [
+        "rules/editor-tooling.md"
+      ]
+    },
+    "surrealdb/surrealql-neovim": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "current",
+      "url": "https://github.com/surrealdb/surrealql-neovim",
+      "rules_affected": [
+        "rules/editor-tooling.md"
+      ]
+    },
+    "surrealdb/surrealql-zed": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "current",
+      "url": "https://github.com/surrealdb/surrealql-zed",
+      "rules_affected": [
+        "rules/editor-tooling.md"
+      ]
+    },
+    "surrealdb/surrealql-helix": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "current",
+      "url": "https://github.com/surrealdb/surrealql-helix",
+      "rules_affected": [
+        "rules/editor-tooling.md"
+      ]
+    },
+    "surrealdb/surrealql-emacs": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "current",
+      "url": "https://github.com/surrealdb/surrealql-emacs",
+      "rules_affected": [
+        "rules/editor-tooling.md"
+      ]
+    },
+    "surrealdb/langchain-surrealdb": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "current",
+      "url": "https://github.com/surrealdb/langchain-surrealdb",
+      "rules_affected": [
+        "rules/langchain.md"
+      ]
+    },
+    "surrealdb/setup-surreal": {
+      "sha": "tracked-via-surrealdb",
+      "date": "2026-05-03",
+      "release": "current",
+      "url": "https://github.com/surrealdb/setup-surreal",
+      "rules_affected": [
+        "rules/deployment.md"
+      ]
     }
   },
   "docs": {
@@ -94,7 +231,13 @@
         "surrealdb/extensions",
         "surrealdb/deployment",
         "surrealdb/cli",
-        "surrealdb/security"
+        "surrealdb/security",
+        "surrealdb/integrations/sdks",
+        "surrealdb/integrations/frameworks",
+        "surrealdb/integrations/embeddings",
+        "labs/surrealml",
+        "labs/surrealmcp",
+        "labs/setup-surreal"
       ],
       "rules_affected": [
         "rules/surrealql.md",
@@ -105,6 +248,10 @@
         "rules/deployment.md",
         "rules/performance.md",
         "rules/surrealism.md",
+        "rules/surrealml.md",
+        "rules/surrealmcp.md",
+        "rules/editor-tooling.md",
+        "rules/langchain.md",
         "references/surrealql_cheatsheet.md"
       ]
     }
