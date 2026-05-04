@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/24601/surreal-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/24601/surreal-skills/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/24601/surreal-skills/releases)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/24601/surreal-skills/releases)
 [![skills.sh](https://img.shields.io/badge/skills.sh-surrealdb-purple.svg)](https://skills.sh)
 
 Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, WASM extensions, and the full SurrealDB ecosystem, including SurrealKit workflows.
@@ -354,21 +354,21 @@ These variables are also recognized by the surreal CLI and official SurrealDB SD
 
 ## Source Provenance
 
-This skill was refreshed on **2026-04-10** from these upstream sources. Use `check_upstream.py`
+This skill was refreshed on **2026-05-03** from these upstream sources. Use `check_upstream.py`
 to detect what changed since this snapshot for incremental updates.
 
 | Repository | Release | SHA | Snapshot Date | Rules Affected |
 |------------|---------|-----|---------------|----------------|
-| [surrealdb/surrealdb](https://github.com/surrealdb/surrealdb) | v3.0.5 | `643f80e8d20e` | 2026-04-10 | surrealql, data-modeling, security, performance, deployment, surrealism |
-| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | surrealist-v3.7.4 | `78f7c435cbd7` | 2026-04-01 | surrealist |
+| [surrealdb/surrealdb](https://github.com/surrealdb/surrealdb) | v3.0.5 (main toward v3.1.0-alpha) | `a97d3af85d79` | 2026-04-29 | surrealql, data-modeling, security, performance, deployment, surrealism |
+| [surrealdb/surrealist](https://github.com/surrealdb/surrealist) | surrealist-v3.8.5 | `3699b2d09b62` | 2026-05-01 | surrealist |
 | [surrealdb/surrealdb.js](https://github.com/surrealdb/surrealdb.js) | v2.0.3 | `f0fa3cd7d8fb` | 2026-03-25 | sdks |
-| [surrealdb/surrealdb.py](https://github.com/surrealdb/surrealdb.py) | v2.0.0-alpha.1 | `b21302c05565` | 2026-02-26 | sdks |
-| [surrealdb/surrealdb.go](https://github.com/surrealdb/surrealdb.go) | v1.4.0 | `8660dd78c20d` | 2026-03-04 | sdks |
+| [surrealdb/surrealdb.py](https://github.com/surrealdb/surrealdb.py) | v2.0.0 (GA) | `6e45a820d27c` | 2026-05-02 | sdks |
+| [surrealdb/surrealdb.go](https://github.com/surrealdb/surrealdb.go) | v1.4.0 (main) | `aef39d3a439f` | 2026-04-30 | sdks |
 | [surrealdb/surreal-sync](https://github.com/surrealdb/surreal-sync) | v0.3.4 | `59b3166910f0` | 2026-03-11 | surreal-sync |
 | [surrealdb/surrealfs](https://github.com/surrealdb/surrealfs) | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
-| [surrealdb/surrealkit](https://github.com/surrealdb/surrealkit) | v0.5.0 | `b5c22f745a4e` | 2026-04-10 | surrealkit |
+| [surrealdb/surrealkit](https://github.com/surrealdb/surrealkit) | v0.6.0 (pre-release) | `28f5a1c9d20c` | 2026-05-03 | surrealkit |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-04-10.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-05-03.
 
 Machine-readable provenance: [`SOURCES.json`](SOURCES.json).
 

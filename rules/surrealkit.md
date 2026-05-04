@@ -5,7 +5,11 @@ SurrealKit is a schema management tool for SurrealDB applications. It treats
 and uses rollout manifests for reviewed staged changes on shared or production
 databases.
 
-Tracked upstream snapshot: **v0.5.0** (`b5c22f745a4e`, 2026-04-10).
+Tracked upstream snapshot: **v0.6.0** pre-release (`28f5a1c9d20c`, 2026-05-03).
+v0.6.0 builds on the v0.5.x sync/rollout/seed/test foundation with iterative
+patch releases (v0.5.1 -> v0.5.8 -> v0.6.0) and a procedural macro publish
+workflow added in CI; the user-facing CLI and project layout below are
+unchanged from v0.5.
 
 > **Packaging note**: the current README in `surrealdb/surrealkit` still points
 > to historical `ForetagInc/surrealkit` release binaries while the active repo

@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.0] - 2026-05-03
+
+### Major
+- Upstream sync to 2026-05-03 covering five changed repos since the 1.3.1 snapshot:
+  - `surrealdb/surrealdb`: +38 commits on `main` past v3.0.5 toward v3.1.0-alpha (HEAD `a97d3af`, 2026-04-29). v3.0.5 remains the latest tagged release.
+  - `surrealdb/surrealist`: surrealist-v3.7.4 -> surrealist-v3.8.5 (HEAD `3699b2d`, 2026-05-01). Continued query/explorer/designer iteration; signed release artifacts retained.
+  - `surrealdb/surrealdb.py`: v2.0.0-alpha.1 -> v2.0.0 GA (HEAD `6e45a82`, 2026-05-02). SurrealDB 3.x feature support, Python 3.9 dropped, structured error handling, musl Linux wheel support, WS session transaction-id fix, Pydantic Logfire instrumentation example.
+  - `surrealdb/surrealdb.go`: +8 commits on `main` since v1.4.0 (HEAD `aef39d3`, 2026-04-30). v1.4.0 still the latest tagged release; pin to v1.4.0 for stability.
+  - `surrealdb/surrealkit`: v0.5.0 -> v0.6.0 (HEAD `28f5a1c`, 2026-05-03, pre-release). Iterative patch releases plus procedural-macro publish workflow in CI; CLI surface unchanged.
+
+### Changed
+- `SOURCES.json`, `SKILL.md`, sub-skill manifests under `skills/*/SKILL.md`, `README.md`, and `AGENTS.md` synced to the 2026-05-03 provenance.
+- `rules/sdks.md`: Python SDK section promoted to v2.0.0 GA. Go SDK section calls out the unreleased main HEAD past v1.4.0 explicitly.
+- `rules/surrealist.md`: pinned to v3.8.5 with current snapshot date.
+- `rules/surrealkit.md` and `skills/surrealkit/SKILL.md`: pinned to v0.6.0 pre-release with continuity note that the public CLI surface is unchanged.
+
+### Security
+- No regression to declared security posture: no new third-party network endpoints, no new credential surface, no new file-write paths, no new shell-execution surface, no obfuscated code, no binary blobs, no `curl | sh` instructions, no minified scripts. CI and Release workflows retain `permissions: contents: read` (Release also explicitly scopes its publish step). `check_upstream.py` continues to use the GitHub API via the `gh` CLI only.
+- All upstream version bumps in this release are equal-or-better on the security axis: surrealdb.go retains the v1.4.0 SQL-injection sanitization in restore (#375); surrealdb.py v2.0.0 GA tightens error-handling types; surrealist v3.8.5 keeps signed release artifacts.
+
 ## [1.3.1] - 2026-04-10
 
 ### Fixed

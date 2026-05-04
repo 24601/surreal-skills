@@ -658,18 +658,19 @@ const db = new Surreal({
 
 ## Python SDK
 
-**Package**: `surrealdb` on PyPI (v2.0.0-alpha.1, released 2026-02-26)
+**Package**: `surrealdb` on PyPI (v2.0.0 GA, released 2026-04-23)
 **Repository**: github.com/surrealdb/surrealdb.py
-**Status**: Pre-release alpha. SurrealDB 3.x support, Python 3.10+ required (3.9 dropped).
+**Status**: Stable. SurrealDB 3.x support, Python 3.10+ required (3.9 dropped).
 
-**v2.0.0-alpha.1 changes**:
-- SurrealDB 3.x feature support added (#230)
+**v2.0.0 GA highlights** (2026-04-23, promoted from `v2.0.0-alpha.1`):
+- SurrealDB 3.x feature support (#230)
 - Python 3.9 dropped; minimum is now Python 3.10
-- Fixed WebSocket session transaction ID bug (#236)
-- Added musl Linux support for Alpine/container deployments (#241)
-- Improved error handling with structured error types (#233)
-- Pydantic Logfire instrumentation with code examples (#229)
-- README and dev docs moved to CONTRIBUTING.md (#243)
+- Structured error handling with typed error classes (#233)
+- WebSocket session transaction ID bug fixed (#236)
+- musl Linux wheel/binary support for Alpine and slim containers (#241)
+- Pydantic Logfire instrumentation with README example (#229)
+- README slimmed and developer docs moved to CONTRIBUTING.md (#243)
+- Release-notification workflow added (#240, #244)
 
 ### Installation
 
@@ -847,13 +848,15 @@ The Python SDK integrates with Pydantic Logfire for tracing and observability of
 
 ## Go SDK
 
-**Package**: `github.com/surrealdb/surrealdb.go` (v1.4.0, released 2026-03-03)
+**Package**: `github.com/surrealdb/surrealdb.go` (v1.4.0, released 2026-03-03; main HEAD `aef39d3`, 2026-04-30)
 **Repository**: github.com/surrealdb/surrealdb.go
 
-**v1.4.0 changes**:
+**v1.4.0 changes** (latest tagged release):
 - SurrealDB v3 structured error handling: new `surrealdb.ServerError` type for extracting v3 error fields. Existing `RPCError` and `QueryError` continue to work for v2 compatibility.
 - Identifier sanitization in restore to prevent SQL injection (#375)
 - Added `models.Table` example for select operations (#379)
+
+**Post-v1.4.0 main**: 8 commits since the v1.4.0 tag (no new release tag yet). Pin to `v1.4.0` for stability; review main HEAD if you need very recent fixes.
 
 ### Installation
 

@@ -369,7 +369,7 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 ```json
 {
   "skill": "surrealdb",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
   "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
   "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
@@ -402,8 +402,8 @@ Common errors:
 
 | Component | Version |
 |-----------|---------|
-| SurrealDB target | 3.0.5+ |
-| Skill version | 1.3.1 |
+| SurrealDB target | 3.0.5+ (main tracking v3.1.0-alpha) |
+| Skill version | 1.4.0 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 
@@ -419,15 +419,15 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 
 | Repository | Release | SHA (short) | Snapshot Date | Rules Affected |
 |------------|---------|-------------|---------------|----------------|
-| surrealdb/surrealdb | v3.0.5 | `643f80e8d20e` | 2026-04-10 | surrealql, data-modeling, security, performance, deployment, surrealism |
-| surrealdb/surrealist | surrealist-v3.7.4 | `78f7c435cbd7` | 2026-04-01 | surrealist |
+| surrealdb/surrealdb | v3.0.5 (main toward v3.1.0-alpha) | `a97d3af85d79` | 2026-04-29 | surrealql, data-modeling, security, performance, deployment, surrealism |
+| surrealdb/surrealist | surrealist-v3.8.5 | `3699b2d09b62` | 2026-05-01 | surrealist |
 | surrealdb/surrealdb.js | v2.0.3 | `f0fa3cd7d8fb` | 2026-03-25 | sdks |
-| surrealdb/surrealdb.py | v2.0.0-alpha.1 | `b21302c05565` | 2026-02-26 | sdks |
-| surrealdb/surrealdb.go | v1.4.0 | `8660dd78c20d` | 2026-03-04 | sdks |
+| surrealdb/surrealdb.py | v2.0.0 (GA) | `6e45a820d27c` | 2026-05-02 | sdks |
+| surrealdb/surrealdb.go | v1.4.0 (main) | `aef39d3a439f` | 2026-04-30 | sdks |
 | surrealdb/surreal-sync | v0.3.4 | `59b3166910f0` | 2026-03-11 | surreal-sync |
 | surrealdb/surrealfs | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
-| surrealdb/surrealkit | v0.5.0 | `b5c22f745a4e` | 2026-04-10 | surrealkit |
+| surrealdb/surrealkit | v0.6.0 (pre-release) | `28f5a1c9d20c` | 2026-05-03 | surrealkit |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-04-10.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-05-03.
 
 Full provenance data: `SOURCES.json` (machine-readable).

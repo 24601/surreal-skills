@@ -3,14 +3,14 @@ name: surrealkit
 description: "SurrealKit schema sync, rollout migrations, seeding, and declarative testing for SurrealDB apps. Part of the surreal-skills collection."
 license: MIT
 metadata:
-  version: "1.3.1"
+  version: "1.4.0"
   author: "24601"
   parent_skill: "surrealdb"
-  snapshot_date: "2026-04-10"
+  snapshot_date: "2026-05-03"
   upstream:
     repo: "surrealdb/surrealkit"
-    release: "v0.5.0"
-    sha: "b5c22f745a4e"
+    release: "v0.6.0"
+    sha: "28f5a1c9d20c"
 ---
 
 # SurrealKit -- Schema Management for SurrealDB Apps
@@ -18,6 +18,11 @@ metadata:
 SurrealKit manages SurrealDB application schemas as desired-state `.surql`
 files, with separate paths for disposable development databases and shared or
 production rollouts.
+
+Tracked upstream snapshot: **v0.6.0** pre-release (`28f5a1c9d20c`, 2026-05-03).
+v0.6.0 introduces a procedural macro publish workflow on top of the v0.5.x
+sync/rollout/seed/test pipeline; the public CLI surface below remains stable
+between v0.5 and v0.6.
 
 ## Quick Start
 
