@@ -742,23 +742,18 @@ ORDER BY similarity DESC;
 
 **Distance metrics**: `COSINE` (most common for text/image embeddings), `EUCLIDEAN` (L2 distance), `MANHATTAN` (L1 distance).
 
-### MTREE Index
+### Exact kNN (no index) -- v3
 
-MTREE provides exact nearest-neighbor results (no approximation) but is slower than HNSW for large datasets.
+The `MTREE` index keyword that earlier rule revisions documented
+does not exist in the current SurrealDB v3 grammar (only `HNSW` is
+defined). For exact-kNN lookups without an index, use the
+brute-force operator:
 
 ```surql
-DEFINE INDEX doc_embedding ON TABLE document FIELDS embedding
-    MTREE DIMENSION 1536 DIST COSINE;
-
--- MTREE with capacity tuning
-DEFINE INDEX doc_embedding ON TABLE document FIELDS embedding
-    MTREE DIMENSION 1536 DIST EUCLIDEAN CAPACITY 40;
-
--- Query MTREE indexes similarly
 SELECT id, title,
     vector::similarity::cosine(embedding, $query_embedding) AS similarity
 FROM document
-WHERE embedding <|10|> $query_embedding
+WHERE embedding <|10,EUCLIDEAN|> $query_embedding
 ORDER BY similarity DESC;
 ```
 
@@ -787,7 +782,7 @@ DEFINE INDEX chunk_embedding ON TABLE knowledge_chunk FIELDS embedding
 DEFINE ANALYZER english_analyzer TOKENIZERS blank, class
     FILTERS ascii, lowercase, snowball(english);
 DEFINE INDEX chunk_content_ft ON TABLE knowledge_chunk COLUMNS content
-    SEARCH ANALYZER english_analyzer BM25(1.2, 0.75) HIGHLIGHTS;
+    FULLTEXT ANALYZER english_analyzer BM25(1.2, 0.75) HIGHLIGHTS;
 
 -- Ingest a chunk
 CREATE knowledge_chunk SET
@@ -1169,21 +1164,21 @@ DEFINE ANALYZER exact TOKENIZERS blank FILTERS lowercase;
 ```surql
 -- Basic search index
 DEFINE INDEX article_search ON TABLE article COLUMNS title, content
-    SEARCH ANALYZER ascii_lower BM25;
+    FULLTEXT ANALYZER ascii_lower BM25;
 
 -- Search index with custom BM25 parameters
 DEFINE INDEX article_search ON TABLE article COLUMNS content
-    SEARCH ANALYZER english BM25(1.2, 0.75);
+    FULLTEXT ANALYZER english BM25(1.2, 0.75);
 
 -- Search index with highlights support
 DEFINE INDEX article_search ON TABLE article COLUMNS content
-    SEARCH ANALYZER english BM25(1.2, 0.75) HIGHLIGHTS;
+    FULLTEXT ANALYZER english BM25(1.2, 0.75) HIGHLIGHTS;
 
 -- Separate indexes for different fields (independent scoring)
 DEFINE INDEX title_search ON TABLE article COLUMNS title
-    SEARCH ANALYZER english BM25;
+    FULLTEXT ANALYZER english BM25;
 DEFINE INDEX content_search ON TABLE article COLUMNS content
-    SEARCH ANALYZER english BM25 HIGHLIGHTS;
+    FULLTEXT ANALYZER english BM25 HIGHLIGHTS;
 ```
 
 ### Scoring and Ranking
@@ -1228,8 +1223,8 @@ DEFINE FIELD price ON TABLE product TYPE decimal;
 DEFINE FIELD in_stock ON TABLE product TYPE bool;
 
 DEFINE ANALYZER product_search TOKENIZERS blank, class FILTERS ascii, lowercase, snowball(english);
-DEFINE INDEX product_name_ft ON TABLE product COLUMNS name SEARCH ANALYZER product_search BM25;
-DEFINE INDEX product_desc_ft ON TABLE product COLUMNS description SEARCH ANALYZER product_search BM25 HIGHLIGHTS;
+DEFINE INDEX product_name_ft ON TABLE product COLUMNS name FULLTEXT ANALYZER product_search BM25;
+DEFINE INDEX product_desc_ft ON TABLE product COLUMNS description FULLTEXT ANALYZER product_search BM25 HIGHLIGHTS;
 
 -- Faceted search: text search + structured filters
 SELECT id, name, price, category, brand,
@@ -1267,9 +1262,9 @@ DEFINE FIELD body_de ON TABLE content TYPE option<string>;
 DEFINE FIELD language ON TABLE content TYPE string;
 
 -- Per-language search indexes
-DEFINE INDEX content_en_ft ON TABLE content COLUMNS body_en SEARCH ANALYZER english_search BM25;
-DEFINE INDEX content_fr_ft ON TABLE content COLUMNS body_fr SEARCH ANALYZER french_search BM25;
-DEFINE INDEX content_de_ft ON TABLE content COLUMNS body_de SEARCH ANALYZER german_search BM25;
+DEFINE INDEX content_en_ft ON TABLE content COLUMNS body_en FULLTEXT ANALYZER english_search BM25;
+DEFINE INDEX content_fr_ft ON TABLE content COLUMNS body_fr FULLTEXT ANALYZER french_search BM25;
+DEFINE INDEX content_de_ft ON TABLE content COLUMNS body_de FULLTEXT ANALYZER german_search BM25;
 
 -- Search in a specific language
 SELECT * FROM content WHERE body_en @1@ 'database performance' ORDER BY search::score(1) DESC;
@@ -1432,9 +1427,9 @@ DEFINE ANALYZER content_analyzer TOKENIZERS blank, class
     FILTERS ascii, lowercase, snowball(english);
 
 DEFINE INDEX article_title_ft ON TABLE article COLUMNS title
-    SEARCH ANALYZER content_analyzer BM25;
+    FULLTEXT ANALYZER content_analyzer BM25;
 DEFINE INDEX article_content_ft ON TABLE article COLUMNS content
-    SEARCH ANALYZER content_analyzer BM25 HIGHLIGHTS;
+    FULLTEXT ANALYZER content_analyzer BM25 HIGHLIGHTS;
 DEFINE INDEX article_slug ON TABLE article COLUMNS slug UNIQUE;
 DEFINE INDEX article_status ON TABLE article COLUMNS status;
 
@@ -1644,7 +1639,7 @@ DEFINE FIELD text ON TABLE comment TYPE string;
 
 -- SurrealDB equivalent:
 DEFINE TABLE user SCHEMAFULL;
-DEFINE FIELD email ON TABLE user TYPE string ASSERT string::is::email($value);
+DEFINE FIELD email ON TABLE user TYPE string ASSERT string::is_email($value);
 DEFINE FIELD name ON TABLE user TYPE string;
 DEFINE FIELD created_at ON TABLE user TYPE datetime DEFAULT time::now();
 DEFINE INDEX email_idx ON TABLE user COLUMNS email UNIQUE;
@@ -1673,7 +1668,7 @@ SELECT title, author.name FROM post;
 | DBRef / manual reference | Record link (`TYPE record<table>`) |
 | Aggregation pipeline | SELECT with GROUP BY, subqueries |
 | Change streams | LIVE SELECT, CHANGEFEED |
-| Atlas Search | DEFINE INDEX ... SEARCH ANALYZER |
+| Atlas Search | DEFINE INDEX ... FULLTEXT ANALYZER |
 | Atlas Vector Search | DEFINE INDEX ... HNSW |
 
 ```surql
@@ -1797,8 +1792,8 @@ DEFINE FIELD tags ON TABLE article TYPE array<string>;
 
 DEFINE ANALYZER article_analyzer TOKENIZERS blank, class
     FILTERS ascii, lowercase, snowball(english);
-DEFINE INDEX title_ft ON TABLE article COLUMNS title SEARCH ANALYZER article_analyzer BM25;
-DEFINE INDEX body_ft ON TABLE article COLUMNS body SEARCH ANALYZER article_analyzer BM25 HIGHLIGHTS;
+DEFINE INDEX title_ft ON TABLE article COLUMNS title FULLTEXT ANALYZER article_analyzer BM25;
+DEFINE INDEX body_ft ON TABLE article COLUMNS body FULLTEXT ANALYZER article_analyzer BM25 HIGHLIGHTS;
 
 -- Elasticsearch: { "query": { "match": { "body": "vector search" } } }
 -- SurrealDB:
@@ -1823,7 +1818,7 @@ ORDER BY doc_count DESC;
 
 | Vector DB | SurrealDB |
 |-----------|-----------|
-| Collection/Index | Table + HNSW/MTREE index |
+| Collection/Index | Table + HNSW index (v3 retired the `MTREE` keyword) |
 | Vector + metadata | Record with embedding field + other fields |
 | Upsert | UPSERT |
 | Query (top-K) | `WHERE embedding <\|K\|> $query_vec` |

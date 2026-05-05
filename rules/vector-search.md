@@ -297,7 +297,7 @@ Combine vector similarity with SurrealDB's full-text search for hybrid retrieval
 DEFINE ANALYZER doc_analyzer TOKENIZERS blank, class FILTERS lowercase, snowball(english);
 DEFINE INDEX idx_ft_content ON TABLE document
     FIELDS content
-    SEARCH ANALYZER doc_analyzer BM25;
+    FULLTEXT ANALYZER doc_analyzer BM25;
 DEFINE INDEX idx_vec_embedding ON TABLE document
     FIELDS embedding
     HNSW DIMENSION 1536 DIST COSINE;

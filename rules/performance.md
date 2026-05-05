@@ -124,7 +124,7 @@ DEFINE ANALYZER english_analyzer
 -- Define a full-text search index using BM25 scoring
 DEFINE INDEX idx_ft_content ON TABLE article
     FIELDS content
-    SEARCH ANALYZER english_analyzer BM25;
+    FULLTEXT ANALYZER english_analyzer BM25;
 
 -- Full-text search query using the @@ operator
 -- The number after @ is the scoring reference (used with search::score)
@@ -197,11 +197,13 @@ INFO FOR TABLE user;
 Use `EXPLAIN` to understand how SurrealDB executes a query and whether it uses indexes.
 
 ```surrealql
--- See the query execution plan
+-- See the query execution plan (clause form)
 SELECT * FROM user WHERE email = 'alice@example.com' EXPLAIN;
 
--- EXPLAIN FULL provides more detail
-SELECT * FROM user WHERE email = 'alice@example.com' EXPLAIN FULL;
+-- Standalone form (verified upstream): EXPLAIN [ ANALYZE ] [ FORMAT TEXT | JSON ] @statement
+EXPLAIN SELECT * FROM user WHERE email = 'alice@example.com';
+EXPLAIN ANALYZE SELECT * FROM user WHERE email = 'alice@example.com';
+EXPLAIN FORMAT JSON SELECT * FROM user WHERE email = 'alice@example.com';
 
 -- Look for:
 -- - "Index" operations (good: using an index)
@@ -432,7 +434,7 @@ REMOVE INDEX idx_ft_content ON TABLE document;
 DEFINE INDEX idx_embedding ON TABLE document
     FIELDS embedding HNSW DIMENSION 1536 DIST COSINE;
 DEFINE INDEX idx_ft_content ON TABLE document
-    FIELDS content SEARCH ANALYZER english_analyzer BM25;
+    FIELDS content FULLTEXT ANALYZER english_analyzer BM25;
 ```
 
 ### Concurrent Write Patterns
@@ -730,7 +732,7 @@ INFO FOR TABLE user;
 
 ```surrealql
 -- Use EXPLAIN to understand query performance
-SELECT * FROM user WHERE email = 'alice@example.com' EXPLAIN FULL;
+EXPLAIN ANALYZE SELECT * FROM user WHERE email = 'alice@example.com';
 
 -- Time queries at the application level
 -- Most SDKs support timing query execution

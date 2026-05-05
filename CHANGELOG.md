@@ -3,6 +3,45 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.5] - 2026-05-05
+
+### Fixed (atomic-protocol patch — propagate v1.4.4 SurrealQL corrections to dependent rules)
+
+After v1.4.4 corrected the foundational `rules/surrealql.md`, a
+mechanical grep across the rest of the rule set found the same
+v1.4.4-class CRIT patterns (`SEARCH ANALYZER` / `MTREE` /
+`EXPLAIN FULL` / `string::is::*`) had also propagated into:
+
+- **`rules/data-modeling.md`** -- 16x `SEARCH ANALYZER`, 7x
+  `MTREE` (asserted as supported syntax with `DIMENSION` and
+  `CAPACITY` parameters), 1x `string::is::email`, plus the
+  HNSW/MTREE column in the migration-target table.
+- **`rules/security.md`** -- 2x `string::is::email`.
+- **`rules/vector-search.md`** -- 1x `SEARCH ANALYZER`. (The
+  `MTREE` retraction note already in this file was already
+  correct and was retained.)
+- **`rules/performance.md`** -- 2x `SEARCH ANALYZER`, 3x
+  `EXPLAIN FULL`.
+
+All instances replaced via mechanical pass to match the verified
+v3 forms: `FULLTEXT ANALYZER`, HNSW (or `<|K,METRIC|>` brute-force
+operator), `EXPLAIN [ ANALYZE ] [ FORMAT TEXT | JSON ] @statement`,
+`string::is_*`. The `MTREE Index` section in `data-modeling.md` was
+rewritten as an "Exact kNN (no index) -- v3" section pointing at
+the brute-force operator.
+
+No 3-way reviewer pass was run for this patch -- the changes were
+mechanical replacements of already-verified-wrong patterns from
+v1.4.4. The `scripts/check_version_consistency.py` machine-check
+catches version-row drift on every CI run from this release
+forward.
+
+### Migration
+No consumer code changes. The same migration guidance from v1.4.4
+applies to anyone who copy-pasted from `rules/data-modeling.md` /
+`rules/security.md` / `rules/vector-search.md` /
+`rules/performance.md` in v1.4.0 through v1.4.4.
+
 ## [1.4.4] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — adversarial-review NO-GO findings, batch-4: foundational language reference)

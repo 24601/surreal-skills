@@ -110,7 +110,7 @@ After successful authentication, `$auth` contains the authenticated user record 
 DEFINE ACCESS secure_account ON DATABASE TYPE RECORD
     SIGNUP (
         -- Validate email format
-        IF string::is::email($email) THEN
+        IF string::is_email($email) THEN
             CREATE user SET
                 email = string::lowercase($email),
                 pass = crypto::argon2::generate($pass),
@@ -651,7 +651,7 @@ DEFINE TABLE user SCHEMAFULL
         FOR delete WHERE $auth.role = 'admin'
         FOR create NONE;  -- users are created only through SIGNUP
 
-DEFINE FIELD email ON TABLE user TYPE string ASSERT string::is::email($value);
+DEFINE FIELD email ON TABLE user TYPE string ASSERT string::is_email($value);
 DEFINE FIELD pass ON TABLE user TYPE string PERMISSIONS FOR select NONE;
 DEFINE FIELD name ON TABLE user TYPE string;
 DEFINE FIELD role ON TABLE user TYPE string DEFAULT 'member';

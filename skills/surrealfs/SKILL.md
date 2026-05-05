@@ -3,7 +3,7 @@ name: surrealfs
 description: "SurrealFS virtual filesystem for AI agents. Rust core + Python agent (Pydantic AI). Persistent file operations backed by SurrealDB. Part of the surreal-skills collection."
 license: MIT
 metadata:
-  version: "1.4.4"
+  version: "1.4.5"
   author: "24601"
   parent_skill: "surrealdb"
   snapshot_date: "2026-05-05"

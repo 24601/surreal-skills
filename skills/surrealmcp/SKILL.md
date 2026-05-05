@@ -3,7 +3,7 @@ name: surrealmcp
 description: "SurrealMCP -- Model Context Protocol server for SurrealDB. Lets MCP-compatible LLM hosts (Claude Desktop, Cursor, GitHub Copilot in VS Code, Zed, n8n) read and write a SurrealDB instance through a single config entry instead of bespoke per-agent integration code. Part of the surreal-skills collection."
 license: MIT
 metadata:
-  version: "1.4.4"
+  version: "1.4.5"
   author: "24601"
   parent_skill: "surrealdb"
   snapshot_date: "2026-05-05"
