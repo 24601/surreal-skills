@@ -242,7 +242,7 @@ CAPABILITIES_MANIFEST: dict = {
         "ml_inference": "SurrealML is preview-stage (surrealml.md). The v1.4.0 DEFINE MODEL / ml::name<version>(...) / surreal ml import / db.upload_ml(...) surfaces were retracted in v1.4.1; consume the .surml format and supported pip extras only, and pin to a specific upstream commit.",
         "agent_integration": "Install surrealmcp from source (cargo install --path .) or Docker (surrealmcp.md) -> Register via mcpServers config in your AI host (Claude Desktop / Cursor / Copilot in VS Code / Zed / n8n) using SURREALDB_* env vars -> Pair with scoped DEFINE USER -> Use the snake_case tool catalog (query, select, create, update, delete, relate, connect_endpoint, use_namespace, etc.)",
         "editor_setup": "Install an LSP binary (cargo install surrealql-language-server v0.1.2 OR surql-lsp v0.1.1; both real, canonical not asserted) -> Install the editor extension (editor-tooling.md) -> Use each extension's documented settings (per-extension command and setting detail was retracted in v1.4.1)",
-        "rag_pipeline": "Read langchain.md + vector-search.md -> Pick SurrealDBVectorStore (Python) or SurrealVectorStore (JS) -> Optionally pair with SurrealML for server-side embeddings",
+        "rag_pipeline": "Read langchain.md + vector-search.md -> Use SurrealDBVectorStore (Python; langchain-surrealdb 0.2.1, constructor takes embeddings + an existing Surreal connection). The @langchain/surrealdb JS package was retracted in v1.4.1 (does not exist on npm); for JS use the v2 SurrealDB SDK directly.",
     },
     "environment_variables": {
         "SURREAL_ENDPOINT": "SurrealDB server endpoint (default: http://localhost:8000)",
