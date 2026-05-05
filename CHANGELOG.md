@@ -3,6 +3,73 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.1] - 2026-05-05
+
+### Fixed (atomic-protocol patch — adversarial-review NO-GO findings)
+
+A 3-way adversarial review (Codex `gpt-5.5` xhigh + Pi `deepseek-v4-pro:xhigh`
++ Cursor Composer 2; Gemini 3.1 Pro quota-exhausted upstream) of the four
+new rule files added in v1.4.0 returned **3/3 NO-GO**. Direct upstream
+verification (PyPI, crates.io, npm, GitHub raw READMEs, surrealdb.com docs)
+confirmed wholesale drift between the v1.4.0 documentation and current
+upstream reality.
+
+This patch shrinks each affected rule to verified-only content with explicit
+"pending verification, deferred to v1.5.0" notes for unverified surfaces. No
+new content is asserted that has not been read directly from upstream
+sources fetched on 2026-05-05.
+
+#### `rules/surrealmcp.md` — rewritten from upstream `README.md`
+- Removed `cargo install surrealmcp` and `npm install -g @surrealdb/surrealmcp` (neither exists; crates.io 404, npm 404). Replaced with `cargo install --path .` and Docker.
+- Replaced bare `surrealmcp` and `surrealmcp serve` invocations with the verified `surrealmcp start` subcommand.
+- Replaced `--namespace` / `--database` / `--bind` / `--auth-token` with verified `--ns` / `--db` / `--bind-address` / `--cloud-access-token` flags.
+- Replaced env-var convention (`SURREAL_USER` / `SURREAL_PASS`) with the upstream-documented `SURREALDB_USER` / `SURREALDB_PASS` / `SURREALDB_URL` / `SURREALDB_NS` / `SURREALDB_DB` plus `SURREAL_MCP_*` server-side prefix.
+- Replaced the hallucinated tool catalog (`merge`, `live`, `kill`, `schema.introspect`, `schema.tables`, `schema.table`, `info.db`, `info.ns`, `use`, `signin`) with the upstream-grouped tools: `query`, `select`, `insert`, `create`, `upsert`, `update`, `delete`, `relate`, `connect_endpoint`, `use_namespace`, `use_database`, `list_namespaces`, `list_databases`, `disconnect_endpoint`, plus cloud tools.
+- Replaced `surrealmcp ping` with `curl http://localhost:8000/health`.
+- Replaced `--max-concurrent-tools` with `--rate-limit-rps` / `--rate-limit-burst`. Replaced `--log-format json` with `RUST_LOG`.
+
+#### `skills/surrealmcp/SKILL.md` — reconciled with the rule
+- Updated quick-start, host-config, env vars, and tool catalog to match the rewritten rule. Reconciled `mcpServers` shape across rule and sub-skill.
+
+#### `rules/langchain.md` — rewritten from upstream `README.md` + PyPI
+- Removed entire JavaScript / TypeScript section. The `@langchain/surrealdb` npm package does not exist (registry 404).
+- Removed `AsyncSurrealDBVectorStore`, `SurrealChatMessageHistory`, and `SurrealHybridRetriever` classes (none exist upstream).
+- Replaced `from_endpoint()` / `from_client()` factory methods with the verified `SurrealDBVectorStore(embeddings, conn)` constructor.
+- Corrected dependency claims: `langchain-core ~= 1.1.0` and `surrealdb ~= 1.0.8` (v1 SDK, not v2). Python `>= 3.10, < 4.0`.
+- Corrected pip extras: `[graph-qa]` only. `[openai]` and `[huggingface]` extras do not exist.
+- Replaced `filter=` kwarg with the verified `custom_filter=`.
+
+#### `rules/surrealml.md` — shrunk to scope-summary; v1.4.0 claims retracted
+- Removed all `DEFINE MODEL` / `INFO FOR MODEL` / `REMOVE MODEL` SurrealQL claims. The SurrealDB v3 `DEFINE` statement list (verified at `https://surrealdb.com/docs/surrealql/statements/define`) contains ACCESS, ANALYZER, API, BUCKET, CONFIG, DATABASE, EVENT, FIELD, FUNCTION, INDEX, MODULE, NAMESPACE, PARAM, SCOPE, SEQUENCE, TABLE, TOKEN, USER — there is no `MODEL`.
+- Removed `ml::name<version>(...)` invocation form (depends on the non-existent `DEFINE MODEL`).
+- Removed `surreal start --user-mem-limit` flag (not in upstream CLI).
+- Removed `surreal ml import --name --version` flags (the docs `/cli/ml/import` page 404s; treat the `surreal ml` surface as unstable).
+- Removed Python `SurMlFile.from_pytorch / from_onnx / from_sklearn / from_keras / from_hf` factories and the `ModelMeta` class. The actual `surrealml 0.0.4` package uses an `Engine` enum + builder methods on `SurMlFile`.
+- Corrected pip extras to the verified `[sklearn]`, `[torch]`, `[tensorflow]`. There is no `[hf]` extra.
+- Fixed `DEFINE EVENT` example: `$value` -> `$after.id`. Standard event variables in SurrealDB are `$before`, `$after`, `$event`.
+
+#### `rules/editor-tooling.md` — shrunk to verified-pointer summary
+- Both `surrealql-language-server` (v0.1.2 on crates.io, 2026-04-21) and `surql-lsp` (v0.1.1 on crates.io, 2026-03-28) are real; the rule no longer asserts which is canonical.
+- Removed the v1.4.0 VS Code command palette (`SurrealDB: Run Selection`, etc.) and settings catalog (`surrealdb.connections`, `surrealdb.activeConnection`, `surrealdb.auth.source`) — the published extension's `package.json` had zero of these registered.
+- Removed the unverified `surrealql.toml` config-schema block.
+- Removed the unverified `surrealql-language-server lint --format github` CI subcommand and the unverified `--socket <port>` flag.
+- Trimmed editor-extension descriptions to discoverability pointers; per-editor command/setting detail is deferred to v1.5.0 after a manual upstream pass per editor.
+
+#### `SOURCES.json` — version pins corrected
+- Updated `surrealdb/surrealmcp.release` from `v0.2.0` to `preview (no published GitHub release)`.
+- Updated `surrealdb/surrealml.release` from `v0.5.x` to `0.0.4 (PyPI surrealml)`.
+- Updated `surrealdb/langchain-surrealdb.release` from `current` to `0.2.1 (PyPI langchain-surrealdb)`.
+
+#### `.github/workflows/release.yml`
+- Added `workflow_dispatch` trigger with a `tag` input so an existing release tag can be re-published without the draft-toggle dance. Wired through `actions/checkout` ref, `RELEASE_VERSION`, and the clawhub publish step.
+
+### Security posture
+- No new scripts, binaries, or third-party network endpoints. All upstream verification was via `curl` to public APIs (crates.io, PyPI, npm registry, GitHub raw, surrealdb.com docs). No new credential surface.
+- The rule rewrites *reduce* the project's exposure: removing fabricated install commands eliminates the user-instruction failure mode where a developer attempts a non-existent `cargo install` or `npm install` (those would 404 today, but a newly-squatted package at one of those names would have been a supply-chain risk). All install paths now resolve to the upstream `surrealdb` GitHub org or Docker Hub.
+
+### Migration
+No code changes. Rule-file content has been replaced; consumers that copy-pasted from v1.4.0 should re-pin to v1.4.1 and re-derive any code from the corrected rule text. The `skills/surrealmcp/SKILL.md` quick-start has changed shape — update any host MCP config to use the verified env-var names (`SURREALDB_*`) and the `surrealmcp start` subcommand.
+
 ## [1.4.0] - 2026-05-03
 
 ### Major (ecosystem expansion)

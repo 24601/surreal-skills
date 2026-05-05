@@ -1,8 +1,8 @@
 {
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
-  "skill_version": "1.4.0",
-  "snapshot_date": "2026-05-03",
+  "skill_version": "1.4.1",
+  "snapshot_date": "2026-05-05",
   "repos": {
     "surrealdb/surrealdb": {
       "sha": "a97d3af85d79",
@@ -111,9 +111,9 @@
       ]
     },
     "surrealdb/surrealmcp": {
-      "sha": "tracked-via-surrealdb",
-      "date": "2026-05-03",
-      "release": "v0.2.0",
+      "sha": "tracked-via-main-HEAD",
+      "date": "2026-05-05",
+      "release": "preview (no published GitHub release)",
       "url": "https://github.com/surrealdb/surrealmcp",
       "rules_affected": [
         "rules/surrealmcp.md",
@@ -121,9 +121,9 @@
       ]
     },
     "surrealdb/surrealml": {
-      "sha": "tracked-via-surrealdb",
-      "date": "2026-05-03",
-      "release": "v0.5.x",
+      "sha": "tracked-via-pypi",
+      "date": "2026-05-05",
+      "release": "0.0.4 (PyPI surrealml)",
       "url": "https://github.com/surrealdb/surrealml",
       "rules_affected": [
         "rules/surrealml.md"
@@ -202,9 +202,9 @@
       ]
     },
     "surrealdb/langchain-surrealdb": {
-      "sha": "tracked-via-surrealdb",
-      "date": "2026-05-03",
-      "release": "current",
+      "sha": "tracked-via-pypi",
+      "date": "2026-05-05",
+      "release": "0.2.1 (PyPI langchain-surrealdb)",
       "url": "https://github.com/surrealdb/langchain-surrealdb",
       "rules_affected": [
         "rules/langchain.md"
