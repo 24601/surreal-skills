@@ -1458,13 +1458,30 @@ coroutines `1.10.1`, kotlinx-serialization `1.8.0`.
 The actual entry point is `SurrealClient(config: SurrealClientConfig)`
 (verified from `SurrealClient.kt` and `SurrealClientConfig.kt`). The
 config takes `httpEndpoint` and `wsEndpoint` strings; **there is no
-embedded-engine support** in the current source. Methods like
-`query(sql, vars)` return `JsonElement`, not generic `List<Person>`;
-`live(query, vars)` returns a `LiveQuerySubscription` and accepts a
-SurrealQL query string (not a table name). Auth goes through a
-`SurrealAuthInput` sealed interface with `SignIn(params: JsonObject)`
-and `Token(token: String)` variants -- there is no `Root` /
-`Database` data class at the v1.4.2 cut.
+embedded-engine support** in the current source. Base methods return
+`JsonElement`:
+
+```kotlin
+suspend fun query(sql: String, vars: JsonObject? = null): JsonElement
+suspend fun select(thing: String): JsonElement
+suspend fun create(thing: String, data: JsonElement? = null): JsonElement
+suspend fun update(thing: String, data: JsonElement? = null): JsonElement
+suspend fun merge(thing: String, data: JsonElement? = null): JsonElement
+suspend fun delete(thing: String): JsonElement
+suspend fun live(query: String, vars: JsonObject? = null): LiveQuerySubscription
+```
+
+Each base method has a typed companion using a `reified` generic that
+decodes the JSON to a `kotlinx.serialization`-compatible type:
+`queryAs<T>`, `selectAs<T>`, `createAs<T>`, `insertAs<T>`,
+`updateAs<T>`, `mergeAs<T>`, `patchAs<T>`, `deleteAs<T>`. There is
+also a `decode<T>(element)` helper. Use the typed helpers when you
+have a `@Serializable` data class, or stay on `JsonElement` for
+opaque payloads.
+
+Auth goes through a `SurrealAuthInput` sealed interface with
+`SignIn(params: JsonObject)` and `Token(token: String)` variants --
+there is no `Root` / `Database` data class at the v1.4.2 cut.
 
 > **Do not copy-paste API examples from any earlier version of this
 > rule.** Detailed usage is deferred to v1.5.0 after a tagged release.
@@ -1590,7 +1607,7 @@ end
 | Live queries | Yes | Yes | Yes | Yes | Limited | Limited | No | Yes (`AsyncStream`) | Yes (`LiveQuerySubscription`) | Yes (UUID + subscribe) |
 | WASM (browser) | Yes | No | No | No | No | No | No | No | No | No |
 | Async API | Yes | Yes | Yes | Yes | Yes | Yes | No | Yes (Swift Concurrency / actors) | Yes (coroutines) | Yes (`async` runtime) |
-| Type safety | TS generics | Type hints | Generics | Strong | Generics | Generics | Weak | Macros + `SurrealModel` | `JsonElement` (no generics) | Duck-typed |
+| Type safety | TS generics | Type hints | Generics | Strong | Generics | Generics | Weak | Macros + `SurrealModel` | `JsonElement` + `reified` decode helpers (`queryAs<T>`, `selectAs<T>`, ...) | Duck-typed |
 | Mobile target | -- | -- | -- | -- | -- | -- | -- | iOS / iPadOS / macOS / tvOS / watchOS / visionOS | Android / iOS (KMP) | -- |
 
 ### When to Use Each SDK

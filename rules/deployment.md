@@ -160,14 +160,14 @@ jobs:
 | Input | Default | Purpose |
 |-------|---------|---------|
 | `surrealdb_version` | `latest` | SurrealDB version to install |
-| `surrealdb_port` | `8000` | Port to bind |
-| `surrealdb_username` | -- | Initial root username |
-| `surrealdb_password` | -- | Initial root password |
-| `surrealdb_auth` | -- | Auth flag passthrough |
-| `surrealdb_strict` | -- | Strict-mode flag |
-| `surrealdb_log` | -- | Log level |
-| `surrealdb_additional_args` | -- | Pass-through extra flags |
-| `surrealdb_retry_count` | -- | Health-check retry count |
+| `surrealdb_port` | `"8000"` | Port to bind |
+| `surrealdb_username` | (none) | Initial root username |
+| `surrealdb_password` | (none) | Initial root password |
+| `surrealdb_auth` | `"false"` | Enable auth |
+| `surrealdb_strict` | `"false"` | Enable strict mode |
+| `surrealdb_log` | (none) | Log level |
+| `surrealdb_additional_args` | (none) | Extra args to pass to `surreal start` |
+| `surrealdb_retry_count` | `"30"` | Connect-retry count for health check |
 
 Latest tag at the v1.4.2 cut: `v2.0.1` (published 2024-12-13). Pin to
 a specific tag (`@v2.0.1`) for reproducible CI.
