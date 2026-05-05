@@ -1,12 +1,12 @@
 # SurrealMCP -- Model Context Protocol Server for SurrealDB
 
-> **v1.4.1 status note:** the v1.4.0 version of this rule documented an
-> install path, CLI shape, env-var names, and tool catalog that did not
-> match the upstream `surrealdb/surrealmcp` repository. This file has been
-> shrunk to verified content only; for anything not covered here, treat
-> the upstream README as the source of truth and pin work to a specific
-> SurrealMCP commit. Detail expansion is deferred to v1.5.0 after a full
-> upstream verification pass.
+> **v1.5.0 status note:** v1.4.1 retracted the v1.4.0 install path, CLI
+> shape, env-var names, and tool catalog (none matched
+> `surrealdb/surrealmcp` upstream). v1.5.0 restores the full tool
+> argument schema by inspecting `surrealdb/surrealmcp` at tag `v0.4.0`
+> directly (`src/tools/mod.rs`). Pin to that tag if you want the
+> schemas below to match exactly; later upstream commits may add or
+> rename tools.
 
 SurrealMCP is the official Model Context Protocol (MCP) server published
 under `surrealdb/surrealmcp`. It exposes a SurrealDB connection (local or
@@ -164,30 +164,85 @@ using the verified env-var names above.
 
 ---
 
-## Available Tools (verified)
+## Available Tools (verified at `surrealdb/surrealmcp@v0.4.0`)
 
-The upstream README groups the tools as follows. Tool wire-names are
-snake_case (verified against `src/tools/mod.rs`); the names below are
-the prose form from the README.
+Tool wire-names are the snake-case method names on `SurrealService` in
+`src/tools/mod.rs`. Argument types come from the `#[derive(schemars::
+JsonSchema)]` `*Params` structs in the same file -- the schemas below
+mirror what `tools/list` returns from a running v0.4.0 server.
 
-**Database operations:** Query, Select, Insert, Create, Upsert,
-Update, Delete, Relate.
+### Database operations
 
-**Connection management:** Connect Endpoint, Use Namespace,
-Use Database, List Namespaces, List Databases, Disconnect Endpoint.
+| Tool | Required args | Optional args |
+|------|---------------|---------------|
+| `query` | `query: string` | `parameters: object` |
+| `select` | `targets: string[]` | `where_clause`, `split_clause`, `group_clause`, `order_clause`, `limit_clause`, `start_clause` (all `string`); `parameters: object` |
+| `insert` | `target: string`, `values: object[]` | `ignore: bool`, `relation: bool` |
+| `create` | `target: string`, `data: object` | -- |
+| `upsert` | `targets: string[]` | one of `patch_data: object[]` / `merge_data: object` / `content_data: object` / `replace_data: object`; `where_clause: string`; `parameters: object` |
+| `update` | `targets: string[]` | one of `patch_data` / `merge_data` / `content_data` / `replace_data` (same shapes as `upsert`); `where_clause`; `parameters` |
+| `delete` | `targets: string[]` | `where_clause: string`, `parameters: object` |
+| `relate` | `from: string[]`, `with: string[]`, `table: string` | `content_data: object`, `parameters: object` |
 
-**Cloud operations:** List Cloud Organizations, List Cloud Instances,
-Create Cloud Instance, Pause / Resume Cloud Instance, Get Cloud
-Instance Status.
+Notes:
 
-The `connect_endpoint` tool accepts a target like
-`memory`, `file:/path`, `rocksdb:/path`, `ws://host:port`,
-`http://host:port`, or `cloud:<instance_id>`.
+- For `upsert` / `update`, only one of the four data variants is
+  meaningful per call -- the server applies whichever is provided in
+  the order `patch → merge → content → replace`. Don't combine.
+- `targets` entries may be plain table names (`user`) or fully-qualified
+  record IDs (`user:abc`). Mixing both in one call is allowed.
+- Every CRUD tool surfaces a `parameters` map that becomes bound
+  variables in the underlying SurrealQL -- prefer this over inlining
+  user-controlled strings into clause text.
 
-> **Pending verification:** exact tool-argument shapes, JSON-Schema
-> definitions, and the precise list of tools at any given upstream tag.
-> Use `tools/list` against a running server and pin to a specific
-> upstream commit.
+### Connection management
+
+| Tool | Required args | Optional args |
+|------|---------------|---------------|
+| `connect_endpoint` | `endpoint: string` | `namespace`, `database`, `username`, `password` (all `string`) |
+| `use_namespace` | `namespace: string` | -- |
+| `use_database` | `database: string` | -- |
+| `list_namespaces` | -- | -- |
+| `list_databases` | -- | -- |
+| `disconnect_endpoint` | -- | -- |
+
+`connect_endpoint.endpoint` accepts the same scheme set as the
+SurrealDB SDK: `memory`, `file:/path`, `rocksdb:/path`,
+`ws://host:port[/rpc]`, `wss://host:port[/rpc]`, `http://host:port`,
+`https://host:port`, or `cloud:<instance_id>`.
+
+### Cloud operations
+
+| Tool | Required args |
+|------|---------------|
+| `list_cloud_organizations` | -- |
+| `list_cloud_instances` | `organization_id: string` |
+| `pause_cloud_instance` | `instance_id: string` |
+| `resume_cloud_instance` | `instance_id: string` |
+| `get_cloud_instance_status` | `instance_id: string` |
+| `create_cloud_instance` | `name: string`, `organization_id: string` |
+
+Cloud tools require the server to be configured with
+`SURREAL_MCP_CLOUD_ACCESS_TOKEN` + `SURREAL_MCP_CLOUD_REFRESH_TOKEN` (or
+their `--access-token` / `--refresh-token` CLI equivalents). Without
+them the cloud client is constructed in unauthenticated mode and the
+tools fail at call time.
+
+### Schema-drift policy
+
+Pin to `v0.4.0` if you depend on the table above. To verify a different
+tag, dump the live tool surface from a running server:
+
+```bash
+# After starting `surrealmcp start` somewhere, hit /tools/list over the
+# wire (HTTP transport shown; for stdio use the host's MCP inspector).
+curl -s -X POST http://localhost:8000/tools/list \
+  -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | jq
+```
+
+Compare the returned `inputSchema` JSON-Schemas against the table above
+and update your call sites if anything diverges.
 
 ---
 

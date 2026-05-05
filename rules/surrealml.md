@@ -1,21 +1,17 @@
 # SurrealML -- Machine Learning Models in SurrealDB
 
-> **v1.4.1 status note:** the v1.4.0 version of this rule documented a
-> `DEFINE MODEL ml::name<version>(...)` SurrealQL syntax, an
-> `INFO FOR MODEL` statement, a `REMOVE MODEL` statement, an
-> `ml::name<version>(...)` invocation form, a `surreal start
-> --user-mem-limit` flag, an `surreal ml import` CLI invocation,
-> a `db.upload_ml(...)` SDK method, and a Python SDK with
+> **v1.5.0 status note:** v1.4.1 retracted the v1.4.0 documentation of
+> `DEFINE MODEL ml::name<version>(...)`, `INFO FOR MODEL`, `REMOVE
+> MODEL`, `ml::name<version>(...)` invocation, `surreal start
+> --user-mem-limit`, `surreal ml import`, `db.upload_ml(...)`, and the
 > `SurMlFile.from_pytorch / from_onnx / from_sklearn / from_keras /
-> from_hf` factories plus a `ModelMeta` class. **None of those
-> currently exist upstream** -- the SurrealDB v3 `DEFINE` statement
-> list contains ACCESS, ANALYZER, API, BUCKET, CONFIG, DATABASE,
-> EVENT, FIELD, FUNCTION, INDEX, MODULE, NAMESPACE, PARAM, SCOPE,
-> SEQUENCE, TABLE, TOKEN, USER -- no MODEL. The `surrealml` PyPI
-> package (v0.0.4) is early-stage with a different API surface than
-> what was documented. This file has been shrunk to a scope summary;
-> a full rewrite grounded in the actual `surrealdb/surrealml` source
-> is deferred to v1.5.0.
+> from_hf` factories -- none of those exist upstream. v1.5.0 now
+> documents the **actual** `SurMlFile` constructor + builder API
+> verified against the published `surrealml 0.0.4` wheel
+> (`surrealml/__init__.py`, `surrealml/surml_file.py`,
+> `surrealml/engine/__init__.py`). The SurrealDB-side surface
+> (server-side load, SurrealQL invocation form, CLI subcommand) remains
+> unstable and is not documented here -- track upstream directly.
 
 SurrealML is the SurrealDB project for storing and serving machine
 learning models. The package compiles to a `.surml` artifact format
@@ -64,21 +60,101 @@ in the same engine.
 
 ---
 
-## Working API Touchpoints
+## Python API (verified at `surrealml 0.0.4`)
 
-These are the parts the upstream README/PyPI confirm exist; the
-exact shape is what `surrealml/clients/python` exposes -- consult it
-before writing code, and pin to a specific upstream commit:
+### Engine enum
 
-- The `.surml` artifact format (Rust core in the upstream repo,
-  consumed by both the Python and Rust clients).
-- Optional dependency groups for the Python client: `[sklearn]`,
-  `[torch]`, `[tensorflow]`.
+`from surrealml import Engine` exposes:
 
-> Anything beyond these surfaces (SurrealQL invocation, CLI import,
-> server-side permissions on a model) is unstable enough to warrant
-> direct upstream verification rather than copy-paste from this
-> rule.
+| Variant | String value | Notes |
+|---------|--------------|-------|
+| `Engine.PYTORCH` | `"pytorch"` | PyTorch model exported through ONNX |
+| `Engine.SKLEARN` | `"sklearn"` | scikit-learn model exported through ONNX (skl2onnx) |
+| `Engine.TENSORFLOW` | `"tensorflow"` | TensorFlow / Keras model exported through ONNX (tf2onnx) |
+| `Engine.ONNX` | `"onnx"` | An already-ONNX graph; bypasses conversion |
+| `Engine.NATIVE` | `"native"` | Rust + linfa native engine (declared on the enum but **unsupported in the v0.0.4 Python serializer** -- `_cache_model` raises `ValueError("Engine native not supported")`) |
+
+`SKLEARN` requires the `[sklearn]` extra, `PYTORCH` requires `[torch]`,
+and `TENSORFLOW` requires `[tensorflow]`. `numpy==1.26.3` is pinned
+hard at the package level.
+
+### `SurMlFile` constructor + builder
+
+```python
+from surrealml import SurMlFile, Engine
+
+file = SurMlFile(
+    model=trained_model,   # any sklearn / torch / tf / onnx instance
+    name="house_price",    # string, becomes the artefact name
+    inputs=X_sample,       # shape-defining sample (used to trace the model)
+    engine=Engine.SKLEARN,
+)
+```
+
+All four constructor args are optional in the signature; the only
+supported "construct empty + load later" form passes **none of them**
+and then calls `SurMlFile.load(path, engine)`. Any other partial
+combination triggers the `_cache_model` engine match and either
+serialises immediately or raises `ValueError`.
+
+Builder methods on the instance (each returns `None`; mutate in place):
+
+| Method | Purpose |
+|--------|---------|
+| `add_column(name)` | Append a feature-column name. Order matters; call once per column in input order. |
+| `add_normaliser(column_name, normaliser_type, one, two)` | Attach a normaliser to a previously-added column. `one` / `two` are the two parameters consumed by the named normaliser. |
+| `add_output(output_name, normaliser_type, one, two)` | Same shape as `add_normaliser` but for an output of the model. |
+| `add_description(description: str)` | Sets `self.description` and embeds it in the `.surml` header. |
+| `add_version(version: str)` | Sets `self.version`. |
+| `add_name(name: str)` | Re-sets the artefact name after construction. |
+| `add_author(author)` | Sets the author metadata. |
+| `save(path)` | Writes the configured artefact to `path` (e.g. `model.surml`). |
+| `to_bytes()` | Returns the serialised artefact bytes (alternative to `save`). |
+
+Metadata-loading + remote-upload entry points:
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `SurMlFile.load(path, engine)` (static) | `(path: str, engine: Engine) -> SurMlFile` | Reconstructs `(file_id, name, description, version)` from disk and rebinds the engine. |
+| `SurMlFile.upload(path, url, chunk_size, namespace, database, username=None, password=None)` (static) | -- | Streams a `.surml` file to a remote endpoint in chunks of `chunk_size` bytes; `username` / `password` are the SurrealDB-side credentials used to authenticate the upload. |
+
+Inference entry points:
+
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `raw_compute(input_vector, dims=None)` | `(list[float], Optional[list[int]]) -> ...` | One-shot inference from a flat 1-D input vector; `dims` describes how to slice it before feeding the model. |
+| `buffered_compute(value_map)` | `(dict[str, float]) -> ...` | One-shot inference from a column-name → value mapping. Requires `add_column` to have been called for every key. |
+
+### What the API does NOT expose
+
+These were claimed in the v1.4.0 rule and **are not present** in
+`surrealml 0.0.4`:
+
+- `SurMlFile.from_pytorch()`, `.from_onnx()`, `.from_sklearn()`,
+  `.from_keras()`, `.from_hf()` -- there are no `from_*` factory
+  methods. Use the constructor with `engine=Engine.<...>`.
+- A `ModelMeta` class -- metadata is set field-by-field via the
+  `add_*` builder methods.
+- Any HuggingFace integration / `[hf]` extra -- only `[sklearn]`,
+  `[torch]`, `[tensorflow]` exist.
+
+### What the SurrealDB side does NOT (yet) expose
+
+These were also in the v1.4.0 rule and remain unverified upstream at
+the v1.5.0 cut:
+
+- `DEFINE MODEL ml::name<version>(...)` SurrealQL statement.
+- `INFO FOR MODEL` / `REMOVE MODEL` statements.
+- `ml::name<version>(...)` invocation form inside SurrealQL.
+- `surreal ml import` / `surreal ml export` CLI subcommands -- the
+  `surreal ml` root page exists at
+  `https://surrealdb.com/docs/surrealdb/cli/ml`, but `/import` and
+  `/export` 404 at the v1.5.0 cut.
+- `db.upload_ml(...)` SDK method on the JS / Rust / Go clients.
+
+If you need server-side model invocation today, push the model out via
+`SurMlFile.upload(...)` and then drive inference from your application
+code over the regular SDK -- not from inside SurrealQL.
 
 ---
 

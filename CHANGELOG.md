@@ -3,6 +3,71 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.0] - 2026-05-05
+
+### Added (deferred-verification milestone — close v1.4.1 deferrals)
+
+The v1.4.1 patch shrank `rules/editor-tooling.md`, `rules/surrealmcp.md`,
+and `rules/surrealml.md` to verified content only and explicitly
+deferred per-extension/tool/API detail to v1.5.0. v1.5.0 closes that
+deferral by inspecting actual upstream source for each surface and
+restoring fully-grounded tables:
+
+- **`rules/editor-tooling.md`** — restored per-editor tables from
+  pinned upstream source: `surrealdb/surrealql-language-server@v0.1.2`
+  (full `surrealql.*` workspace settings, env-var fallbacks, server
+  capabilities, build instructions), `surrealdb/surrealql-vsx@v0.3.0`
+  (`surrealdb.surrealql` VS Code extension is grammar+snippets only —
+  no commands, no settings, no LSP wiring), `surrealdb/surrealql-zed@v0.1.0`
+  (`surrealdb-surrealql` extension config, LSP discovery, asset names),
+  and `surrealdb/surrealql-jetbrains` head (plugin id
+  `com.surrealdb.surql-jetbrains`, settings page **Settings → Tools →
+  SurrealQL**, LSP4IJ wiring). Confirmed `surrealql-language-server` is
+  the canonical LSP that first-party extensions wire to (Zed + JetBrains
+  both shell out to it by name); `surql-lsp` is a separate community
+  crate. Confirmed no first-party Sublime / Neovim / Helix / Emacs
+  packages exist — wire-it-yourself sections updated accordingly.
+- **`rules/surrealmcp.md`** — restored full tool argument schema table
+  from `surrealdb/surrealmcp@v0.4.0`'s `src/tools/mod.rs` `*Params`
+  structs. Documents all 20 tools (8 database CRUD, 6 connection
+  management, 6 cloud) with required vs optional args, and notes the
+  `upsert`/`update` `patch_data`/`merge_data`/`content_data`/`replace_data`
+  exclusivity precedence.
+- **`rules/surrealml.md`** — restored full Python `SurMlFile`
+  constructor + builder API from the published `surrealml 0.0.4` wheel.
+  Documents the `Engine` enum (5 variants, with `NATIVE` flagged as
+  declared-but-unsupported), the constructor signature, all 8 builder
+  methods (`add_column`, `add_normaliser`, `add_output`,
+  `add_description`, `add_version`, `add_name`, `add_author`,
+  `save`/`to_bytes`), and the static `load`/`upload` + inference
+  (`raw_compute`, `buffered_compute`) entry points. Re-asserts what
+  does NOT exist: no `from_pytorch`/`from_onnx`/`from_sklearn`/
+  `from_keras`/`from_hf` factories, no `ModelMeta`, no `[hf]` extra,
+  and no SurrealQL-side `DEFINE MODEL` / `INFO FOR MODEL` / `REMOVE
+  MODEL` / `ml::name<version>(...)` invocation form upstream.
+
+### Verified upstream (clones inspected at the v1.5.0 cut)
+
+- `surrealdb/surrealmcp@v0.4.0` (Rust, MCP server)
+- `surrealdb/surrealql-language-server@v0.1.2` (Rust, LSP)
+- `surrealdb/surrealql-vsx@v0.3.0` (TypeScript, VS Code grammar+snippets)
+- `surrealdb/surrealql-zed@v0.1.0` (Rust, Zed extension)
+- `surrealdb/surrealql-jetbrains` head (Kotlin, JetBrains plugin)
+- `surrealdb/surrealql-tree-sitter` head (tree-sitter grammar)
+- `surrealml 0.0.4` (Python wheel from PyPI; `surrealdb/surrealml`
+  GitHub repo's tags do not match PyPI release names — wheel was the
+  authoritative artefact)
+- `surrealdb/langchain-surrealdb@v0.2.1` (Python, cloned but not yet
+  used to expand `rules/langchain.md` — that expansion is queued for
+  a future release)
+
+### Migration
+
+No consumer code changes. Existing skill consumers using the v1.4.x
+shrunken rule files are unaffected; the new content adds detail
+without removing or renaming any prior surface. Expanded sections are
+strictly additive over the v1.4.5 verified-only baseline.
+
 ## [1.4.5] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — propagate v1.4.4 SurrealQL corrections to dependent rules)
