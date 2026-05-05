@@ -3,6 +3,12 @@ name: Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to (re)publish (e.g. v1.4.0)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,6 +21,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,7 +54,7 @@ jobs:
 
       - name: Validate version consistency
         env:
-          RELEASE_VERSION: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           python3 - <<'PY'
           import json
@@ -107,9 +115,10 @@ jobs:
       - name: Publish to clawhub.ai
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           [ -n "$CLAWHUB_TOKEN" ] || { echo "ERROR: CLAWHUB_TOKEN is not configured"; exit 1; }
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_TAG#v}"
           CHANGELOG_TEXT="$(
             VERSION="$VERSION" python3 - <<'PY'
           import os
