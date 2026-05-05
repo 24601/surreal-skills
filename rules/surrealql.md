@@ -1719,17 +1719,21 @@ vector::magnitude([3, 4])                    -- 5.0
 vector::normalize([3, 4])                    -- [0.6, 0.8]
 vector::project([3, 4], [1, 0])             -- projection vector
 
--- Distance functions
+-- Distance functions (lower = closer; positive metrics)
+-- Verified against v3.0.5 vector function registry: cosine, jaccard,
+-- and pearson are NOT exposed under `vector::distance::*` — they live
+-- only under `vector::similarity::*` below. See the similarity block.
 vector::distance::chebyshev([1, 2], [4, 6])     -- 4
-vector::distance::cosine([1, 2], [3, 4])         -- cosine distance
 vector::distance::euclidean([1, 2], [4, 6])      -- 5.0
 vector::distance::hamming([1, 0, 1], [1, 1, 0])  -- 2
 vector::distance::manhattan([1, 2], [4, 6])      -- 7
-vector::distance::jaccard([1, 2, 3], [2, 3, 4])  -- jaccard distance
 vector::distance::minkowski([1, 2], [4, 6], 3)   -- minkowski with p=3
-vector::distance::pearson([1, 2, 3], [4, 5, 6])  -- pearson distance
 
--- Similarity functions (1 - distance, higher = more similar)
+-- Similarity functions (higher = more similar)
+-- For cosine / jaccard / pearson, the upstream function lives ONLY
+-- under `vector::similarity::*`. To get a "distance"-shaped value
+-- (lower = closer), compute `1 - vector::similarity::cosine(...)`,
+-- and similarly for jaccard / pearson.
 vector::similarity::cosine([1, 2], [3, 4])       -- cosine similarity
 vector::similarity::jaccard([1, 2, 3], [2, 3, 4]) -- jaccard similarity
 vector::similarity::pearson([1, 2, 3], [4, 5, 6]) -- pearson similarity

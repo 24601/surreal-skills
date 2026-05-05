@@ -42,10 +42,14 @@ RELATE person:alice->follows->person:charlie CONTENT {
     tags: ['tech', 'surrealdb']
 };
 
--- Using MERGE to add to existing properties
-RELATE person:alice->knows->person:bob MERGE {
-    last_interaction: time::now()
-};
+-- To update an existing relationship's properties, use UPDATE on the
+-- edge record (RELATE creates new edges; it does not accept MERGE).
+-- Verified against v3.0.5: RELATE grammar is
+--   RELATE [ ONLY ] @from -> @table -> @to [ CONTENT @value | SET @field = @value ... ]
+--                  [ RETURN ... ] [ TIMEOUT @duration ]
+-- — there is no MERGE clause on RELATE.
+UPDATE knows SET last_interaction = time::now()
+WHERE in = person:alice AND out = person:bob;
 ```
 
 ### Creating Multiple Relationships at Once

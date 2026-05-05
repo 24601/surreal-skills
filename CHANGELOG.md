@@ -3,6 +3,87 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.2] - 2026-05-05
+
+### Fixed (atomic-protocol patch — v1.5.1 Pi-only re-audit CRIT remediation)
+
+A second Pi+DeepSeek-V4-Pro:xhigh adversarial pass over the same five
+rules patched in v1.5.1 (`rules/data-modeling.md`, `rules/security.md`,
+`rules/vector-search.md`, `rules/performance.md`,
+`rules/graph-queries.md`) returned **2 GO + 2 CONDITIONAL GO + 1 NO-GO**
+with **7 CRITs** total — every one introduced or missed by the v1.5.1
+fix surgery. v1.5.2 patches every CRIT. The empirical fix-patch-drift
+pattern noted in `~/CLAUDE.md` ("each rev closes prior CRITs but
+introduces 1-2 new ones from fix surgery") played out as expected,
+mostly concentrated in the file with the largest pass-1 patch surface
+(`rules/performance.md`, 8 sites).
+
+- **`rules/performance.md`** (3 CRITs — all v1.5.1-introduced) — The
+  v1.5.1 EXPLAIN-output rewrite invented two operator names that do
+  not appear in the v3.0.5 operator catalog (`RangeScan`, standalone
+  `Iterate`) and asserted that the clause-form `… EXPLAIN` does not
+  produce `operation: 'Iterate Table'` / `operation: 'Iterate Index'`
+  — but it does. The actual upstream surface is **two distinct
+  output shapes** depending on syntax form: the clause form
+  (`SELECT … EXPLAIN`) emits `operation:` rows with values like
+  `'Iterate Table'` / `'Iterate Index'` / `'Fetch'`, and the statement
+  form (`EXPLAIN SELECT …`) emits `operator:` rows from the planner
+  scan catalog (`Scan`, `TableScan`, `IndexScan`, `CountScan`,
+  `IndexCountScan`, `FullTextScan`, `GraphEdgeScan`, `ReferenceScan`,
+  `KnnScan`, `UnionIndexScan`). The Query Performance section now
+  documents both shapes explicitly, removes the hallucinated
+  `RangeScan` and standalone `Iterate` rows, and updates the §"Query
+  Timing" examples and §"Common Bottlenecks" table cell to label the
+  output as clause-form `operation:` (or to show both forms) so the
+  rest of the file no longer contradicts the operator-name section.
+
+- **`rules/graph-queries.md`** (1 CRIT) — §"Setting Properties on
+  Edges" included a third example using `RELATE … MERGE { … }`. v3
+  `RELATE` grammar is `RELATE [ ONLY ] @from -> @table -> @to
+  [ CONTENT @value | SET @field = @value … ] [ RETURN … ]
+  [ TIMEOUT @duration ]` — there is no `MERGE` clause on `RELATE`.
+  The example is replaced with the correct way to update an existing
+  edge's properties (`UPDATE knows SET last_interaction = time::now()
+  WHERE in = person:alice AND out = person:bob`) and a precision
+  comment quotes the verified RELATE grammar.
+
+- **Cross-fix in `rules/surrealql.md`** (3 CRITs) — The vector-search
+  re-audit surfaced three function-path hallucinations in the
+  language reference that v1.4.4 missed:
+  `vector::distance::cosine`, `vector::distance::jaccard`,
+  `vector::distance::pearson`. v3.0.5 registers these only under
+  `vector::similarity::*`. The three offending lines are removed and
+  a precision note now points readers at the similarity functions
+  (and explains how to derive a distance-shaped value:
+  `1 - vector::similarity::cosine(...)` etc.). The valid distance
+  functions (`chebyshev` / `euclidean` / `hamming` / `manhattan` /
+  `minkowski`) remain in place.
+
+`rules/data-modeling.md` and `rules/security.md` returned no CRITs in
+re-audit. `rules/vector-search.md` itself was clean (its pass-1 LM/M0
+fix held); the only `vector::*` issue lived in `surrealql.md` and is
+patched there. Pass-2 IMPORTANTs (e.g. data-modeling's UUID-version
+specificity, security's `WITH REFRESH` / RECORD-WITH-JWT-URL gaps,
+performance's `REBUILD INDEX` / `CONCURRENTLY` / `DEFER`
+under-documentation) are deferred — they are documentation polish or
+gaps, not contradictions of upstream — and tracked in the residual
+risk lists of the per-rule re-audit reports at
+`/tmp/pi-{rule}-v1.5.1-out.md`.
+
+### Migration
+
+Consumers who copied either of the v1.5.1-introduced performance
+operator names (`RangeScan` or standalone `Iterate`) need to substitute
+the real upstream operator names per the new dual-format block in
+`rules/performance.md`. Consumers who copied the `RELATE … MERGE { … }`
+form from `rules/graph-queries.md` need to switch to `UPDATE` on the
+edge record. Consumers calling `vector::distance::cosine`,
+`vector::distance::jaccard`, or `vector::distance::pearson` from
+`rules/surrealql.md` need to migrate to the corresponding
+`vector::similarity::*` functions (subtract from 1 if a distance-shaped
+value is required). The machine-checked version-consistency CI gate
+continues to apply.
+
 ## [1.5.1] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — v1.5.0 Pi-only adversarial-audit CRIT remediation)

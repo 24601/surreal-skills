@@ -208,18 +208,33 @@ EXPLAIN SELECT * FROM user WHERE email = 'alice@example.com';
 EXPLAIN ANALYZE SELECT * FROM user WHERE email = 'alice@example.com';
 EXPLAIN FORMAT JSON SELECT * FROM user WHERE email = 'alice@example.com';
 
--- The actual operator names in EXPLAIN output (verified against
--- v3.0.5 executor):
+-- v3.0.5 has TWO different EXPLAIN output shapes depending on which
+-- form you used. Both are user-facing; do NOT assume only one exists.
 --
---   operator: 'IndexScan'     -> using a defined index (fast)
---   operator: 'TableScan'     -> full scan (slow; an index is needed)
---   operator: 'RangeScan'     -> bounded scan over an indexed range
---   operator: 'Iterate'       -> per-row iteration step
+--   Clause form  (`SELECT ... EXPLAIN`)
+--     -- output rows have the key `operation:` with values like
+--        operation: 'Iterate Table'   -> full scan over a table
+--        operation: 'Iterate Index'   -> scan using a named index
+--        operation: 'Fetch'           -> resolving record links
 --
--- Pre-v1.5.1 revisions of this rule used the names "Iterate Table" /
--- "Iterate Index" -- those came from internal test fixtures and do
--- NOT appear in user-facing EXPLAIN output. Grep for `TableScan` /
--- `IndexScan` instead.
+--   Statement form  (`EXPLAIN SELECT ...`)
+--     -- output rows have the key `operator:` with values from the
+--     -- planner's scan catalog:
+--        operator: 'Scan'             -> generic scan node
+--        operator: 'TableScan'        -> full scan (slow; needs index)
+--        operator: 'IndexScan'        -> using a defined index (fast)
+--        operator: 'CountScan'        -> count(*) optimisation
+--        operator: 'IndexCountScan'   -> count via index
+--        operator: 'FullTextScan'     -> SEARCH ANALYZER + BM25
+--        operator: 'GraphEdgeScan'    -> graph traversal node
+--        operator: 'ReferenceScan'    -> record-link reference walk
+--        operator: 'KnnScan'          -> KNN over MTREE/HNSW
+--        operator: 'UnionIndexScan'   -> multi-index disjunction
+--
+-- When you grep production logs / output, match on whichever shape
+-- corresponds to the form you used. Examples in this document use
+-- the clause form (`... EXPLAIN`) and therefore show `operation:`
+-- values like 'Iterate Table' / 'Iterate Index'.
 ```
 
 ### Index Hints (`WITH` clause)
@@ -823,16 +838,19 @@ EXPLAIN ANALYZE SELECT * FROM user WHERE email = 'alice@example.com';
 -- Time queries at the application level
 -- Most SDKs support timing query execution
 
--- Compare query plans before and after adding indexes:
+-- Compare query plans before and after adding indexes.
+-- These examples use the clause form (... EXPLAIN), so output rows
+-- have an `operation:` key. The statement form (EXPLAIN SELECT ...)
+-- would instead show `operator: 'TableScan'` / `operator: 'IndexScan'`.
 -- Before:
 SELECT * FROM order WHERE status = 'pending' EXPLAIN;
--- Result: Iterate Table (full scan)
+-- Result: operation: 'Iterate Table' (full scan)
 
 DEFINE INDEX idx_status ON TABLE order COLUMNS status;
 
 -- After:
 SELECT * FROM order WHERE status = 'pending' EXPLAIN;
--- Result: Iterate Index idx_status (index scan)
+-- Result: operation: 'Iterate Index idx_status' (index scan)
 ```
 
 ### Resource Monitoring
@@ -886,7 +904,7 @@ DEFINE TABLE bench_write SCHEMALESS;
 
 | Bottleneck | Symptom | Solution |
 |---|---|---|
-| Missing index | Slow WHERE queries, EXPLAIN shows "Iterate Table" | Add appropriate index |
+| Missing index | Slow WHERE queries, EXPLAIN shows `operation: 'Iterate Table'` (clause form) or `operator: 'TableScan'` (statement form) | Add appropriate index |
 | Over-indexing | Slow writes, high disk usage | Remove unused indexes |
 | Large result sets | High memory, slow response | Use LIMIT, pagination, projections |
 | Deep graph traversal | Exponential query time | Limit depth, add LIMIT per hop, precompute |
