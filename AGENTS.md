@@ -349,10 +349,10 @@ uv run {baseDir}/scripts/schema.py introspect --endpoint $SURREAL_ENDPOINT
 | `rules/surrealql.md` | Complete SurrealQL language reference: statements, functions, operators, idioms, v2-to-v3 migration notes |
 | `rules/data-modeling.md` | Schema design patterns: record IDs, field types, schemafull vs schemaless, normalization, multi-model strategies, time-series, geospatial |
 | `rules/graph-queries.md` | Graph edge creation with RELATE, traversal operators (-> <- <->), path expressions, recursive queries, filtering edges, aggregation |
-| `rules/vector-search.md` | Vector field definitions, HNSW and brute-force indexes, distance metrics, similarity functions, RAG pipeline patterns, hybrid search |
+| `rules/vector-search.md` | Vector field definitions, HNSW indexes (the v3 vector index type; brute-force is a fallback during index build/rebuild), distance metrics, similarity functions, RAG pipeline patterns, hybrid search |
 | `rules/security.md` | Row-level permissions, DEFINE ACCESS (JWT, record), DEFINE USER, namespace/database/table scoping, $auth/$session variables, authentication flows |
 | `rules/deployment.md` | Installation methods, storage engines (memory, RocksDB, SurrealKV, TiKV), Docker, Kubernetes Helm charts, production hardening, backup/restore, monitoring, `setup-surreal` bootstrap CLI |
-| `rules/performance.md` | Index strategies (unique, search, HNSW, MTree), EXPLAIN for query analysis, batch operations, connection pooling, storage engine trade-offs, resource limits |
+| `rules/performance.md` | Index strategies (unique, search, HNSW), EXPLAIN for query analysis, batch operations, connection pooling, storage engine trade-offs, resource limits |
 | `rules/sdks.md` | Official SDK usage for JS/TS, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Dart, Swift, Ruby: connection setup, authentication, CRUD, live queries, typed records |
 | `rules/surrealism.md` | Surrealism WASM extension system (new in v3): Rust SDK, custom functions, custom analyzers, module lifecycle, deployment |
 | `rules/surrealml.md` | SurrealML scope summary (preview/unstable as of 2026-05-05); `.surml` artifact format, supported pip extras; v1.4.0 claims about `DEFINE MODEL`, `ml::name<version>(...)`, `surreal ml import`, `db.upload_ml(...)`, `SurMlFile.from_<framework>(...)` were retracted in v1.4.1 |
@@ -467,7 +467,7 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 ```json
 {
   "skill": "surrealdb",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealml", "surrealmcp", "editor-tooling", "langchain", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
   "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
   "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealml.md", "surrealmcp.md", "editor-tooling.md", "langchain.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
@@ -501,7 +501,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.0.5+ (main tracking v3.1.0-alpha) |
-| Skill version | 1.4.0 |
+| Skill version | 1.4.1 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 
@@ -517,7 +517,7 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 
 | Repository | Release | SHA (short) | Snapshot Date | Rules Affected |
 |------------|---------|-------------|---------------|----------------|
-| surrealdb/surrealdb | v3.0.5 (main toward v3.1.0-alpha) | `a97d3af85d79` | 2026-04-29 | surrealql, data-modeling, security, performance, deployment, surrealism |
+| surrealdb/surrealdb | v3.0.5 (main toward v3.1.0-alpha) | `a97d3af85d79` | 2026-04-29 | surrealql, data-modeling, security, performance, deployment, surrealism, surrealml |
 | surrealdb/surrealist | surrealist-v3.8.5 | `3699b2d09b62` | 2026-05-01 | surrealist |
 | surrealdb/surrealdb.js | v2.0.3 | `f0fa3cd7d8fb` | 2026-03-25 | sdks |
 | surrealdb/surrealdb.py | v2.0.0 (GA) | `6e45a820d27c` | 2026-05-02 | sdks |
@@ -525,7 +525,12 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 | surrealdb/surreal-sync | v0.3.4 | `59b3166910f0` | 2026-03-11 | surreal-sync |
 | surrealdb/surrealfs | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
 | surrealdb/surrealkit | v0.6.0 (pre-release) | `28f5a1c9d20c` | 2026-05-03 | surrealkit |
+| surrealdb/surrealmcp | v0.4.0 | tag-pinned | 2025-09-05 | surrealmcp |
+| surrealdb/surrealml | 0.0.4 (PyPI) | tracked-via-pypi | 2026-05-05 | surrealml |
+| surrealdb/langchain-surrealdb | 0.2.1 (PyPI) | tracked-via-pypi | 2026-05-05 | langchain |
+| surrealdb/surrealql-language-server | 0.1.2 (crates.io) | tag-pinned | 2026-04-21 | editor-tooling |
+| surrealdb/surrealql-tree-sitter | -- | tracked-via-surrealdb | 2026-05-05 | editor-tooling |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-05-03.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-05-05.
 
 Full provenance data: `SOURCES.json` (machine-readable).

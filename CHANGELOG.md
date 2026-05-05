@@ -36,7 +36,7 @@ sources fetched on 2026-05-05.
 - Removed `AsyncSurrealDBVectorStore`, `SurrealChatMessageHistory`, and `SurrealHybridRetriever` classes (none exist upstream).
 - Replaced `from_endpoint()` / `from_client()` factory methods with the verified `SurrealDBVectorStore(embeddings, conn)` constructor.
 - Corrected dependency claims: `langchain-core ~= 1.1.0` and `surrealdb ~= 1.0.8` (v1 SDK, not v2). Python `>= 3.10, < 4.0`.
-- Corrected pip extras: `[graph-qa]` only. `[openai]` and `[huggingface]` extras do not exist.
+- Corrected pip extras: at v0.2.1 the upstream `pyproject.toml` declares **no** `[project.optional-dependencies]`, so `[openai]`, `[huggingface]`, and `[graph-qa]` are all silent no-ops in pip. The README mentions a `[graph-qa]` extra (depends on `langchain-classic`) but the package metadata does not ship it; install `langchain-classic` explicitly until upstream wires the extra.
 - Replaced `filter=` kwarg with the verified `custom_filter=`.
 
 #### `rules/surrealml.md` — shrunk to scope-summary; v1.4.0 claims retracted
@@ -56,7 +56,7 @@ sources fetched on 2026-05-05.
 - Trimmed editor-extension descriptions to discoverability pointers; per-editor command/setting detail is deferred to v1.5.0 after a manual upstream pass per editor.
 
 #### `SOURCES.json` — version pins corrected
-- Updated `surrealdb/surrealmcp.release` from `v0.2.0` to `preview (no published GitHub release)`.
+- Updated `surrealdb/surrealmcp.release` from `v0.2.0` to `v0.4.0` (verified via `api.github.com/repos/surrealdb/surrealmcp/releases`; tags v0.1.0 through v0.4.0 published 2025-08-21 to 2025-09-05).
 - Updated `surrealdb/surrealml.release` from `v0.5.x` to `0.0.4 (PyPI surrealml)`.
 - Updated `surrealdb/langchain-surrealdb.release` from `current` to `0.2.1 (PyPI langchain-surrealdb)`.
 

@@ -1,6 +1,6 @@
 ---
 name: surrealdb
-description: "Expert SurrealDB 3 architect and developer skill. SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust, Java, .NET, PHP, Swift, Kotlin, Ruby), Surrealism WASM extensions, SurrealML in-database inference, SurrealMCP for AI agent hosts, LangChain integration, editor tooling (LSP, tree-sitter, VS Code/JetBrains/Neovim/Zed), and the wider ecosystem (Surrealist, Surreal-Sync, SurrealFS, SurrealKit, setup-surreal). Universal skill for 30+ AI agents."
+description: "Expert SurrealDB 3 architect and developer skill. SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust, Java, .NET, PHP, Swift, Kotlin, Ruby), Surrealism WASM extensions, SurrealML scope coverage (preview), SurrealMCP for AI agent hosts, LangChain Python integration, editor tooling (LSP, tree-sitter, VS Code/JetBrains/Neovim/Zed), and the wider ecosystem (Surrealist, Surreal-Sync, SurrealFS, SurrealKit, setup-surreal). Universal skill for 30+ AI agents."
 version: "1.4.1"
 license: MIT
 metadata:
@@ -193,7 +193,7 @@ See: `rules/graph-queries.md`
 
 ### Vector Search
 
-Built-in vector similarity search using HNSW and brute-force indexes. Define vector fields, create indexes with configurable distance metrics (cosine, euclidean, manhattan, minkowski), and query with `vector::similarity::*` functions. Build RAG pipelines and semantic search directly in SurrealQL.
+Built-in vector similarity search using HNSW indexes (the v3 vector index type; brute-force is available as a fallback during index build/rebuild). Define vector fields, create indexes with configurable distance metrics (cosine, euclidean, manhattan, minkowski), and query with `vector::similarity::*` functions. Build RAG pipelines and semantic search directly in SurrealQL.
 
 See: `rules/vector-search.md`
 
@@ -211,7 +211,7 @@ See: `rules/deployment.md`
 
 ### Performance Tuning
 
-Index strategies (unique, search, vector HNSW, MTree), query optimization with `EXPLAIN`, connection pooling, storage engine trade-offs, batch operations, and resource limits.
+Index strategies (unique, search, vector HNSW), query optimization with `EXPLAIN`, connection pooling, storage engine trade-offs, batch operations, and resource limits.
 
 See: `rules/performance.md`
 
@@ -306,7 +306,7 @@ Introspection uses `INFO FOR DB`, `INFO FOR TABLE`, and `INFO FOR NS` to reconst
 | `rules/surrealql.md` | SurrealQL syntax, statements, functions, operators, idioms |
 | `rules/data-modeling.md` | Schema design, record IDs, field types, relations, normalization |
 | `rules/graph-queries.md` | RELATE, graph traversal operators, path expressions, recursive queries |
-| `rules/vector-search.md` | Vector fields, HNSW/brute-force indexes, similarity functions, RAG patterns |
+| `rules/vector-search.md` | Vector fields, HNSW indexes (the v3 vector index type), similarity functions, RAG patterns |
 | `rules/security.md` | Permissions, access control, authentication, JWT, row-level security |
 | `rules/deployment.md` | Installation, storage engines, Docker, Kubernetes, production config, `setup-surreal` bootstrap CLI |
 | `rules/performance.md` | Indexes, EXPLAIN, query optimization, batch ops, resource tuning |
