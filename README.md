@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/24601/surreal-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/24601/surreal-skills/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.1-blue.svg)](https://github.com/24601/surreal-skills/releases)
+[![Version](https://img.shields.io/badge/version-1.4.2-blue.svg)](https://github.com/24601/surreal-skills/releases)
 [![skills.sh](https://img.shields.io/badge/skills.sh-surrealdb-purple.svg)](https://skills.sh)
 
 Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, WASM extensions, and the full SurrealDB ecosystem, including SurrealKit workflows.
@@ -22,7 +22,7 @@ Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, m
 - **SurrealMCP for AI agents** -- Official Model Context Protocol server (`surrealdb/surrealmcp`); MCP host integration patterns for Claude Desktop, Cursor, GitHub Copilot in VS Code, Zed, n8n
 - **Editor tooling pointers** -- LSP crates (`surrealql-language-server` / `surql-lsp`), tree-sitter grammar, and discoverability pointers for VS Code / Cursor / Windsurf / VSCodium, JetBrains, Neovim, Helix, Sublime Text, Zed extensions
 - **LangChain integration (Python only)** -- `langchain-surrealdb` 0.2.1 (Python) -- vector store usage; `@langchain/surrealdb` JS package was retracted in v1.4.1 (does not exist on npm)
-- **`setup-surreal` bootstrap** -- Opinionated CLI for first-time deployments (TLS, scoped users, systemd / launchd / Docker scaffolding)
+- **`surrealdb/setup-surreal@v2` GitHub Action** -- Official Action for running SurrealDB inside CI workflows (the v1.4.0 documentation that described setup-surreal as a CLI bootstrap was retracted in v1.4.2)
 - **Full ecosystem** -- Surrealist IDE, Surreal-Sync CDC, SurrealFS agent filesystem, SurrealKit schema tooling
 - **Health checks and introspection** -- Doctor script and schema introspection for any SurrealDB instance
 - **Universal agent support** -- Works with 30+ AI coding agents via skills.sh
@@ -235,7 +235,7 @@ surreal-skills/
     graph-queries.md    # Graph traversal and RELATE patterns
     vector-search.md    # Vector indexes, similarity search, RAG
     security.md         # Permissions, auth, access control
-    deployment.md       # Storage engines, Docker, K8s, production, setup-surreal
+    deployment.md       # Storage engines, Docker, K8s, production, setup-surreal GitHub Action
     performance.md      # Indexes, EXPLAIN, optimization
     sdks.md             # Official SDK integration (12+ languages)
     surrealism.md       # WASM extension system (new in v3)
@@ -264,7 +264,7 @@ surreal-skills/
 | `graph-queries.md` | Graph edge creation with RELATE, traversal operators (-> outgoing, <- incoming, <-> bidirectional), path expressions, recursive queries, filtering and aggregation on edges, graph-specific DEFINE TABLE TYPE RELATION |
 | `vector-search.md` | Vector field definitions, HNSW and brute-force index creation, distance metrics (cosine, euclidean, manhattan, minkowski), vector::similarity functions, RAG pipeline patterns, hybrid search combining vector + metadata filtering |
 | `security.md` | Row-level permissions with WHERE predicates, DEFINE ACCESS for JWT and record-based auth, DEFINE USER for system users, namespace/database/table permission scoping, $auth and $session runtime variables, authentication flow patterns |
-| `deployment.md` | Installation methods (package manager, Docker, binary), storage engine selection (memory, RocksDB, SurrealKV with time-travel, TiKV for distributed), Docker Compose and Kubernetes Helm charts, production hardening, backup/restore, log levels, monitoring, `setup-surreal` opinionated bootstrap CLI |
+| `deployment.md` | Installation methods (package manager, Docker, binary), storage engine selection (memory, RocksDB, SurrealKV with time-travel, TiKV for distributed), Docker Compose and Kubernetes Helm charts, production hardening, backup/restore, log levels, monitoring, `surrealdb/setup-surreal@v2` GitHub Action for CI |
 | `performance.md` | Index strategies (unique, full-text search analyzers, HNSW vector), EXPLAIN statement for query analysis, batch operations, connection pooling, storage engine trade-offs by workload, parallel queries, resource limits, compute-to-storage ratios |
 | `sdks.md` | Official SDK usage for JavaScript/TypeScript (Node, Deno, Bun, browser), Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Dart, Swift (iOS / macOS / visionOS), Ruby: connection setup (HTTP vs WebSocket), authentication flows, CRUD operations, live query subscriptions, typed record handling, error patterns |
 | `surrealism.md` | Surrealism WASM extension system introduced in SurrealDB 3: Rust SDK for authoring, custom function registration, custom analyzer creation, module compilation to wasm32-unknown-unknown, deployment to running instances, versioning, testing |

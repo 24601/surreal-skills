@@ -3,6 +3,82 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.2] - 2026-05-05
+
+### Fixed (atomic-protocol patch — adversarial-review NO-GO findings, batch-2)
+
+After v1.4.1 shipped, a follow-up 3-way adversarial review (Codex `gpt-5.5`
+xhigh + Pi `deepseek-v4-pro:xhigh` + Cursor Composer 2) of the
+**other** v1.4.0 additions -- the Swift / Kotlin / Ruby SDK sections in
+`rules/sdks.md` and the `setup-surreal` section in `rules/deployment.md`
+-- returned **3/3 NO-GO** with the same wholesale-hallucination failure
+mode. Direct upstream verification (PyPI / RubyGems / Maven Central /
+GitHub APIs / raw `Package.swift`+`build.gradle.kts`+`gemspec`+`action.yml`
+on 2026-05-05) confirmed the drift. This patch shrinks the affected
+sections to verified-only content; full API documentation for the
+pre-release SDKs is deferred to v1.5.0.
+
+#### `rules/deployment.md` `setup-surreal` section
+- The repository `surrealdb/setup-surreal` is a **GitHub Action** (latest tag `v2.0.1`, 2024-12-13) for running SurrealDB inside CI workflows. It is **not** a CLI bootstrap binary.
+- Removed all CLI install commands (`brew install surrealdb/tap/setup-surreal`, `cargo install setup-surreal`, `npx @surrealdb/setup-surreal` -- none exist; verified via crates.io / npm registry / Homebrew).
+- Removed the fabricated subcommand surface (`init`, `upgrade`, `provision`, `grant`, `helm-values`, `verify`).
+- Removed the fabricated TLS-mode flag set, scoped-user provisioning, Helm values export, systemd / launchd / Docker scaffolding tree, and integration table with this skill's `scripts/onboard.py` / `scripts/doctor.py`.
+- Replaced with a concise GitHub Action usage block grounded in the upstream `action.yml` (verified inputs: `surrealdb_version`, `surrealdb_port`, `surrealdb_username`, `surrealdb_password`, `surrealdb_auth`, `surrealdb_strict`, `surrealdb_log`, `surrealdb_additional_args`, `surrealdb_retry_count`).
+
+#### `rules/sdks.md` Swift section
+- Corrected platform deployment targets: actual upstream `Package.swift` declares iOS 17+, macOS 14+, tvOS 17+, watchOS 10+, visionOS 1+ (the v1.4.0 documentation said iOS 16+, macOS 13+, tvOS 16+, watchOS 9+, visionOS 1+).
+- Removed the `from: "1.0.0"` SwiftPM pin: the upstream repo has **no git tags** at the v1.4.2 cut. Pin `branch: "main"` only for development.
+- Removed the false claim that `SurrealKit` (the Rust / TypeScript schema toolkit) bundles the Swift client. The two are independent dependencies.
+- Removed the entire fabricated single-`Surreal()`-class API (`db.connect`, `db.signin(.root(...))`, `db.live(table:)`, `event.value()`, `event.recordID`, `db.on(.disconnected)`). Verified actual API uses two `actor` clients (`SurrealHTTPClient` and `SurrealWebSocketClient`), a `SignInCredentials` enum, `SurrealModel`-conforming typed values, freestanding macros (`#select`, `#create`, `#update`, `#delete`, `#live`), `SurrealPredicate`, `LiveEvent<T>` with `.decoded` + `.action` (`LiveAction` enum), and `AsyncStream` live queries.
+- Detailed API examples deferred to v1.5.0 after upstream publishes a tagged release.
+
+#### `rules/sdks.md` Kotlin section
+- Removed Maven coordinates `com.surrealdb:surrealdb-kotlin:0.4.0`: Maven Central has no `surrealdb-kotlin` artifact, and the upstream `gradle.properties` declares `VERSION_NAME=0.1.0-SNAPSHOT`. (The published Java SDK is `com.surrealdb:surrealdb 1.0.0-beta.1`; consume that from Kotlin until the dedicated KMP package publishes.)
+- Corrected dep versions to upstream `build.gradle.kts`: Kotlin `2.1.10`, coroutines `1.10.1`, kotlinx-serialization `1.8.0`.
+- Corrected KMP targets to verified set: `androidTarget()`, `jvm()`, `iosX64()`, `iosArm64()`, `iosSimulatorArm64()` -- no JS, no non-Apple Native target.
+- Removed the fabricated `Surreal()` + `db.connect("rocksdb://...")` / `db.connect("mem://")` embedded-engine claim. The actual `SurrealClientConfig` only takes `httpEndpoint` and `wsEndpoint` strings.
+- Removed the fabricated `query<Person>(...): List<Person>` generics, `@JvmOverloads` / `selectBlocking` Java-interop story, and `Flow`-returning live queries. Verified API uses `SurrealClient(config: SurrealClientConfig)`, `JsonElement` returns, `LiveQuerySubscription`, and a `SurrealAuthInput` sealed interface.
+
+#### `rules/sdks.md` Ruby section
+- Corrected version pin: latest gem `surrealdb` is `0.7.0` (published 2026-04-01 by SurrealDB authors). The v1.4.0 `~> 1.0` pin would not resolve.
+- Corrected required Ruby: `>= 3.2` (verified from `surrealdb.gemspec`); the v1.4.0 documentation said 3.1+.
+- Removed the entirely-fabricated `surrealdb-rails` gem, `SurrealDB::Record` ActiveRecord-shaped class, and `where`/`order`/`limit` chain examples. Neither the gem nor a `surrealdb/surrealdb-rails` GitHub repo exists (verified via rubygems.org and api.github.com).
+- Removed the fabricated `surrealdb-embedded` companion gem with FFI to `surrealdb-core` (does not exist on RubyGems).
+- Corrected constructor: `SurrealDB::Client.new(url, **options)` then `.connect` (URL goes to constructor, not `connect`). Auth `signin(credentials_hash)` takes a positional Hash, not keyword arguments.
+- Corrected live-query shape: `live(resource)` returns a UUID; subscribe with `db.subscribe(uuid) { |event| ... }` and clean up with `db.kill(uuid)`. The v1.4.0 enumerator-returning `live(...).each do |event|` shape does not exist.
+
+#### `rules/sdks.md` SDK Selection Guide matrix
+- Added a "Published release" row showing Swift = No (no tags), Kotlin = No (SNAPSHOT), Ruby = Yes (0.7.0), Java = Yes (beta).
+- Marked Swift / Kotlin / Ruby embedded-engine claims as Unverified / No / Unverified (the v1.4.0 matrix incorrectly said all three shipped embedded engines).
+- Reframed live-query rows to match verified shapes: Swift `AsyncStream`, Kotlin `LiveQuerySubscription`, Ruby UUID + subscribe.
+- Reframed "When to Use Each SDK" entries for Kotlin / Swift / Ruby with v1.4.2 reality: Swift no published tag, Kotlin no Maven release, Ruby gem 0.7.0 (no Rails adapter).
+
+#### Entry-point file syncs
+- `AGENTS.md`: deployment.md descriptor reframed; skill version table 1.4.1 -> 1.4.2; onboard.py-agent example version bumped.
+- `README.md`: `setup-surreal` capability blurb reframed as GitHub Action; deployment.md descriptor reframed; root version badge bumped.
+- `SKILL.md`: `setup-surreal` ecosystem entry reframed; deployment.md descriptor reframed; metadata version bumped.
+- `scripts/onboard.py`: deployment.md / langchain.md topics reframed; `new_project` / `ml_inference` / `agent_integration` / `editor_setup` decision trees reframed to v1.4.1+v1.4.2 reality.
+
+#### `SOURCES.json` pins corrected
+- `surrealdb/setup-surreal` -> `v2.0.1 (GitHub Action; not a CLI bootstrap)` (date 2024-12-13).
+- `surrealdb/surrealdb.swift` -> `no published tag (pre-release; pin branch=main only)`.
+- `surrealdb/surrealdb.kotlin` -> `0.1.0-SNAPSHOT (no Maven Central release at v1.4.2 cut)`.
+- `surrealdb/surrealdb.rb` -> `0.7.0 (RubyGems surrealdb)` (date 2026-04-01).
+
+### Security posture
+- No new scripts, binaries, or third-party network endpoints. All upstream verification was via public read-only APIs (rubygems.org, search.maven.org, api.github.com, raw.githubusercontent.com, pypi.org, crates.io). No new credential surface.
+- Removing the fabricated install commands closes a supply-chain risk surface: `brew install surrealdb/tap/setup-surreal`, `cargo install setup-surreal`, and `npx @surrealdb/setup-surreal` would 404 today, but a squatted package at any of those names would have been a vector if a developer copy-pasted from the v1.4.0 / v1.4.1 documentation.
+
+### Migration
+No consumer code changes. Rule-file content has been replaced; consumers
+that copy-pasted from v1.4.0 / v1.4.1 should re-pin to v1.4.2 and
+re-derive any code from the corrected rule text. In particular: drop
+`surrealdb-rails` / `surrealdb-embedded` gem references, drop
+`com.surrealdb:surrealdb-kotlin` Maven coordinates (use the published
+Java SDK `com.surrealdb:surrealdb 1.0.0-beta.1` from Kotlin until the
+KMP package publishes), and drop any `setup-surreal init / provision /
+grant` CLI invocations.
+
 ## [1.4.1] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — adversarial-review NO-GO findings)
@@ -72,15 +148,30 @@ No consumer code changes (the skill ships rules + scripts; no library API). One 
 
 ## [1.4.0] - 2026-05-03
 
-> **Note (2026-05-05):** the four new rule files added in this release
-> -- `rules/surrealmcp.md`, `rules/editor-tooling.md`, `rules/langchain.md`,
-> `rules/surrealml.md` -- contained substantial drift from the actual
-> upstream APIs (hallucinated install commands, CLI flags, env-var names,
-> tool catalogs, SurrealQL syntax, Python class names, and pip extras).
-> Adversarial review found the drift on the next pass; v1.4.1 ships
-> verified-only rewrites grounded in upstream READMEs. **Read the v1.4.1
-> entry above for the corrected surfaces; do not copy-paste from the
-> v1.4.0 capability description that follows.**
+> **Note (2026-05-05):** this release contained substantial drift from
+> the actual upstream APIs across multiple new sections:
+>
+> - **`rules/surrealmcp.md`, `rules/editor-tooling.md`, `rules/langchain.md`,
+>   `rules/surrealml.md`** -- hallucinated install commands, CLI flags,
+>   env-var names, tool catalogs, SurrealQL syntax, Python class names,
+>   and pip extras. **Retracted in v1.4.1.**
+> - **`rules/sdks.md`** Swift / Kotlin / Ruby SDK sections -- hallucinated
+>   Maven coordinates, version pins, platform deployment targets, embedded
+>   engine support, API surfaces (`Surreal()` class shape, `db.connect`,
+>   `db.live(table:)`, `event.value()`), and companion gems
+>   (`surrealdb-embedded`, `surrealdb-rails`). **Retracted in v1.4.2.**
+> - **`rules/deployment.md`** `setup-surreal` section -- documented the
+>   project as an opinionated CLI bootstrap binary with `init` /
+>   `provision` / `grant` / `helm-values` / `verify` subcommands and
+>   `brew` / `cargo` / `npx` install paths. The actual repository is a
+>   GitHub Action for CI (`uses: surrealdb/setup-surreal@v2`).
+>   **Retracted in v1.4.2.**
+>
+> Adversarial review found the drift on the next pass; v1.4.1 + v1.4.2
+> ship verified-only rewrites grounded in upstream READMEs and package
+> registries. **Read the v1.4.2 and v1.4.1 entries above for the
+> corrected surfaces; do not copy-paste from the v1.4.0 capability
+> description that follows.**
 
 ### Major (ecosystem expansion)
 - New rule **`rules/surrealmcp.md`** + sub-skill **`skills/surrealmcp/SKILL.md`** covering the official Model Context Protocol server for SurrealDB. Tool catalog (`query`, `select`, `create`, `update`, `merge`, `delete`, `relate`, `live`, `kill`, `schema.introspect`, `schema.tables`, `schema.table`, `info.db`, `info.ns`, `use`, `signin`), stdio + Streamable HTTP transports, host-config snippets for Claude Code, Claude Desktop, Cursor, Codex CLI, OpenCode, Amp, Continue, Windsurf.

@@ -351,7 +351,7 @@ uv run {baseDir}/scripts/schema.py introspect --endpoint $SURREAL_ENDPOINT
 | `rules/graph-queries.md` | Graph edge creation with RELATE, traversal operators (-> <- <->), path expressions, recursive queries, filtering edges, aggregation |
 | `rules/vector-search.md` | Vector field definitions, HNSW indexes (the v3 vector index type; brute-force is a fallback during index build/rebuild), distance metrics, similarity functions, RAG pipeline patterns, hybrid search |
 | `rules/security.md` | Row-level permissions, DEFINE ACCESS (JWT, record), DEFINE USER, namespace/database/table scoping, $auth/$session variables, authentication flows |
-| `rules/deployment.md` | Installation methods, storage engines (memory, RocksDB, SurrealKV, TiKV), Docker, Kubernetes Helm charts, production hardening, backup/restore, monitoring, `setup-surreal` bootstrap CLI |
+| `rules/deployment.md` | Installation methods, storage engines (memory, RocksDB, SurrealKV, TiKV), Docker, Kubernetes Helm charts, production hardening, backup/restore, monitoring; `surrealdb/setup-surreal@v2` GitHub Action for CI (the v1.4.0 documentation that described setup-surreal as a CLI bootstrap was retracted in v1.4.2) |
 | `rules/performance.md` | Index strategies (unique, search, HNSW), EXPLAIN for query analysis, batch operations, connection pooling, storage engine trade-offs, resource limits |
 | `rules/sdks.md` | Official SDK usage for JS/TS, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Dart, Swift, Ruby: connection setup, authentication, CRUD, live queries, typed records |
 | `rules/surrealism.md` | Surrealism WASM extension system (new in v3): Rust SDK, custom functions, custom analyzers, module lifecycle, deployment |
@@ -467,7 +467,7 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 ```json
 {
   "skill": "surrealdb",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealml", "surrealmcp", "editor-tooling", "langchain", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
   "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
   "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealml.md", "surrealmcp.md", "editor-tooling.md", "langchain.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
@@ -501,7 +501,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.0.5+ (main tracking v3.1.0-alpha) |
-| Skill version | 1.4.1 |
+| Skill version | 1.4.2 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 

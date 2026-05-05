@@ -114,131 +114,77 @@ surreal upgrade --path ./mydata.db
 
 ---
 
-## `setup-surreal` -- Opinionated Bootstrap CLI
+## `setup-surreal` (GitHub Action) -- CI provisioning
 
-`setup-surreal` is the official wizard that scaffolds a production-shaped
-SurrealDB deployment from zero -- TLS, scoped users, namespace + database
-layout, systemd / launchd unit files, and a starter SurrealKit project --
-without hand-rolling each step. Treat it as the equivalent of `rails new` or
-`vite create` for SurrealDB stacks.
+> **v1.4.2 status note:** the v1.4.0 / v1.4.1 versions of this section
+> documented `setup-surreal` as an opinionated CLI bootstrap binary
+> with subcommands (`init`, `upgrade`, `provision`, `grant`,
+> `helm-values`, `verify`), install paths
+> (`brew install surrealdb/tap/setup-surreal`,
+> `cargo install setup-surreal`, `npx @surrealdb/setup-surreal`), TLS
+> modes, and a generated systemd / launchd / Docker scaffolding tree.
+> **None of those exist.** The repository
+> `github.com/surrealdb/setup-surreal` is a **GitHub Action** for
+> running SurrealDB inside a CI workflow (action.yml + composite
+> action), not a CLI bootstrap. This section was rewritten on
+> 2026-05-05 to document only the verified Action surface.
 
-> **Scope**: `setup-surreal` is opinionated and aimed at first-time
-> deployments and dev environments. For existing clusters, prefer the manual
-> `surreal start` invocations earlier in this rule and SurrealKit rollouts
-> for schema (`rules/surrealkit.md`).
+`surrealdb/setup-surreal` is the official GitHub Action that starts a
+SurrealDB instance for use in CI workflows. It is **not** a
+production-deployment bootstrap CLI; for production deployment, use
+the manual `surreal start` invocations elsewhere in this rule plus
+SurrealKit rollouts for schema (`rules/surrealkit.md`).
 
-### Installation
+### Use it in a workflow
 
-```bash
-# Single-binary install (preferred -- shipped alongside the surreal CLI)
-brew install surrealdb/tap/setup-surreal
-
-# Or via Cargo
-cargo install setup-surreal
-
-# Or one-shot (no install) via npm wrapper
-npx @surrealdb/setup-surreal --help
+```yaml
+# .github/workflows/test.yml
+name: Test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: surrealdb/setup-surreal@v2
+        with:
+          surrealdb_version: latest
+          surrealdb_port: 8000
+          surrealdb_username: root
+          surrealdb_password: root
+      - run: cargo test  # or your test runner
 ```
 
-> **Security note**: prefer brew or Cargo for auditable installs over the
-> `npx` wrapper in CI / production.
+### Verified inputs (from `action.yml`)
 
-### What It Generates
+| Input | Default | Purpose |
+|-------|---------|---------|
+| `surrealdb_version` | `latest` | SurrealDB version to install |
+| `surrealdb_port` | `8000` | Port to bind |
+| `surrealdb_username` | -- | Initial root username |
+| `surrealdb_password` | -- | Initial root password |
+| `surrealdb_auth` | -- | Auth flag passthrough |
+| `surrealdb_strict` | -- | Strict-mode flag |
+| `surrealdb_log` | -- | Log level |
+| `surrealdb_additional_args` | -- | Pass-through extra flags |
+| `surrealdb_retry_count` | -- | Health-check retry count |
 
-A typical `setup-surreal init myapp` run produces:
+Latest tag at the v1.4.2 cut: `v2.0.1` (published 2024-12-13). Pin to
+a specific tag (`@v2.0.1`) for reproducible CI.
 
-```text
-myapp/
-  .env                    # SURREAL_USER, SURREAL_PASS, SURREAL_NS, SURREAL_DB
-  surreal.toml            # server config (storage engine, bind, TLS, timeouts)
-  database/
-    schema/               # SurrealKit-compatible desired-state .surql files
-    rollouts/
-    seeds/
-    tests/
-  systemd/
-    surreal.service       # systemd unit (Linux)
-  launchd/
-    com.myapp.surreal.plist  # launchd plist (macOS)
-  docker/
-    Dockerfile
-    docker-compose.yml
-  README.md               # generated walkthrough
-```
+### What this Action does NOT do
 
-The `.env` file is permissioned `0600` and never committed (a `.gitignore`
-entry is added by default).
+- It does not scaffold a project tree (`.env`, `surreal.toml`,
+  `database/`, `systemd/`, `launchd/`, `docker/` outputs documented
+  in earlier rule revisions are fabricated).
+- It does not provision TLS modes, scoped users, namespaces, or
+  databases beyond running the binary with the supplied flags.
+- It does not export Helm values.
+- It does not integrate with this skill's `scripts/onboard.py` /
+  `scripts/doctor.py` workflows; those scripts run independently.
 
-### Core Commands
-
-```bash
-# Scaffold a new project
-setup-surreal init myapp \
-  --storage rocksdb \
-  --namespace myapp --database prod \
-  --tls letsencrypt \
-  --systemd
-
-# Re-run scaffolding against an existing project (idempotent)
-setup-surreal upgrade
-
-# Provision the database itself (DEFINE NAMESPACE / DATABASE / USERs)
-setup-surreal provision \
-  --endpoint $SURREAL_ENDPOINT \
-  --root-user $SURREAL_USER --root-pass $SURREAL_PASS
-
-# Generate scoped DB users for application code (least-privilege)
-setup-surreal grant \
-  --endpoint $SURREAL_ENDPOINT \
-  --user app_writer --role EDITOR \
-  --namespace myapp --database prod
-
-# Print a Helm values.yaml for the official chart
-setup-surreal helm-values --storage tikv --replicas 3 > values.yaml
-
-# Health-check a deployment after install
-setup-surreal verify --endpoint $SURREAL_ENDPOINT
-```
-
-### Storage Engine Selection
-
-`--storage` accepts `memory`, `rocksdb`, `surrealkv`, `surrealkv+versioned`,
-or `tikv`. The wizard validates the choice against your `--target` (single
-node, ha-pair, k8s) and refuses obviously unsafe combinations (e.g.
-`--storage memory --target k8s`).
-
-### TLS Modes
-
-| Mode | Behavior |
-|------|----------|
-| `--tls none` | HTTP only -- LOCAL DEV ONLY |
-| `--tls self-signed` | Generates a self-signed cert into `tls/` for local trust |
-| `--tls letsencrypt` | Wires the systemd unit to a Caddy reverse proxy with auto-renewing certs |
-| `--tls custom --cert PATH --key PATH` | Uses a cert + key you already manage |
-
-### Integration With This Skill
-
-`setup-surreal` is complementary to the scripts in this skill, not a
-replacement:
-
-| Step | Use |
-|------|-----|
-| First-time scaffolding (server + project layout) | `setup-surreal init` |
-| Day-to-day schema sync and rollouts | `surrealkit sync` / `rollout` |
-| Health checks against an endpoint | `uv run scripts/doctor.py` |
-| Schema introspection | `uv run scripts/schema.py introspect` |
-| Upstream version drift detection | `uv run scripts/check_upstream.py` |
-
-### Production Checklist When Using `setup-surreal`
-
-- [ ] `--storage` is `rocksdb`, `surrealkv`, or `tikv` (never `memory`)
-- [ ] `--tls` is `letsencrypt` or `custom` (never `none`)
-- [ ] `--bind` defaults to `0.0.0.0` only when behind a load balancer / firewall
-- [ ] `setup-surreal grant` creates scoped DB users; root credentials are not used by application code
-- [ ] Generated `.env` is excluded from git and stored in your secret manager (1Password, Vault, AWS Secrets Manager)
-- [ ] `setup-surreal verify` passes against the production endpoint before traffic is cut over
-
----
+For production deployment, see the Docker Deployment, Kubernetes
+Deployment, and Distributed Deployment sections that follow.
 
 ## Docker Deployment
 

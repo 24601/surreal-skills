@@ -1,10 +1,10 @@
 ---
 name: surrealdb
 description: "Expert SurrealDB 3 architect and developer skill. SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust, Java, .NET, PHP, Swift, Kotlin, Ruby), Surrealism WASM extensions, SurrealML scope coverage (preview), SurrealMCP for AI agent hosts, LangChain Python integration, editor tooling (LSP, tree-sitter, VS Code/JetBrains/Neovim/Zed), and the wider ecosystem (Surrealist, Surreal-Sync, SurrealFS, SurrealKit, setup-surreal). Universal skill for 30+ AI agents."
-version: "1.4.1"
+version: "1.4.2"
 license: MIT
 metadata:
-  version: "1.4.1"
+  version: "1.4.2"
   author: "24601"
   snapshot_date: "2026-05-05"
   repository: "https://github.com/24601/surreal-skills"
@@ -259,7 +259,7 @@ See: `rules/langchain.md`
 - **SurrealKit** -- Desired-state schema sync, rollout-based migrations, seeding, and declarative tests
 - **SurrealML** -- Machine learning model management and inference within SurrealDB
 - **SurrealMCP** -- Model Context Protocol server for AI agents
-- **setup-surreal** -- Opinionated bootstrap CLI for new deployments (TLS, scoped users, systemd / launchd / Docker scaffolding)
+- **setup-surreal** -- Official GitHub Action (`surrealdb/setup-surreal@v2`) for running SurrealDB in CI workflows. Not a CLI bootstrap (the v1.4.0 documentation that described it as one was retracted in v1.4.2)
 
 See: `rules/surrealist.md`, `rules/surreal-sync.md`, `rules/surrealfs.md`, `rules/surrealkit.md`, `rules/surrealml.md`, `rules/surrealmcp.md`, `rules/deployment.md` (setup-surreal section)
 
@@ -308,7 +308,7 @@ Introspection uses `INFO FOR DB`, `INFO FOR TABLE`, and `INFO FOR NS` to reconst
 | `rules/graph-queries.md` | RELATE, graph traversal operators, path expressions, recursive queries |
 | `rules/vector-search.md` | Vector fields, HNSW indexes (the v3 vector index type), similarity functions, RAG patterns |
 | `rules/security.md` | Permissions, access control, authentication, JWT, row-level security |
-| `rules/deployment.md` | Installation, storage engines, Docker, Kubernetes, production config, `setup-surreal` bootstrap CLI |
+| `rules/deployment.md` | Installation, storage engines, Docker, Kubernetes, production config; `surrealdb/setup-surreal@v2` GitHub Action (CI-only; not a CLI bootstrap) |
 | `rules/performance.md` | Indexes, EXPLAIN, query optimization, batch ops, resource tuning |
 | `rules/sdks.md` | JS/TS, Python, Go, Rust, Java, Kotlin, .NET, PHP, Swift, Ruby SDK usage, connection patterns, live queries |
 | `rules/surrealism.md` | WASM extensions, custom functions, Surrealism module authoring |

@@ -1,7 +1,7 @@
 {
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
-  "skill_version": "1.4.1",
+  "skill_version": "1.4.2",
   "snapshot_date": "2026-05-05",
   "repos": {
     "surrealdb/surrealdb": {
@@ -57,27 +57,27 @@
       ]
     },
     "surrealdb/surrealdb.swift": {
-      "sha": "tracked-via-surrealkit",
-      "date": "2026-05-03",
-      "release": "1.0.x",
+      "sha": "tracked-via-main",
+      "date": "2026-05-05",
+      "release": "no published tag (pre-release; pin branch=main only)",
       "url": "https://github.com/surrealdb/surrealdb.swift",
       "rules_affected": [
         "rules/sdks.md"
       ]
     },
     "surrealdb/surrealdb.kotlin": {
-      "sha": "tracked-via-surrealdb",
-      "date": "2026-05-03",
-      "release": "0.4.x",
+      "sha": "tracked-via-main",
+      "date": "2026-05-05",
+      "release": "0.1.0-SNAPSHOT (no Maven Central release at v1.4.2 cut)",
       "url": "https://github.com/surrealdb/surrealdb.kotlin",
       "rules_affected": [
         "rules/sdks.md"
       ]
     },
     "surrealdb/surrealdb.rb": {
-      "sha": "tracked-via-surrealdb",
-      "date": "2026-05-03",
-      "release": "1.0.x",
+      "sha": "tracked-via-rubygems",
+      "date": "2026-04-01",
+      "release": "0.7.0 (RubyGems surrealdb)",
       "url": "https://github.com/surrealdb/surrealdb.rb",
       "rules_affected": [
         "rules/sdks.md"
@@ -211,9 +211,9 @@
       ]
     },
     "surrealdb/setup-surreal": {
-      "sha": "tracked-via-surrealdb",
-      "date": "2026-05-03",
-      "release": "current",
+      "sha": "tracked-via-tag-v2.0.1",
+      "date": "2024-12-13",
+      "release": "v2.0.1 (GitHub Action; not a CLI bootstrap)",
       "url": "https://github.com/surrealdb/setup-surreal",
       "rules_affected": [
         "rules/deployment.md"
