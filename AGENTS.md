@@ -113,14 +113,20 @@ Need schema validation?
 
 ```
 1. Reference rules/surrealml.md
-2. Prerequisites: surrealml Python toolchain (PyTorch / ONNX / sklearn / TF / HF)
-3. Workflow:
-   a. Train or load the model in Python
-   b. Wrap with SurMlFile.from_<framework>(...) and ModelMeta(...)
-   c. Save .surml artifact
-   d. Upload via DEFINE MODEL ... CONTENTS $bytes, surreal ml import, or db.upload_ml(...)
-   e. Call from SurrealQL: ml::name<version>(args)
-   f. For multiple versions, manage with SurrealKit rollouts (rules/surrealkit.md)
+2. Prerequisites: `surrealml` PyPI package 0.0.4 (extras: [sklearn] / [torch] /
+   [tensorflow]); SurrealML is preview-stage and the SurrealQL invocation
+   surface is unstable as of 2026-05-05.
+3. The v1.4.0 documentation for `DEFINE MODEL`, `INFO FOR MODEL`,
+   `ml::name<version>(...)`, `surreal ml import`, `db.upload_ml(...)`, and
+   `SurMlFile.from_<framework>(...)` was retracted in v1.4.1 -- those
+   surfaces were not present in current upstream. Treat anything beyond the
+   `.surml` artifact format and the supported pip extras as pending
+   verification; pin to a specific surrealml commit and consult the upstream
+   `clients/python` source before writing code.
+4. Stable patterns that don't depend on the unstable ML surface:
+   - DEFINE INDEX ... HNSW DIMENSION ... DIST COSINE for vector storage
+   - Compute embeddings client-side, persist with UPDATE in the same
+     transaction
 ```
 
 ### "User wants AI agents to talk to SurrealDB"
@@ -128,44 +134,73 @@ Need schema validation?
 ```
 1. Reference rules/surrealmcp.md
 2. Choose transport:
-   stdio  -> local Claude Code/Desktop, Cursor, Codex CLI
-   http   -> remote / multi-tenant deployments
-3. Install: cargo install surrealmcp  OR  npm install -g @surrealdb/surrealmcp
-4. Add to host MCP config (~/.claude/mcp.json, .cursor/mcp.json, ~/.codex/mcp.json)
-5. Verify: tools/list returns query/select/create/update/merge/delete/relate/live/schema.*
-6. Production: scoped DB user (DEFINE USER ... ROLE EDITOR/VIEWER), TLS, --auth-token
+   stdio        -> local hosts (Claude Desktop, Cursor, Copilot in VS Code, Zed)
+   HTTP         -> remote / multi-tenant deployments
+   Unix socket  -> local high-throughput / IPC scenarios
+3. Install: `cargo install --path .` from a clone of github.com/surrealdb/surrealmcp,
+   OR `docker run --rm -i --pull always surrealdb/surrealmcp:latest start`.
+   `surrealmcp` is NOT published to crates.io or npm; do not try
+   `cargo install surrealmcp` or `npm install -g @surrealdb/surrealmcp`.
+4. Add to host MCP config -- consult each host's own MCP docs for path/key
+   shape. Most hosts share the `mcpServers` top-level key but Codex/others
+   may differ.
+5. The binary requires the `start` subcommand: `surrealmcp start --ns ... --db ...`.
+   Connection env vars: SURREALDB_URL / SURREALDB_NS / SURREALDB_DB /
+   SURREALDB_USER / SURREALDB_PASS. Server-side env vars use the
+   SURREAL_MCP_* prefix.
+6. Verify: tools/list returns the upstream catalog -- query, select, insert,
+   create, upsert, update, delete, relate, connect_endpoint, use_namespace,
+   use_database, list_namespaces, list_databases, disconnect_endpoint, plus
+   cloud tools.
+7. Production: scoped DB user (DEFINE USER ... ON DATABASE ROLES VIEWER),
+   TLS, JWT bearer auth, `--rate-limit-rps` / `--rate-limit-burst`,
+   `RUST_LOG` for structured logging, `GET /health` for health checks.
 ```
 
 ### "User wants editor / IDE support"
 
 ```
 1. Reference rules/editor-tooling.md
-2. Prerequisites: cargo install surrealql-language-server
+2. Prerequisites: an LSP binary on $PATH. Two crates exist as of
+   2026-05-05: `surrealql-language-server` v0.1.2 (newer) and
+   `surql-lsp` v0.1.1. Pick one and pin -- do not assume which is canonical.
 3. Pick the editor:
-   VS Code / Cursor / Windsurf -> install "SurrealQL" extension (Marketplace + OpenVSX)
-   JetBrains                    -> install "SurrealQL" plugin (JetBrains Marketplace)
+   VS Code / Cursor / Windsurf -> "SurrealQL" extension (Marketplace + OpenVSX)
+   JetBrains                    -> "SurrealQL" plugin (JetBrains Marketplace)
    Neovim                       -> surrealdb/surrealql-neovim + nvim-treesitter
-   Helix                        -> auto-discovers via languages.toml
-   Zed                          -> install "SurrealQL" via zed: extensions
-4. Configure connection in surrealql.toml for live schema completion
-5. CI: surrealql-language-server lint database/schema --format github
+   Helix                        -> wire via languages.toml once LSP is on $PATH
+   Zed                          -> Zed extensions panel
+4. Per-extension command palettes, settings catalogs, and config-file
+   schemas were retracted in v1.4.1 -- the v1.4.0 documentation was not
+   verified against the actual extension `package.json` files. Use each
+   extension's own README for command/setting names.
 ```
 
 ### "User wants LangChain / RAG"
 
 ```
 1. Reference rules/langchain.md + rules/vector-search.md
-2. Python:
-   pip install langchain-surrealdb
-   SurrealDBVectorStore.from_endpoint(...)
-3. JS/TS:
-   npm install @langchain/surrealdb
-   await SurrealVectorStore.fromEndpoint({...}, embeddings)
+2. Python (verified package: langchain-surrealdb 0.2.1, deps
+   langchain-core ~= 1.1.0 and surrealdb ~= 1.0.8 -- v1 SurrealDB SDK,
+   not v2):
+   pip install -U langchain-surrealdb surrealdb
+   # Open the connection yourself, then pass it to the constructor:
+   conn = Surreal("ws://localhost:8000/rpc")
+   conn.signin({"username": "root", "password": "root"})
+   conn.use("ns", "db")
+   store = SurrealDBVectorStore(embeddings, conn)
+   # Note: kwarg is `custom_filter`, not `filter`
+   store.similarity_search_with_score(query=..., k=..., custom_filter={...})
+3. JS/TS: NO official `@langchain/surrealdb` npm package as of 2026-05-05;
+   the v1.4.0 documentation for it was retracted in v1.4.1. Use the v2
+   JavaScript SurrealDB SDK directly until an official integration ships.
 4. For multi-tenant:
    DEFINE TABLE document PERMISSIONS FOR select WHERE tenant_id = $auth.tenant_id;
    Then signin with DEFINE ACCESS record-level user before constructing the store
-5. For server-side embeddings: pair with rules/surrealml.md (BEFORE-write computed
-   field via ml::sentence_encoder<...>(content))
+5. For server-side embeddings: SurrealML's invocation surface is unstable
+   (rules/surrealml.md). Compute embeddings in Python with the embedding
+   provider of your choice and persist via the vector store, OR via your
+   own DEFINE FUNCTION wrapping a Surrealism extension.
 ```
 
 ### "User migrating from another database"
@@ -320,7 +355,7 @@ uv run {baseDir}/scripts/schema.py introspect --endpoint $SURREAL_ENDPOINT
 | `rules/performance.md` | Index strategies (unique, search, HNSW, MTree), EXPLAIN for query analysis, batch operations, connection pooling, storage engine trade-offs, resource limits |
 | `rules/sdks.md` | Official SDK usage for JS/TS, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Dart, Swift, Ruby: connection setup, authentication, CRUD, live queries, typed records |
 | `rules/surrealism.md` | Surrealism WASM extension system (new in v3): Rust SDK, custom functions, custom analyzers, module lifecycle, deployment |
-| `rules/surrealml.md` | SurrealML model upload (.surml), in-database inference via `ml::name<version>(...)`, versioning, rollouts, permissioning |
+| `rules/surrealml.md` | SurrealML scope summary (preview/unstable as of 2026-05-05); `.surml` artifact format, supported pip extras; v1.4.0 claims about `DEFINE MODEL`, `ml::name<version>(...)`, `surreal ml import`, `db.upload_ml(...)`, `SurMlFile.from_<framework>(...)` were retracted in v1.4.1 |
 | `rules/surrealmcp.md` | Model Context Protocol server: tool catalog (`query`, `select`, `relate`, `live`, `schema.*`), stdio + Streamable HTTP transports, host configs (Claude Code, Cursor, Codex, OpenCode, Amp, Continue), production deployment |
 | `rules/editor-tooling.md` | LSP (`surrealql-language-server`), tree-sitter grammar, VS Code / Cursor / Windsurf / VSCodium, JetBrains, Neovim, Helix, Sublime Text, Zed extensions; CI lint integration |
 | `rules/langchain.md` | LangChain Python + JS integration: vector store, retrievers (similarity / MMR / hybrid), chat message history, multi-tenant permissions |

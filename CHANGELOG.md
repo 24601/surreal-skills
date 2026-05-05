@@ -22,7 +22,7 @@ sources fetched on 2026-05-05.
 #### `rules/surrealmcp.md` — rewritten from upstream `README.md`
 - Removed `cargo install surrealmcp` and `npm install -g @surrealdb/surrealmcp` (neither exists; crates.io 404, npm 404). Replaced with `cargo install --path .` and Docker.
 - Replaced bare `surrealmcp` and `surrealmcp serve` invocations with the verified `surrealmcp start` subcommand.
-- Replaced `--namespace` / `--database` / `--bind` / `--auth-token` with verified `--ns` / `--db` / `--bind-address` / `--cloud-access-token` flags.
+- Replaced `--namespace` / `--database` / `--bind` / `--auth-token` with verified `--ns` / `--db` / `--bind-address` / `--access-token` (plus `--refresh-token`) flags. The `SURREAL_MCP_CLOUD_*` env-var names retain the `CLOUD_` infix; the CLI flags do not.
 - Replaced env-var convention (`SURREAL_USER` / `SURREAL_PASS`) with the upstream-documented `SURREALDB_USER` / `SURREALDB_PASS` / `SURREALDB_URL` / `SURREALDB_NS` / `SURREALDB_DB` plus `SURREAL_MCP_*` server-side prefix.
 - Replaced the hallucinated tool catalog (`merge`, `live`, `kill`, `schema.introspect`, `schema.tables`, `schema.table`, `info.db`, `info.ns`, `use`, `signin`) with the upstream-grouped tools: `query`, `select`, `insert`, `create`, `upsert`, `update`, `delete`, `relate`, `connect_endpoint`, `use_namespace`, `use_database`, `list_namespaces`, `list_databases`, `disconnect_endpoint`, plus cloud tools.
 - Replaced `surrealmcp ping` with `curl http://localhost:8000/health`.
@@ -68,9 +68,19 @@ sources fetched on 2026-05-05.
 - The rule rewrites *reduce* the project's exposure: removing fabricated install commands eliminates the user-instruction failure mode where a developer attempts a non-existent `cargo install` or `npm install` (those would 404 today, but a newly-squatted package at one of those names would have been a supply-chain risk). All install paths now resolve to the upstream `surrealdb` GitHub org or Docker Hub.
 
 ### Migration
-No code changes. Rule-file content has been replaced; consumers that copy-pasted from v1.4.0 should re-pin to v1.4.1 and re-derive any code from the corrected rule text. The `skills/surrealmcp/SKILL.md` quick-start has changed shape — update any host MCP config to use the verified env-var names (`SURREALDB_*`) and the `surrealmcp start` subcommand.
+No consumer code changes (the skill ships rules + scripts; no library API). One CI workflow change: `.github/workflows/release.yml` gained a `workflow_dispatch` trigger so existing release tags can be re-published without the draft-toggle dance. Rule-file content has been replaced; consumers that copy-pasted from v1.4.0 should re-pin to v1.4.1 and re-derive any code from the corrected rule text. The `skills/surrealmcp/SKILL.md` quick-start has changed shape — update any host MCP config to use the verified env-var names (`SURREALDB_*`) and the `surrealmcp start` subcommand.
 
 ## [1.4.0] - 2026-05-03
+
+> **Note (2026-05-05):** the four new rule files added in this release
+> -- `rules/surrealmcp.md`, `rules/editor-tooling.md`, `rules/langchain.md`,
+> `rules/surrealml.md` -- contained substantial drift from the actual
+> upstream APIs (hallucinated install commands, CLI flags, env-var names,
+> tool catalogs, SurrealQL syntax, Python class names, and pip extras).
+> Adversarial review found the drift on the next pass; v1.4.1 ships
+> verified-only rewrites grounded in upstream READMEs. **Read the v1.4.1
+> entry above for the corrected surfaces; do not copy-paste from the
+> v1.4.0 capability description that follows.**
 
 ### Major (ecosystem expansion)
 - New rule **`rules/surrealmcp.md`** + sub-skill **`skills/surrealmcp/SKILL.md`** covering the official Model Context Protocol server for SurrealDB. Tool catalog (`query`, `select`, `create`, `update`, `merge`, `delete`, `relate`, `live`, `kill`, `schema.introspect`, `schema.tables`, `schema.table`, `info.db`, `info.ns`, `use`, `signin`), stdio + Streamable HTTP transports, host-config snippets for Claude Code, Claude Desktop, Cursor, Codex CLI, OpenCode, Amp, Continue, Windsurf.

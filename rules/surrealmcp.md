@@ -84,6 +84,8 @@ Connection flags (verified against upstream README):
 | `--expected-audience <aud>` | JWT audience validation |
 | `--rate-limit-rps <n>` / `--rate-limit-burst <n>` | Rate limiting |
 | `--auth-disabled` | Disable auth (dev only) |
+| `--access-token <token>` / `--refresh-token <token>` | Pre-configured SurrealDB Cloud auth tokens (env-var equivalents: `SURREAL_MCP_CLOUD_ACCESS_TOKEN` / `SURREAL_MCP_CLOUD_REFRESH_TOKEN`) |
+| `--socket-path <path>` | Listen on a Unix socket instead of HTTP |
 
 Health check is HTTP, not a CLI subcommand:
 
@@ -92,7 +94,8 @@ curl http://localhost:8000/health
 ```
 
 There is no `surrealmcp ping`, `surrealmcp serve`, `--transport`,
-`--bind` (use `--bind-address`), `--auth-token`, `--max-concurrent-tools`,
+`--bind` (use `--bind-address`), `--auth-token` (use
+`--access-token` / `--refresh-token`), `--max-concurrent-tools`,
 `--namespace` (use `--ns`), `--database` (use `--db`), or
 `--log-format json` flag in current upstream. Logging is configured via
 `RUST_LOG` env var (`tracing-subscriber`).

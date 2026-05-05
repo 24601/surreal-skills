@@ -20,7 +20,7 @@ metadata + graph edges in a single SurrealDB instance.
 - Verified version at v1.4.1 cut: `0.2.1`
 - Verified deps: `langchain-core ~= 1.1.0`, `surrealdb ~= 1.0.8`
 - Verified Python: `>= 3.10, < 4.0`
-- Verified extras: `[graph-qa]` (depends on `langchain-classic`)
+- Declared extras at v0.2.1: **none** (the upstream `pyproject.toml` has no `[project.optional-dependencies]` block; PyPI `provides_extras` is null). The README mentions a `[graph-qa]` extra that depends on `langchain-classic`, but that extra is not shipped in the v0.2.1 package metadata -- pip will silently no-op `pip install "langchain-surrealdb[graph-qa]"` rather than installing `langchain-classic`. If you need the graph helpers, install `langchain-classic` explicitly until the upstream extra ships.
 
 > **JS / TypeScript:** there is no published `@langchain/surrealdb`
 > npm package as of the v1.4.1 cut. Use the v2 JavaScript SurrealDB
@@ -49,11 +49,13 @@ structure, this integration is the path of least resistance.
 # Core install
 pip install -U langchain-surrealdb surrealdb
 
-# Optional graph QA helpers (depends on langchain-classic)
-pip install -U "langchain-surrealdb[graph-qa]"
-
 # uv (preferred for contributors)
 uv add langchain-surrealdb surrealdb
+
+# If you want the graph QA helpers (the upstream README mentions a
+# `[graph-qa]` extra, but the v0.2.1 PyPI package does not ship it as a
+# declared extra -- install langchain-classic explicitly):
+pip install -U langchain-classic
 ```
 
 The package targets `langchain-core ~= 1.1.0` and the v1 SurrealDB

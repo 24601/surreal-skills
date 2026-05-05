@@ -9,7 +9,7 @@ metadata:
   snapshot_date: "2026-05-05"
   upstream:
     repo: "surrealdb/surrealmcp"
-    release: "preview (no published GitHub release; pin to commit)"
+    release: "v0.4.0"
 ---
 
 # SurrealMCP -- MCP Server for SurrealDB
