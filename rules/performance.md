@@ -25,10 +25,13 @@ surreal start memory
 # RocksDB (single file path)
 surreal start rocksdb:///var/data/surreal.db
 
-# SurrealKV (default in SurrealDB 3.x for file-based storage)
+# SurrealKV (recommended for file-based storage in SurrealDB 3.x).
+# `surreal start` with no path argument defaults to in-memory; if you
+# want a file-backed engine you must pick `surrealkv://` or
+# `rocksdb://` explicitly. The legacy `file://` scheme is deprecated
+# in v3 and the server emits a deprecation warning when it is used --
+# do not put `file://` paths into new deployments.
 surreal start surrealkv:///var/data/surreal.db
-# Or simply:
-surreal start file:///var/data/surreal.db
 
 # TiKV (distributed, requires running TiKV cluster)
 surreal start tikv://pd-host:2379
@@ -205,15 +208,45 @@ EXPLAIN SELECT * FROM user WHERE email = 'alice@example.com';
 EXPLAIN ANALYZE SELECT * FROM user WHERE email = 'alice@example.com';
 EXPLAIN FORMAT JSON SELECT * FROM user WHERE email = 'alice@example.com';
 
--- Look for:
--- - "Index" operations (good: using an index)
--- - "Table" operations (bad: full table scan)
--- - "Iterate" step details show which index is used
-
--- Example output interpretation:
--- Operation: Iterate Index   -> using idx_email (fast)
--- Operation: Iterate Table   -> full scan (slow, needs index)
+-- The actual operator names in EXPLAIN output (verified against
+-- v3.0.5 executor):
+--
+--   operator: 'IndexScan'     -> using a defined index (fast)
+--   operator: 'TableScan'     -> full scan (slow; an index is needed)
+--   operator: 'RangeScan'     -> bounded scan over an indexed range
+--   operator: 'Iterate'       -> per-row iteration step
+--
+-- Pre-v1.5.1 revisions of this rule used the names "Iterate Table" /
+-- "Iterate Index" -- those came from internal test fixtures and do
+-- NOT appear in user-facing EXPLAIN output. Grep for `TableScan` /
+-- `IndexScan` instead.
 ```
+
+### Index Hints (`WITH` clause)
+
+The `SELECT` `WITH` clause overrides the planner's automatic index
+choice. Verified syntax: `[ WITH [ NOINDEX | INDEX @indexes... ] ]`.
+
+```surrealql
+-- Force the planner to ignore all indexes (full table scan).
+-- Useful for bulk operations where the index lookup overhead per
+-- row exceeds the win, or when you need to verify a query's
+-- behaviour under the no-index plan.
+SELECT * FROM order WITH NOINDEX WHERE status = 'pending';
+
+-- Force a specific index when the planner picks the wrong one.
+SELECT * FROM user WITH INDEX idx_email
+WHERE email = 'alice@example.com';
+
+-- Multiple indexes (planner is forced to choose between exactly
+-- this set, not any other defined index on the table).
+SELECT * FROM order WITH INDEX idx_status, idx_created_at
+WHERE status = 'pending' AND created_at > d'2026-01-01';
+```
+
+The `WITH` clause goes between the table reference and the `WHERE`
+clause. It's a per-statement override; persistent index policy
+belongs in the index definition itself.
 
 ### Avoiding Full Table Scans
 
@@ -351,18 +384,71 @@ SELECT * FROM order WHERE customer IN $active_users;
 
 ### Parallel Query Execution
 
-```surrealql
--- SurrealDB can execute independent statements in parallel within a request
--- Sending multiple queries in a single request is more efficient than
--- sending them one at a time
+There are two distinct mechanisms here -- they look related but solve
+different problems. Don't conflate them.
 
--- These three queries can be sent together in one request:
+**(a) The `PARALLEL` clause on `SELECT` (intra-query parallelism).**
+Spreads the iteration of a single statement across worker threads.
+Useful for large table scans where each row's processing is
+independent. Verified syntax (see `rules/surrealql.md`):
+
+```surrealql
+-- Run a single SELECT across multiple worker threads.
+SELECT * FROM person PARALLEL;
+
+-- Combines with WHERE, FETCH, etc. Place PARALLEL near the end.
+SELECT *, ->wrote->post AS posts FROM person
+WHERE active = true
+FETCH posts
+PARALLEL;
+```
+
+**(b) Multi-statement request batching (round-trip reduction).** Send
+several independent statements in a single request so the network
+round trip is amortised. The server still serialises them; this is
+not parallel execution.
+
+```surrealql
+-- One request, three statements. Cuts network overhead, NOT
+-- per-statement compute cost.
 SELECT count() FROM user GROUP ALL;
 SELECT count() FROM order GROUP ALL;
 SELECT count() FROM product GROUP ALL;
-
--- The SDK will pipeline these and SurrealDB processes them efficiently
 ```
+
+If you want intra-query parallelism, reach for `PARALLEL`. If you
+want fewer round trips, batch statements. They compose: each
+statement in a batched request can independently use `PARALLEL`.
+
+### `FETCH` vs Subquery for Record Links
+
+The `FETCH` clause resolves record-link fields server-side as part of
+the same query plan -- typically more efficient than the equivalent
+correlated subquery, and far more readable than the `.*` traversal
+idiom.
+
+```surrealql
+-- BAD: Correlated subquery for each row.
+SELECT
+    title,
+    (SELECT name FROM $parent.author) AS author_name
+FROM article
+WHERE published = true;
+
+-- GOOD: Single FETCH on the record link. The planner inlines the
+-- author resolution into the article scan.
+SELECT * FROM article WHERE published = true FETCH author;
+
+-- Multiple link fields and nested paths.
+SELECT * FROM order
+WHERE created_at > d'2026-01-01'
+FETCH customer, customer.tier, line_items.product;
+```
+
+`FETCH` is functionally equivalent to the `.*` traversal sugar but
+keeps the projection list clean and lets the planner choose the best
+fan-out strategy. Prefer it for any link-resolution workload heavier
+than a one-off lookup.
 
 ---
 
@@ -817,26 +903,38 @@ DEFINE TABLE bench_write SCHEMALESS;
 
 ### Cache Configuration
 
+`surreal start` does **not** expose a `--rocksdb-cache-size` flag in
+v3.0.5. The verified `surreal start` flag list at the v1.5.1 cut is
+`--bind`, `--import-file`, `--log`, `--user`, `--pass`,
+`--unauthenticated`, `--no-identification-headers`,
+`--temporary-directory`, `--allow-experimental` (consult `surreal
+start --help` against your binary for additions).
+
+For RocksDB-side tuning, use the env-var surface that the engine
+reads on startup -- e.g. `SURREAL_ROCKSDB_BLOCK_SIZE` for the block
+size. Pre-v1.5.1 revisions of this rule documented a
+`--rocksdb-cache-size` CLI flag that does not exist; if you scripted
+against it, the binary will refuse to start with `unknown option:
+--rocksdb-cache-size`.
+
 ```bash
-# RocksDB block cache size (controls memory usage for caching data blocks)
-# Default is typically 50% of available RAM
-# Adjust via environment variables or config
-surreal start --rocksdb-cache-size 4GB rocksdb:///var/data/surreal.db
+# Set engine-side knobs through environment variables, not CLI flags.
+SURREAL_ROCKSDB_BLOCK_SIZE=64K \
+  surreal start rocksdb:///var/data/surreal.db
 ```
 
 ### Connection Limits
 
-```bash
-# Limit maximum concurrent connections
-# Prevents resource exhaustion under load
-surreal start --max-connections 1000
+`surreal start` does not expose a `--max-connections` flag in v3.0.5
+either. Pre-v1.5.1 revisions of this rule claimed `surreal start
+--max-connections 1000`; that command fails with `unknown option`.
 
-# Each connection consumes memory for:
-# - Connection state
-# - Query buffers
-# - Live query subscriptions
-# - Transaction context
-```
+In practice, bound concurrency at the network edge (your reverse
+proxy / load balancer) and at the OS (file-descriptor limits, TCP
+backlog). The server itself does not gate connection count today;
+each connection still consumes memory for connection state, query
+buffers, live-query subscriptions, and transaction context, so the
+ceiling is set by available RAM rather than a CLI knob.
 
 ### WASM Memory Considerations
 

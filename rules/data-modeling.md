@@ -60,17 +60,29 @@ SELECT author.name FROM article;
 
 Record links are not strings. They are typed references resolved by the engine. You can traverse them with dot notation, and they participate in graph queries.
 
-### Schema Modes
+### Schema Modes and Table Types
 
-SurrealDB supports three schema enforcement modes:
+SurrealDB tables have **two orthogonal axes** of declaration: schema
+enforcement (how strictly fields are checked) and table type (whether
+the table holds documents or graph edges). They combine freely -- a
+table can be `TYPE NORMAL SCHEMAFULL`, `TYPE RELATION SCHEMALESS`,
+etc.
+
+**Schema enforcement modes** (mutually exclusive -- one per table):
 
 | Mode | Description | Use When |
 |------|-------------|----------|
 | `SCHEMAFULL` | Only explicitly defined fields are allowed. Attempts to set undefined fields are silently ignored. | Data integrity is critical. Well-known stable schema. |
 | `SCHEMALESS` | Any field can be added without prior definition. Defined fields still enforce their types. | Rapid prototyping. Flexible or evolving schemas. |
-| `TYPE ANY` | Table can hold both normal documents and serve as graph edge endpoints. | Rare. Multi-purpose tables. |
-| `TYPE NORMAL` | Explicit marker for standard document tables. | Clarity in schema definitions. Default behavior. |
-| `TYPE RELATION` | Dedicated graph edge table. Requires `IN` and `OUT` (or `FROM`/`TO`). | Graph relationships with enforced types. |
+
+**Table type markers** (mutually exclusive -- one per table; combine
+freely with either schema mode above):
+
+| Marker | Description | Use When |
+|--------|-------------|----------|
+| `TYPE NORMAL` | Standard document table. This is the implicit default if no `TYPE` clause is given. | Most data tables. |
+| `TYPE RELATION` | Dedicated graph edge table. Requires `IN` and `OUT` (or `FROM`/`TO`) field declarations. | Edges that participate in `RELATE` / arrow traversal. |
+| `TYPE ANY` | Permits both record content and edge usage on the same table. | Rare; explicit "either-or" intent. |
 
 ```surql
 -- Schemafull: strict, safe, predictable
@@ -407,17 +419,22 @@ RELATE user:alice->follows->user:bob;
 CREATE post:1 SET author = user:alice, content = 'Hello SurrealDB!';
 RELATE user:bob->likes->post:1;
 
--- Feed query: posts from followed users, ordered by time
-SELECT
-    ->follows->user->wrote->post.* AS feed
-FROM user:alice
-ORDER BY feed.created_at DESC;
-
--- Alternative feed using record links
+-- Feed query: posts from followed users, ordered by time.
+-- The schema above models authorship via the `post.author` record
+-- link (not via a `wrote` edge), so resolve "posts authored by people
+-- I follow" through the record link rather than a graph traversal.
 SELECT * FROM post
 WHERE author IN (SELECT VALUE ->follows->user FROM user:alice)
 ORDER BY created_at DESC
 LIMIT 20;
+
+-- If you'd rather model authorship as an edge, define a `wrote` edge
+-- table first and use it consistently:
+--
+--   DEFINE TABLE wrote TYPE RELATION IN user OUT post ENFORCED;
+--   RELATE user:alice->wrote->post:1;
+--
+-- Then `->follows->user->wrote->post.*` becomes a valid traversal.
 
 -- Mutual follows
 SELECT ->follows->user INTERSECT <-follows<-user AS mutual FROM user:alice;

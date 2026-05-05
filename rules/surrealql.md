@@ -503,15 +503,17 @@ DEFINE ACCESS account ON DATABASE TYPE RECORD
     SIGNIN ( SELECT * FROM user WHERE email = $email AND crypto::argon2::compare(pass, $pass) )
     DURATION FOR TOKEN 15m, FOR SESSION 12h;
 
--- JWT access (external identity provider)
+-- JWT access (external identity provider).
+-- `TYPE JWT` accepts only `DURATION FOR SESSION` -- the token's own
+-- lifetime is set by the issuer, not by SurrealDB.
 DEFINE ACCESS token_auth ON DATABASE TYPE JWT
     ALGORITHM HS256 KEY 'your-secret-key-here'
-    DURATION FOR TOKEN 1h;
+    DURATION FOR SESSION 12h;
 
 -- JWT with JWKS URL (for OAuth/OIDC providers)
 DEFINE ACCESS oauth ON DATABASE TYPE JWT
     URL 'https://auth.example.com/.well-known/jwks.json'
-    DURATION FOR TOKEN 1h, FOR SESSION 24h;
+    DURATION FOR SESSION 24h;
 
 -- WITH ISSUER KEY is only valid inside a RECORD-access definition
 -- that uses WITH JWT, not on a standalone TYPE JWT access.

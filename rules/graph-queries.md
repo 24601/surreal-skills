@@ -251,106 +251,136 @@ FROM person:ceo;
 
 ### Aliased Traversal
 
-Use `AS` to alias intermediate results for later reference.
+Use `AS` on a full traversal expression in the SELECT projection to
+name the result. (Pre-v1.5.1 revisions of this rule documented `AS`
+*inside* a parenthesised arrow filter -- e.g. `->(knows WHERE since
+> d'2023-01-01' AS recent_connections)->person.name` -- but no
+official v3 test exercises that form. Stick to the SELECT-projection
+position shown below.)
 
 ```surrealql
--- Alias the intermediate edge
+-- Alias the full traversal result
 SELECT
-    ->(knows WHERE since > d'2023-01-01' AS recent_connections)->person.name
+    ->reports_to->person AS manager,
+    ->reports_to->person->reports_to->person AS skip_level
 FROM person:alice;
-
--- Alias nodes at different traversal levels
-SELECT
-    ->wrote->(article AS authored_articles)->tagged_with->topic.name AS topics
-FROM person:aristotle;
 ```
 
-### Recursive Traversal Patterns
+### Recursive Traversal Patterns (`{depth}` and `{lo..hi}`)
 
-SurrealDB does not have a built-in recursive traversal keyword, but you can implement recursive patterns using subqueries and multi-hop chains.
+SurrealDB v3 has **first-class graph depth control**: the `.{...}`
+destructuring modifier applied to a record reference. This is the
+primary mechanism -- chaining fixed-hop arrows manually is the
+fallback when you need per-hop projection differences.
 
 ```surrealql
--- Fixed-depth hierarchy (3 levels of management)
+-- Exactly N hops (here, N = 1).
+person:alice.{1}->reports_to->person;
+
+-- Up to N hops (1, 2, ..., or N -- shortest matches first).
+person:alice.{..3}->knows->person;
+
+-- A bounded range of hops (M to N inclusive).
+person:alice.{1..3}->reports_to->person;
+
+-- Unbounded recursion until the graph runs out (be careful on cyclic
+-- or fan-out-heavy graphs -- combine with `+collect` or a hop cap).
+org:company.{..}.children;
+```
+
+#### Recursive destructuring with `.@`
+
+The `.@` placeholder applies the same destructuring pattern at every
+recursion level, so a single expression can build a full nested tree
+from a graph traversal.
+
+```surrealql
+-- Build the entire management tree under alice in one query.
+person:alice.{..}.{
+    name,
+    reports_to: ->reports_to->person.@
+};
+
+-- Works with REFERENCE link fields too, not just edge traversals.
+org:company.{..}.{ name, sub_orgs: children.@ };
+```
+
+#### Wildcard edge traversal (`->?`, `<-?`, `<->?`)
+
+When you need to traverse "any edge type" rather than a specific
+table, use `?` as the edge placeholder.
+
+```surrealql
+person:alice->?;          -- every outgoing edge of any type
+person:alice->?->?;       -- every record reachable through any edge in two hops
+person:alice<-?;          -- every incoming edge of any type
+person:alice<->?;         -- every adjacent record, in either direction
+```
+
+#### Path-collection modifiers (`+collect`, `+path`, `+inclusive`)
+
+Modifiers on the depth/range modifier change what the traversal
+returns. They compose with `{N}` / `{..N}` / `{lo..hi}` / `{..}`.
+
+```surrealql
+-- Deduplicated set of nodes reached (a "collect" set).
+person:alice.{..+collect}->reports_to->person;
+
+-- Same, but include the start node in the collected set.
+person:alice.{..+collect+inclusive}->knows->person;
+
+-- All distinct paths (each result is a path array, not a node).
+person:alice.{..+path}->reports_to->person;
+
+-- Bounded path collection.
+person:alice.{..3+path}->knows->person;
+```
+
+If you have to fall back to manual fixed-hop chains (rare in v3 -- only
+when you need per-hop projection differences the destructuring form
+can't express), the pattern looks like:
+
+```surrealql
 SELECT
     name,
     ->manages->person.name AS level_1,
     ->manages->person->manages->person.name AS level_2,
     ->manages->person->manages->person->manages->person.name AS level_3
 FROM person:ceo;
-
--- Collect all descendants up to N levels using array functions
-SELECT
-    name,
-    array::flatten([
-        ->manages->person,
-        ->manages->person->manages->person,
-        ->manages->person->manages->person->manages->person
-    ]) AS all_reports
-FROM person:ceo;
-
--- Recursive-like pattern using a subquery approach
--- Find all ancestors (who manages my manager?)
-SELECT
-    name,
-    <-manages<-person AS manager,
-    <-manages<-person<-manages<-person AS skip_manager,
-    <-manages<-person<-manages<-person<-manages<-person AS exec
-FROM person:dev_1;
 ```
+
+Reach for the `{1..3}` form first, fixed chains only as a fallback.
 
 ---
 
 ## Advanced Graph Patterns
 
-### Shortest Path Queries
+### Shortest-Path Queries (native `+shortest=target`)
 
-SurrealDB does not have a native shortest-path function, but you can implement BFS-like patterns.
+SurrealDB v3 has a **native shortest-path modifier** -- pre-v1.5.1
+revisions of this rule built a hand-rolled BFS for this and were
+wrong. Use the `+shortest=target` modifier on the depth/range
+destructuring instead.
 
 ```surrealql
--- Check if a direct connection exists (depth 1)
-SELECT ->knows->person
-FROM person:alice
-WHERE person:dave IN ->knows->person;
+-- Find the shortest reports-to chain from alice to the CEO.
+person:alice.{..+shortest=person:ceo}->reports_to->person;
 
--- Check depth 2
-SELECT ->knows->person->knows->person
-FROM person:alice
-WHERE person:dave IN ->knows->person->knows->person;
+-- Bounded variant: only consider paths of at most 3 hops.
+person:alice.{..3+shortest=person:ceo}->reports_to->person;
 
--- Find shortest path by testing increasing depths
--- Depth 1
-LET $depth1 = SELECT VALUE ->knows->person FROM person:alice;
--- Depth 2
-LET $depth2 = SELECT VALUE ->knows->person->knows->person FROM person:alice;
--- Depth 3
-LET $depth3 = SELECT VALUE ->knows->person->knows->person->knows->person FROM person:alice;
-
--- Check which depth first contains the target
-RETURN {
-    depth_1: person:dave IN array::flatten($depth1),
-    depth_2: person:dave IN array::flatten($depth2),
-    depth_3: person:dave IN array::flatten($depth3)
-};
-
--- BFS-like approach using a SurrealDB function
-DEFINE FUNCTION fn::find_path($from: record, $to: record, $edge: string) {
-    -- Check direct connection
-    LET $d1 = SELECT VALUE out FROM type::table($edge) WHERE in = $from;
-    IF $to IN $d1 { RETURN { depth: 1, found: true } };
-
-    -- Check depth 2
-    LET $d2 = SELECT VALUE out FROM type::table($edge) WHERE in IN $d1;
-    IF $to IN $d2 { RETURN { depth: 2, found: true } };
-
-    -- Check depth 3
-    LET $d3 = SELECT VALUE out FROM type::table($edge) WHERE in IN $d2;
-    IF $to IN $d3 { RETURN { depth: 3, found: true } };
-
-    RETURN { depth: -1, found: false };
-};
-
-RETURN fn::find_path(person:alice, person:dave, 'knows');
+-- Combine with +path to return the full path (rather than just the
+-- terminal node).
+person:alice.{..+shortest=person:ceo+path}->reports_to->person;
 ```
+
+`+shortest=` evaluates lazily and returns the first path that
+matches the target record, so it terminates as soon as the BFS
+front reaches the target -- no need to test increasing depths
+manually. Reach for the manual depth-by-depth approach only when you
+need behaviour `+shortest` does not express (e.g. enumerating *all*
+shortest paths, or weighted shortest paths -- neither is in the
+v3.0.5 surface).
 
 ### Degree Centrality Calculations
 

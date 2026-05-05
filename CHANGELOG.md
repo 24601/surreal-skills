@@ -3,6 +3,122 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.1] - 2026-05-05
+
+### Fixed (atomic-protocol patch — v1.5.0 Pi-only adversarial-audit CRIT remediation)
+
+A Pi+DeepSeek-V4-Pro:xhigh adversarial audit run against
+`rules/data-modeling.md`, `rules/security.md`, `rules/vector-search.md`,
+`rules/performance.md`, and `rules/graph-queries.md` after v1.5.0
+returned 5/5 NO-GO with 21 CRITs total — hallucinations beyond the
+mechanically-grepped v1.4.4 patterns. v1.5.1 patches every CRIT.
+
+- **`rules/vector-search.md`** (2 CRITs) — HNSW parameter table swapped
+  `LM` and `M0`. `LM` was documented as "Max connections at layer 0,
+  default `2*M`"; the parser actually treats `LM` as the **Minkowski
+  distance order** (only meaningful with `DIST MINKOWSKI`) and `M0`
+  as the layer-0-connections clause (default `2*M`). The full HNSW
+  parameter list now lists both `M0` and `LM` with their correct
+  semantics, and a precision note flags the pre-v1.5.1 conflation so
+  copied snippets can be repaired.
+- **`rules/data-modeling.md`** (2 CRITs) — (a) the §"Schema Modes"
+  table conflated schema enforcement (`SCHEMAFULL` / `SCHEMALESS`)
+  with table type markers (`TYPE NORMAL` / `TYPE RELATION` /
+  `TYPE ANY`) into a single 5-row "modes" table, implying mutual
+  exclusivity. They are orthogonal — a table can be `TYPE RELATION
+  SCHEMAFULL`. The section now splits into two tables with a note
+  on combination. (b) The social-feed example used
+  `->follows->user->wrote->post.*` against a schema that defines
+  only `follows` and `likes` edges — no `wrote` edge — so the query
+  failed at runtime. The example now uses the record-link form
+  (`SELECT * FROM post WHERE author IN (SELECT VALUE ->follows->user
+  FROM user:alice)`) and adds a comment on what to define if you
+  want the `wrote`-edge form instead.
+- **`rules/security.md`** (3 CRITs) — (a) §"API Key Authentication"
+  documented `DEFINE ACCESS api_access ON DATABASE TYPE API KEY` —
+  there is no `TYPE API KEY` in v3.0.5; the section is renamed
+  "Bearer-Token Authentication" and now documents the actual
+  mechanism: `DEFINE ACCESS … TYPE BEARER FOR [USER | RECORD]` plus
+  `ACCESS <name> GRANT FOR USER|RECORD <subject>`. (b) `TYPE JWT`
+  examples used `DURATION FOR TOKEN`, which is invalid on JWT
+  access — JWT tokens are issued externally, so SurrealDB only
+  accepts `DURATION FOR SESSION` here. All three JWT examples were
+  rewritten to `DURATION FOR SESSION 12h`. (c) `WITH ISSUER KEY` was
+  missing from the JWT-with-record-binding examples — this is
+  required for SurrealDB to *issue* tokens under that access method
+  rather than only verify them. Both relevant examples now include
+  the `WITH ISSUER KEY` clause with prose on its purpose.
+- **Cross-fix in `rules/surrealql.md`** — the same `TYPE JWT` +
+  `DURATION FOR TOKEN` invalid combination appeared in the DEFINE
+  ACCESS examples (lines ~507–514). Both were rewritten to
+  `DURATION FOR SESSION` to keep the language reference and the
+  security rule in sync.
+- **`rules/performance.md`** (8 CRITs) — (1) EXPLAIN output
+  documented `Iterate Table` / `Iterate Index` operator names; the
+  actual user-facing operator names are `TableScan`, `IndexScan`,
+  `RangeScan`, `Iterate`. The interpretation block now lists the real
+  names. (2) The `WITH` clause for index hints (`WITH NOINDEX`,
+  `WITH INDEX <name>`) was undocumented — added a "Index Hints" sub-
+  section under Query Optimization. (3) The `surrealkv://` start
+  example included `surreal start file:///var/data/surreal.db` as
+  a synonym; `file://` is deprecated in v3 and emits a deprecation
+  warning. The `file://` line is removed and the prose flags it
+  explicitly. (4) `surreal start --rocksdb-cache-size 4GB` does not
+  exist; the cache section now points at the env-var surface
+  (`SURREAL_ROCKSDB_BLOCK_SIZE` etc.) and lists the verified
+  `surreal start` flags. (5) `surreal start --max-connections 1000`
+  also does not exist; the connection-limits section now describes
+  bounding concurrency at the proxy / OS layer instead. (6) "SurrealKV
+  (default in SurrealDB 3.x for file-based storage)" implied
+  automatic substitution; rephrased to "recommended for file-based
+  storage" with a note that the no-arg default is `memory`. (7)
+  §"Parallel Query Execution" conflated the `SELECT … PARALLEL`
+  clause (intra-query worker parallelism) with multi-statement
+  request batching (round-trip reduction). Split into two distinct
+  subsections. (8) The `FETCH` clause for record-link resolution was
+  not discussed at all — added a "FETCH vs Subquery" subsection.
+- **`rules/graph-queries.md`** (6 CRITs) — (1) §"Shortest Path
+  Queries" claimed *"SurrealDB does not have a native shortest-path
+  function"* and built a hand-rolled BFS. v3 has a native
+  `..+shortest=target` modifier (with optional `+path`) — the entire
+  hand-rolled BFS is replaced with the native form. (2) The §"Recursive
+  Traversal Patterns" section showed only fixed-hop chaining and
+  missed the v3 mandatory destructuring depth/range syntax
+  (`person:alice.{..3}->reports_to->person`,
+  `person:alice.{1..3}->reports_to->person`,
+  `org:company.{..}.children`). The section now leads with the
+  destructuring form and keeps fixed-hop chains as a fallback.
+  (3) `.@` recursive destructuring (which builds nested trees in a
+  single expression) was missing entirely; added a sub-section with
+  examples for both edge traversals and `REFERENCE` link fields.
+  (4) The §"Aliased Traversal" example used `AS` *inside* a
+  parenthesised arrow filter
+  (`->(knows WHERE since > d'2023-01-01' AS recent_connections)->person`),
+  which no official v3 test exercises. The example is rewritten to
+  the SELECT-projection-position form and a note flags the previous
+  form as unverified. (5) Wildcard edge traversal (`->?`, `<-?`,
+  `<->?`, `->?->?`) was undocumented; added a sub-section. (6) Path
+  modifiers `+collect`, `+path`, `+inclusive` (which compose with
+  the depth/range modifier to change what the traversal returns)
+  were undocumented; added a sub-section with examples.
+
+The audit was run against v1.4.5 HEAD (`f83ca4e`); each rule's verdict
+came from a separate Pi process to avoid cross-rule pollution. Pi
+output files are at `/tmp/pi-{rule}-audit.md` for traceability — these
+were not committed but are referenced from the v1.5.1 patch surgery.
+
+### Migration
+
+No consumer code changes for callers using the language reference
+(`rules/surrealql.md`) — the v1.5.1 cross-fix there only narrows
+already-broken examples. Consumers who copied any of the bullets
+above (especially HNSW snippets using `LM` for layer-0 connections,
+DEFINE ACCESS using `TYPE API KEY`, JWT access using `DURATION FOR
+TOKEN`, `surreal start` invocations using `--rocksdb-cache-size` /
+`--max-connections` / `file://`, or hand-rolled BFS for shortest
+paths) need to apply the corrections noted in each bullet. The
+machine-checked version-consistency CI gate continues to apply.
+
 ## [1.5.0] - 2026-05-05
 
 ### Added (deferred-verification milestone — close v1.4.1 deferrals)

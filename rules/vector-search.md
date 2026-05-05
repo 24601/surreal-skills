@@ -94,7 +94,8 @@ DEFINE INDEX index_name ON TABLE table_name FIELDS field_name
     [TYPE storage_type]
     [EFC construction_ef]
     [M max_connections]
-    [LM max_connections_layer0]
+    [M0 max_connections_layer0]
+    [LM minkowski_order]
     [EXTEND_CANDIDATES]
     [KEEP_PRUNED_CONNECTIONS];
 ```
@@ -106,9 +107,20 @@ DEFINE INDEX index_name ON TABLE table_name FIELDS field_name
 | TYPE | Storage type: F32, F64, I16, I32, I64 | F32 | F32 balances precision and memory |
 | EFC | ef_construction: neighbors explored during build | 150 | Higher = better recall, slower build |
 | M | Max connections per node (upper layers) | 12 | Higher = better recall, more memory |
-| LM | Max connections at layer 0 | 2*M | Usually leave as default |
+| M0 | Max connections at layer 0 (the densest layer) | `2*M` | Usually leave as default |
+| LM | Minkowski distance order (only meaningful with `DIST MINKOWSKI`) | -- | Leave unset unless you've chosen MINKOWSKI distance |
 | EXTEND_CANDIDATES | Extend candidate list during construction | Off | Enable for higher recall |
 | KEEP_PRUNED_CONNECTIONS | Keep pruned connections | Off | Enable for higher recall |
+
+> **HNSW parameter precision (verified at v3.0.5).** `M0` and `LM` are
+> two **different** clauses on the parser side. `M0 <n>` sets the
+> maximum number of bidirectional connections at layer 0 (the densest
+> graph layer); `LM <n>` sets the Minkowski distance order used when
+> `DIST MINKOWSKI` is in effect, with no defined meaning for any other
+> distance metric. Pre-v1.5.1 versions of this rule conflated the two
+> under `LM` and omitted `M0` entirely -- if you copied an `HNSW ... LM`
+> snippet from those revisions intending to set layer-0 connections,
+> rename the clause to `M0` before re-applying.
 
 #### Common Index Configurations
 

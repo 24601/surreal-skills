@@ -79,7 +79,7 @@ DEFINE ACCESS account ON DATABASE TYPE RECORD
 
 ## DEFINE ACCESS
 
-The `DEFINE ACCESS` statement configures how users authenticate with SurrealDB. There are three access types: RECORD, JWT, and API KEY.
+The `DEFINE ACCESS` statement configures how users authenticate with SurrealDB. There are three access types: **RECORD** (signup/signin against records in the DB), **JWT** (validate externally-issued tokens), and **BEARER** (long-lived token grants for users or records).
 
 ### Record-Based Authentication (End Users)
 
@@ -158,12 +158,17 @@ DEFINE ACCESS tenant_account ON DATABASE TYPE RECORD
 
 JWT access allows external identity providers to authenticate users with SurrealDB.
 
+> **`TYPE JWT` only supports `DURATION FOR SESSION`** — it does not
+> accept `DURATION FOR TOKEN` because the token lifetime is set by the
+> external issuer, not by SurrealDB. Use `FOR SESSION` to bound how
+> long an authenticated session backed by a JWT may last on the server.
+
 ```surrealql
 -- HMAC-based JWT (symmetric key)
 DEFINE ACCESS jwt_auth ON DATABASE TYPE JWT
     ALGORITHM HS256
     KEY 'your-256-bit-secret-key-here'
-    DURATION FOR TOKEN 1h;
+    DURATION FOR SESSION 12h;
 
 -- RSA-based JWT (asymmetric key, more secure)
 DEFINE ACCESS jwt_rsa ON DATABASE TYPE JWT
@@ -171,7 +176,7 @@ DEFINE ACCESS jwt_rsa ON DATABASE TYPE JWT
     KEY '-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 -----END PUBLIC KEY-----'
-    DURATION FOR TOKEN 1h;
+    DURATION FOR SESSION 12h;
 
 -- ECDSA-based JWT
 DEFINE ACCESS jwt_ecdsa ON DATABASE TYPE JWT
@@ -179,14 +184,26 @@ DEFINE ACCESS jwt_ecdsa ON DATABASE TYPE JWT
     KEY '-----BEGIN PUBLIC KEY-----
 MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -----END PUBLIC KEY-----'
-    DURATION FOR TOKEN 1h;
+    DURATION FOR SESSION 12h;
 
--- JWT with record binding (map JWT claims to a user record)
+-- JWT with record binding (map JWT claims to a user record).
+-- Inside a `TYPE RECORD WITH JWT` definition, the `WITH JWT KEY`
+-- clause is the *verification* key (used to validate incoming tokens
+-- the access method accepts). To also let SurrealDB *issue* tokens
+-- under this access method, add a separate `WITH ISSUER KEY` clause
+-- holding the signing-side credential. If `WITH ISSUER KEY` is
+-- omitted, SurrealDB defaults to `ALGORITHM HS512` with a random
+-- per-process key — adequate for verification-only flows but not for
+-- issuing tokens that survive a restart.
 DEFINE ACCESS external_auth ON DATABASE TYPE RECORD
-    WITH JWT ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
+    WITH JWT
+        ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 -----END PUBLIC KEY-----'
-    DURATION FOR TOKEN 1h;
+    WITH ISSUER KEY '-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
+-----END PRIVATE KEY-----'
+    DURATION FOR TOKEN 1h, FOR SESSION 12h;
 ```
 
 ### Supported JWT Algorithms
@@ -199,15 +216,38 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 | PS256, PS384, PS512 | RSA-PSS (asymmetric) | Public key for verification |
 | EdDSA | EdDSA (asymmetric) | Public key for verification |
 
-### API Key Authentication
+### Bearer-Token Authentication
+
+SurrealDB v3 has no `TYPE API KEY` access -- pre-v1.5.1 revisions of
+this rule documented that as a third access type, but it is not in
+the v3 grammar. The intended functionality (long-lived token grants
+for service accounts or background workers) is provided by `TYPE
+BEARER`.
 
 ```surrealql
--- Define API key access
-DEFINE ACCESS api_access ON DATABASE TYPE API KEY;
+-- Bearer access for an existing user (typical "service account
+-- with a long-lived token" pattern). The token is issued via
+-- `ACCESS <name> GRANT FOR USER <username>` after the access is
+-- defined.
+DEFINE ACCESS service_tokens ON DATABASE TYPE BEARER FOR USER
+    DURATION FOR GRANT 30d, FOR TOKEN 1h, FOR SESSION 12h;
 
--- API keys are generated and managed through the SurrealDB API
--- They provide simple bearer token authentication
+-- Bearer access tied to a record (e.g. one record per integration
+-- partner, with the bearer token bound to that record).
+DEFINE ACCESS partner_tokens ON DATABASE TYPE BEARER FOR RECORD
+    AUTHENTICATE {
+        IF $auth.id THEN RETURN $auth ELSE THROW "no auth record" END
+    }
+    DURATION FOR GRANT 90d, FOR TOKEN 1h, FOR SESSION 24h;
+
+-- Issue a token under the access method:
+ACCESS service_tokens GRANT FOR USER 'ci_runner';
 ```
+
+`TYPE BEARER` accepts `DURATION FOR GRANT`, `DURATION FOR TOKEN`,
+and `DURATION FOR SESSION`. `FOR GRANT` controls how long the issued
+bearer token remains usable; `FOR TOKEN` and `FOR SESSION` follow
+the same shape as `TYPE RECORD`.
 
 ### Token Duration Configuration
 
@@ -697,11 +737,19 @@ const myProfile = await db.select('user');
 ### JWT Token Integration with External Identity Providers
 
 ```surrealql
--- Define JWT access that maps external tokens to SurrealDB permissions
+-- Define JWT access that maps external tokens to SurrealDB permissions.
+-- `WITH JWT KEY` is the verification key (used to validate incoming
+-- third-party-issued tokens). Add `WITH ISSUER KEY` if SurrealDB also
+-- needs to issue tokens under this access method (e.g. record-scoped
+-- tokens that nested signin flows hand back to clients).
 DEFINE ACCESS external_idp ON DATABASE TYPE RECORD
-    WITH JWT ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
+    WITH JWT
+        ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 -----END PUBLIC KEY-----'
+    WITH ISSUER KEY '-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
+-----END PRIVATE KEY-----'
     DURATION FOR TOKEN 1h;
 
 -- The JWT payload should include claims that map to user data
