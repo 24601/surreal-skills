@@ -3,6 +3,98 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.4] - 2026-05-05
+
+### Fixed (atomic-protocol patch — adversarial-review NO-GO findings, batch-4: foundational language reference)
+
+After v1.4.3 shipped, an adversarial review of `rules/surrealql.md`
+(the foundational SurrealQL language reference -- highest-impact
+failure mode in this skill) returned **NO-GO** with **10 CRITICAL**
+findings + 18 IMPORTANT + 9 MINOR. Pi (`deepseek-v4-pro:xhigh`) ran
+direct upstream verification against
+`surrealdb/docs.surrealdb.com@main/src/content/reference/query-language/...`
+on 2026-05-05; Cursor flagged additional internal-consistency drift
+between `rules/surrealql.md` and `rules/surrealism.md`; Codex hit
+context-window exhaustion on the 2096-line input and produced no
+output (false negative; not used).
+
+The same generation-batch failure mode that produced 50+
+hallucinations across the rules patched in v1.4.1 / v1.4.2 / v1.4.3
+also produced wholesale syntax errors in the foundational reference.
+Most of these errors are pre-v3.0.0-beta SurrealQL syntax that the
+generation pass inherited from older training data without
+verifying against the current grammar.
+
+#### Pervasive syntax corrections
+- **`SEARCH ANALYZER` -> `FULLTEXT ANALYZER`** across every `DEFINE INDEX` example, prose mention, and Best Practices section. Upstream `define/indexes.mdx` confirms: "Before SurrealDB version 3.0.0-beta, the `FULLTEXT ANALYZER` clause used the syntax `SEARCH ANALYZER`."
+- **`time::from::*` -> `time::from_*`** across every example. Upstream: "Since version 3.0.0-beta, the `::from::` functions now use underscores."
+- **`string::is::*` -> `string::is_*`** across every example. Upstream: "Since version 3.0.0-beta, the `::is::` functions now use underscores."
+- **`math::PI` / `math::E` / `math::TAU` / `math::INF` / `math::NEG_INF` -> lowercase** (`math::pi`, `math::e`, `math::tau`, `math::inf`, `math::neg_inf`).
+
+#### Fabricated syntax retractions
+- **`MTREE` index type**: removed entirely. Upstream `DEFINE INDEX` grammar defines exactly ONE vector index type (`HNSW`); the `MTREE` keyword and its `CAPACITY` parameter were not in the grammar at any v3 version. Replaced with a note pointing at HNSW + the `<|K,METRIC|>` brute-force kNN operator.
+- **`string::trim::start` / `string::trim::end`**: removed. Only `string::trim` exists upstream.
+- **`math::log2` / `math::log10`**: removed. Upstream has `math::log` (with optional base) and `math::ln`; use `math::log(x, 2)` or `math::log(x, 10)`.
+- **`EXPLAIN FULL`**: replaced with the verified standalone form `EXPLAIN [ ANALYZE ] [ FORMAT TEXT | JSON ] @statement`. The `FULL` keyword does not exist in the upstream grammar; the rule's clause-form `SELECT ... EXPLAIN` was retained as the alternate form.
+- **`?.` JS-style optional chaining as an operator**: removed from operators table. Replaced with the verified upstream form `spouse.?.name` (period-before-question-mark) on the appropriate access example.
+- **`LIKE` / `NOT LIKE` operators**: removed from operators table. Not present in upstream `operators.mdx`, not in the `ifelse` /`where` docs, not in the parser keyword list. Use `~` (fuzzy match) and `CONTAINS` operators.
+
+#### Access-statement structural fix
+- **`WITH ISSUER KEY`** moved out of the standalone `TYPE JWT` access example into a `TYPE RECORD WITH JWT` example (the only context in which it is a valid clause per upstream `define/access/record.mdx`). The previous `DEFINE ACCESS api_auth ON NAMESPACE TYPE JWT ... WITH ISSUER KEY ...` would not parse.
+
+#### Type system note
+- The `union<...>` and `array<T, N>` type constructors that earlier
+  drafts (re-)introduced are not present in upstream; literal types
+  use the `|` syntax (`datetime | uuid | "N/A"`). Verified in
+  current `Complex Types` table: only `array<T>`, `set<T>`,
+  `option<T>`, `record<T>` are documented.
+
+#### Deferred to v1.5.0 (acknowledged gaps; not blocking ship)
+- `DEFINE API`, `DEFINE CONFIG`, `DEFINE ACCESS ... TYPE BEARER`
+  full sections.
+- `ALTER` statement family (16 sub-statements: `ALTER TABLE`,
+  `ALTER FIELD`, `ALTER INDEX`, etc.).
+- Standalone `ACCESS` statement (`GRANT` / `SHOW` / `REVOKE` /
+  `PURGE`) for bearer-grant management.
+- `COUNT` index type, `CONCURRENTLY` and `DEFER` clauses on `DEFINE INDEX`.
+- `REFERENCE` / `DEFAULT ALWAYS` clauses on `DEFINE FIELD`.
+- `INSERT RELATION` variant.
+- `DEFINE FUNCTION` `-> @type` return-type syntax + `PERMISSIONS` clause.
+- Missing function categories: `encoding::*`, `bytes::*`, `file::*`, `api::*`, `sequence::*`, `set::*`, plus several `string::*`, `time::*`, `math::*`, `search::*` individual functions.
+
+These deferrals are documented in `docs/v1.5.0-roadmap.md` style
+(see CHANGELOG history) -- the rule body still teaches the
+verified-correct primary surface.
+
+### Security posture
+- No new scripts, binaries, or third-party endpoints. All upstream
+  verification was via public read-only fetches against
+  `docs.surrealdb.com` on 2026-05-05. No new credential surface.
+- Removing the wrong access-method `WITH ISSUER KEY` placement
+  closes a SurrealQL-failure-at-parse-time surface where a
+  developer copy-pasting from v1.4.0 / v1.4.1 / v1.4.2 / v1.4.3
+  docs would build code that fails to define the access at all.
+
+### Migration
+No consumer code changes. Rule-file content has been replaced;
+consumers that copy-pasted from earlier versions should re-pin to
+v1.4.4 and re-derive any code from the corrected rule text. In
+particular: switch every `DEFINE INDEX ... SEARCH ANALYZER ...` to
+`FULLTEXT ANALYZER`; rename every `time::from::X` to
+`time::from_X`; rename every `string::is::X` to `string::is_X`;
+delete any `MTREE` index definitions and rebuild as `HNSW` (or use
+`<|K,METRIC|>` brute-force kNN); remove any `EXPLAIN FULL` /
+`?.` / `LIKE` / `NOT LIKE` usage; relocate any `WITH ISSUER KEY`
+clause from a JWT-typed access definition into the corresponding
+RECORD-typed access.
+
+### Tooling
+- `scripts/check_version_consistency.py` (added in commit `b842203`
+  before this release) is now wired into `ci.yml` so future
+  version-drift across `SKILL.md` / sub-skills / `SOURCES.json` /
+  `README.md` badge / `CHANGELOG.md` / `AGENTS.md` is caught
+  mechanically on every PR.
+
 ## [1.4.3] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — adversarial-review NO-GO findings, batch-3)

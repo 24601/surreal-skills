@@ -95,9 +95,12 @@ SELECT * FROM person TIMEOUT 5s;
 -- Select with PARALLEL execution
 SELECT * FROM person PARALLEL;
 
--- Select with EXPLAIN to analyze query plan
+-- Analyze query plan: either as a clause on SELECT
 SELECT * FROM person WHERE age > 30 EXPLAIN;
-SELECT * FROM person WHERE age > 30 EXPLAIN FULL;
+-- or as a standalone statement (v3 form)
+EXPLAIN SELECT * FROM person WHERE age > 30;
+EXPLAIN ANALYZE SELECT * FROM person WHERE age > 30;
+EXPLAIN FORMAT JSON SELECT * FROM person WHERE age > 30;
 
 -- Subquery in SELECT
 SELECT *, (SELECT count() FROM ->wrote->article GROUP ALL) AS article_count FROM person;
@@ -363,7 +366,7 @@ DEFINE FIELD created_at ON TABLE person TYPE datetime VALUE time::now() READONLY
 
 -- Field with ASSERT (validation constraint)
 DEFINE FIELD email ON TABLE person TYPE string
-    ASSERT string::is::email($value);
+    ASSERT string::is_email($value);
 
 -- Field with range assertion
 DEFINE FIELD age ON TABLE person TYPE int
@@ -441,15 +444,15 @@ DEFINE INDEX name_age_idx ON TABLE person COLUMNS name, age;
 
 -- Full-text search index with analyzer
 DEFINE INDEX content_search ON TABLE article COLUMNS content
-    SEARCH ANALYZER ascii BM25;
+    FULLTEXT ANALYZER ascii BM25;
 
 -- Full-text search with BM25 tuning
 DEFINE INDEX content_search ON TABLE article COLUMNS content
-    SEARCH ANALYZER ascii BM25(1.2, 0.75);
+    FULLTEXT ANALYZER ascii BM25(1.2, 0.75);
 
 -- Full-text search with highlights enabled
 DEFINE INDEX content_search ON TABLE article COLUMNS content
-    SEARCH ANALYZER ascii BM25 HIGHLIGHTS;
+    FULLTEXT ANALYZER ascii BM25 HIGHLIGHTS;
 
 -- HNSW vector index (for approximate nearest neighbor search)
 DEFINE INDEX embedding_idx ON TABLE document FIELDS embedding
@@ -463,13 +466,12 @@ DEFINE INDEX embedding_idx ON TABLE document FIELDS embedding
     EFC 150
     M 12;
 
--- MTREE vector index (for exact metric space search)
-DEFINE INDEX embedding_idx ON TABLE document FIELDS embedding
-    MTREE DIMENSION 1536 DIST EUCLIDEAN;
-
--- MTREE with capacity tuning
-DEFINE INDEX embedding_idx ON TABLE document FIELDS embedding
-    MTREE DIMENSION 1536 DIST COSINE CAPACITY 40;
+-- HNSW is the only documented vector index type in SurrealDB v3.
+-- (The MTREE index keyword that earlier rule revisions documented
+-- does not exist in the current upstream `DEFINE INDEX` grammar;
+-- see https://surrealdb.com/docs/surrealql/statements/define/indexes.)
+-- For brute-force kNN without an index, use the `<|K,METRIC|>`
+-- operator (e.g. `vector <|2,EUCLIDEAN|> $query`).
 
 -- Overwrite existing index
 DEFINE INDEX OVERWRITE email_idx ON TABLE person COLUMNS email UNIQUE;
@@ -511,9 +513,12 @@ DEFINE ACCESS oauth ON DATABASE TYPE JWT
     URL 'https://auth.example.com/.well-known/jwks.json'
     DURATION FOR TOKEN 1h, FOR SESSION 24h;
 
--- JWT with issuer key for token verification
-DEFINE ACCESS api_auth ON NAMESPACE TYPE JWT
-    ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----...'
+-- WITH ISSUER KEY is only valid inside a RECORD-access definition
+-- that uses WITH JWT, not on a standalone TYPE JWT access.
+DEFINE ACCESS account ON DATABASE TYPE RECORD
+    SIGNUP ( CREATE user SET email = $email, pass = crypto::argon2::generate($pass) )
+    SIGNIN ( SELECT * FROM user WHERE email = $email AND crypto::argon2::compare(pass, $pass) )
+    WITH JWT ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----...'
     WITH ISSUER KEY '-----BEGIN PRIVATE KEY-----...';
 
 -- Overwrite and IF NOT EXISTS
@@ -1281,8 +1286,6 @@ Explicit type conversion using angle bracket syntax.
 
 | Operator | Description | Example |
 |----------|-------------|---------|
-| `LIKE` | Wildcard pattern match | `name LIKE 'Tob%'` |
-| `NOT LIKE` | Negative wildcard match | `name NOT LIKE '%bot%'` |
 
 ### Other Operators
 
@@ -1290,7 +1293,6 @@ Explicit type conversion using angle bracket syntax.
 |----------|-------------|---------|
 | `??` | Null coalescing | `$val ?? 'default'` |
 | `?:` | Ternary | `$active ? 'yes' : 'no'` |
-| `?.` | Optional chaining | `$user?.address?.city` |
 | `..` | Range | `1..10` |
 
 ---
@@ -1308,8 +1310,6 @@ string::len('hello')                         -- 5
 string::lowercase('HELLO')                   -- 'hello'
 string::uppercase('hello')                   -- 'HELLO'
 string::trim('  hello  ')                    -- 'hello'
-string::trim::start('  hello  ')             -- 'hello  '
-string::trim::end('  hello  ')              -- '  hello'
 string::split('a,b,c', ',')                 -- ['a', 'b', 'c']
 string::join(', ', 'a', 'b', 'c')           -- 'a, b, c'
 string::slug('Hello World!')                 -- 'hello-world'
@@ -1319,22 +1319,22 @@ string::repeat('ab', 3)                      -- 'ababab'
 string::slice('SurrealDB', 0, 7)             -- 'Surreal'
 
 -- Validation functions
-string::is::alphanum('abc123')               -- true
-string::is::alpha('abc')                     -- true
-string::is::ascii('hello')                   -- true
-string::is::datetime('2026-01-01T00:00:00Z') -- true
-string::is::domain('surrealdb.com')          -- true
-string::is::email('tobie@surrealdb.com')     -- true
-string::is::hexadecimal('ff00ab')            -- true
-string::is::ip('192.168.1.1')               -- true
-string::is::ipv4('192.168.1.1')             -- true
-string::is::ipv6('::1')                      -- true
-string::is::latitude('51.5074')              -- true
-string::is::longitude('-0.1278')             -- true
-string::is::numeric('12345')                 -- true
-string::is::semver('1.2.3')                  -- true
-string::is::url('https://surrealdb.com')     -- true
-string::is::uuid('550e8400-e29b-41d4-a716-446655440000') -- true
+string::is_alphanum('abc123')               -- true
+string::is_alpha('abc')                     -- true
+string::is_ascii('hello')                   -- true
+string::is_datetime('2026-01-01T00:00:00Z') -- true
+string::is_domain('surrealdb.com')          -- true
+string::is_email('tobie@surrealdb.com')     -- true
+string::is_hexadecimal('ff00ab')            -- true
+string::is_ip('192.168.1.1')               -- true
+string::is_ipv4('192.168.1.1')             -- true
+string::is_ipv6('::1')                      -- true
+string::is_latitude('51.5074')              -- true
+string::is_longitude('-0.1278')             -- true
+string::is_numeric('12345')                 -- true
+string::is_semver('1.2.3')                  -- true
+string::is_url('https://surrealdb.com')     -- true
+string::is_uuid('550e8400-e29b-41d4-a716-446655440000') -- true
 
 -- Method syntax (on string values)
 'hello world'.uppercase()                    -- 'HELLO WORLD'
@@ -1404,8 +1404,6 @@ math::round(3.5)                             -- 4
 math::sqrt(16)                               -- 4.0
 math::pow(2, 10)                             -- 1024
 math::log(100, 10)                           -- 2.0
-math::log2(8)                                -- 3.0
-math::log10(1000)                            -- 3.0
 math::max([1, 5, 3])                         -- 5
 math::min([1, 5, 3])                         -- 1
 math::mean([1, 2, 3, 4, 5])                  -- 3
@@ -1428,11 +1426,11 @@ math::bottom([5, 1, 3, 2, 4], 3)            -- [1, 2, 3]
 math::top([5, 1, 3, 2, 4], 3)               -- [3, 4, 5]
 
 -- Constants
-math::PI                                     -- 3.14159...
-math::E                                      -- 2.71828...
-math::TAU                                    -- 6.28318...
-math::INF                                    -- Infinity
-math::NEG_INF                                -- -Infinity
+math::pi                                     -- 3.14159...
+math::e                                      -- 2.71828...
+math::tau                                    -- 6.28318...
+math::inf                                    -- Infinity
+math::neg_inf                                -- -Infinity
 ```
 
 ### Time Functions
@@ -1464,11 +1462,11 @@ time::ceil(d'2026-02-19T10:30:45Z', 1h)     -- d'2026-02-19T11:00:00Z'
 time::round(d'2026-02-19T10:30:45Z', 1h)    -- d'2026-02-19T11:00:00Z'
 
 -- From Unix timestamp
-time::from::micros(1708344000000000)
-time::from::millis(1708344000000)
-time::from::nanos(1708344000000000000)
-time::from::secs(1708344000)
-time::from::unix(1708344000)
+time::from_micros(1708344000000000)
+time::from_millis(1708344000000)
+time::from_nanos(1708344000000000000)
+time::from_secs(1708344000)
+time::from_unix(1708344000)
 
 -- Timezone
 time::timezone()                             -- server timezone
@@ -1737,7 +1735,7 @@ vector::similarity::pearson([1, 2, 3], [4, 5, 6]) -- pearson similarity
 
 ### Search Functions
 
-Used in full-text search queries with `SEARCH ANALYZER` indexes.
+Used in full-text search queries with `FULLTEXT ANALYZER` indexes.
 
 ```surql
 -- Highlight matching terms
@@ -1935,8 +1933,10 @@ SELECT tags[0] FROM article;
 -- Filter within arrays
 SELECT emails[WHERE verified = true] FROM person;
 
--- Optional chaining for nullable fields
-SELECT address?.city FROM person;
+-- Optional access for nullable record-link fields uses `.?` (period
+-- before question-mark), not the JS-style `?.`. Verify against
+-- https://surrealdb.com/docs/surrealql/idioms before relying on it.
+SELECT spouse.?.name FROM person;
 ```
 
 ### Computed Table Views
@@ -2002,9 +2002,9 @@ COMMIT TRANSACTION;
 
 - Create indexes for fields used in `WHERE` clauses
 - Use `UNIQUE` indexes for natural keys (email, username)
-- Use full-text search indexes (`SEARCH ANALYZER`) for text search rather than `LIKE '%term%'`
+- Use full-text search indexes (`FULLTEXT ANALYZER`) for text search rather than substring matching
 - Use HNSW indexes for vector similarity search (faster, approximate)
-- Use MTREE indexes when exact nearest-neighbor results are required
+- For brute-force exact kNN without an index, use the `<|K,METRIC|>` operator (e.g. `vector <|2,EUCLIDEAN|> $query`)
 - Composite indexes should list the most selective column first
 - Avoid over-indexing: each index adds write overhead
 - Use `EXPLAIN` to verify index usage in queries
