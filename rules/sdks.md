@@ -740,19 +740,22 @@ asyncio.run(main())
 
 ### Embedded Connections
 
+The Python SDK supports two verified embedded URL schemes
+(`mem://` and `file://`); the upstream `examples/embedded/` and
+`async_embedded.py` source comment both pin the surface to "mem:// or
+file://". The earlier `surrealkv://` and `rocksdb://` schemes
+documented in v1.4.0 / v1.4.1 / v1.4.2 are not present in current
+upstream examples -- treat them as unverified until the upstream docs
+re-document them.
+
 ```python
 # In-memory (data lost when process exits)
-async with AsyncSurreal("memory") as db:
+async with AsyncSurreal("mem://") as db:
     await db.use("test", "test")
     await db.create("person", {"name": "Alice"})
 
-# SurrealKV persistent storage
-async with AsyncSurreal("surrealkv://mydb") as db:
-    await db.use("test", "test")
-    await db.create("person", {"name": "Alice"})
-
-# RocksDB persistent storage
-async with AsyncSurreal("rocksdb://mydb") as db:
+# File-backed persistence
+async with AsyncSurreal("file:///path/to/db") as db:
     await db.use("test", "test")
     await db.create("person", {"name": "Alice"})
 ```
@@ -866,44 +869,45 @@ go get github.com/surrealdb/surrealdb.go
 
 ### Connection
 
+The Go SDK supports two connection engines per upstream `db.go`:
+WebSocket and HTTP. **Embedded URL schemes (`mem://`, `surrealkv://`,
+`rocksdb://`) are not supported** -- the previous documentation
+that showed `surrealdb.New("mem://")` was wrong. The `New(url)` entry
+point itself is also marked `Deprecated` in current upstream;
+`FromEndpointURLString(ctx, url)` is the recommended replacement.
+
 ```go
 package main
 
 import (
     "context"
-    "fmt"
     surrealdb "github.com/surrealdb/surrealdb.go"
 )
 
 func main() {
     ctx := context.Background()
 
-    // WebSocket connection
-    db, err := surrealdb.New("ws://localhost:8000")
+    // Preferred entry point (current API)
+    db, err := surrealdb.FromEndpointURLString(ctx, "ws://localhost:8000")
     if err != nil {
         panic(err)
     }
-    defer db.Close()
+    defer db.Close(ctx)  // Close takes ctx
 
-    // HTTP connection
-    db, err = surrealdb.New("http://localhost:8000")
-    if err != nil {
-        panic(err)
-    }
-
-    // Embedded in-memory
-    db, err = surrealdb.New("mem://")
-
-    // Embedded on-disk
-    db, err = surrealdb.New("surrealkv://path.db")
+    // HTTP works the same way
+    // db, err = surrealdb.FromEndpointURLString(ctx, "http://localhost:8000")
 }
 ```
 
-### Authentication and Namespace Selection
+### Authentication and namespace selection
+
+`SignIn` capitalizes both letters; the method takes `ctx` first then
+an `any`-typed credential payload (struct or map). `Use` takes
+`ctx, ns, database`. Both return errors that must be checked.
 
 ```go
-// Sign in
-_, err = db.Signin(ctx, &surrealdb.Auth{
+// Sign in -- SignIn (capital I), takes ctx + any-typed credential
+_, err = db.SignIn(ctx, surrealdb.Auth{
     Username: "root",
     Password: "root",
 })
@@ -1128,80 +1132,134 @@ while let Some(notification) = stream.next().await {
 
 ## Java SDK
 
-**Package**: Available on Maven Central
-**Repository**: github.com/surrealdb/surrealdb.java
+> **v1.4.3 status note:** the v1.4.0 / v1.4.1 / v1.4.2 versions of
+> this section pinned a non-existent Maven version (`3.0.0`) and
+> documented an API surface (`db.connect("ws://...")`,
+> `db.signin("root", "root")`, `db.use("ns", "db")`,
+> `db.create("person", Map.of(...))`, `db.queryAsync(...)` returning
+> `CompletableFuture<...>`) that did not match the actual upstream
+> SDK. **Verified upstream on 2026-05-05** -- `repo1.maven.org`
+> shows `latest=2.0.1` (last updated 2026-04-28); the API uses
+> `Credential` typed objects and chained `useNs()` / `useDb()` calls;
+> `queryAsync` and `CompletableFuture` do not appear in the source
+> at all.
 
-### Maven Dependency
+**Package**: `com.surrealdb:surrealdb` on Maven Central
+**Verified version at v1.4.3 cut**: `2.0.1` (2026-04-28; previous
+versions `0.1.0`, `0.2.0`, `0.2.1`, `1.0.0-beta.1`, `2.0.0-alpha.1`,
+`2.0.0`, `2.0.1`)
+**Repository**: `github.com/surrealdb/surrealdb.java`
+**Java requirement**: JDK 8+ (verified for 8, 11, 17, 21, 25)
+**Native architectures**: Linux ARM/x86_64, Windows x86_64,
+macOS ARM/x86_64, Android Linux ARM/x86_64
+**Status**: stable
+
+### Maven dependency
 
 ```xml
 <dependency>
     <groupId>com.surrealdb</groupId>
     <artifactId>surrealdb</artifactId>
-    <version>3.0.0</version>
+    <version>2.0.1</version>
 </dependency>
 ```
 
-### Connection and Authentication
+Gradle:
+
+```groovy
+ext {
+    surrealdbVersion = "2.0.1"
+}
+
+dependencies {
+    implementation "com.surrealdb:surrealdb:${surrealdbVersion}"
+}
+```
+
+### Connection and authentication
+
+The SDK supports both embedded ("memory") and remote connections.
+Authentication takes a typed `Credential` object, not raw strings.
 
 ```java
 import com.surrealdb.Surreal;
+import com.surrealdb.RecordId;
+import com.surrealdb.signin.RootCredential;
+import com.surrealdb.signin.NamespaceCredential;
+import com.surrealdb.signin.DatabaseCredential;
 
-// WebSocket connection
-Surreal db = new Surreal();
-db.connect("ws://localhost:8000");
-db.signin("root", "root");
-db.use("my_ns", "my_db");
+try (Surreal driver = new Surreal()) {
+    // Embedded in-memory connection
+    driver.connect("memory");
 
-// HTTP connection
-db.connect("http://localhost:8000");
+    // Or remote connection (URL scheme is the connection target;
+    // verify against current upstream docs for HTTP/WS specifics)
+    // driver.connect("ws://localhost:8000");
+
+    // Namespace and database (chained, return NsDb)
+    driver.useNs("test").useDb("test");
+
+    // Authentication via typed Credential objects
+    driver.signin(new RootCredential("root", "root"));
+    // Or: driver.signin(new NamespaceCredential("ns_user", "ns_pass", "my_ns"));
+    // Or: driver.signin(new DatabaseCredential("db_user", "db_pass", "my_ns", "my_db"));
+}
 ```
 
-### CRUD Operations
+### Typed CRUD with `Class<T>`
+
+The Java SDK uses typed generics: pass a `Class<T>` to identify the
+record type and let the SDK marshal between Java types and SurrealDB
+records.
 
 ```java
-// Create
-db.create("person", Map.of(
-    "name", "Alice",
-    "age", 30
-));
+static class Person {
+    RecordId id;
+    String firstName;
+    String lastName;
+    boolean marketing;
 
-// Select
-List<Map<String, Object>> people = db.select("person");
+    public Person() {}  // default constructor required
+    public Person(String firstName, String lastName, boolean marketing) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.marketing = marketing;
+    }
+}
 
-// Query with parameters
-List<Map<String, Object>> results = db.query(
-    "SELECT * FROM person WHERE age > $min_age",
-    Map.of("min_age", 25)
-);
+// Create returns a List<T>
+List<Person> created = driver.create(Person.class, "person",
+    new Person("Alice", "Smith", true));
 
-// Update
-db.update("person:alice", Map.of(
-    "name", "Alice Smith",
-    "age", 31
-));
-
-// Merge
-db.merge("person:alice", Map.of("age", 32));
-
-// Delete
-db.delete("person:alice");
+// Select returns an Iterator<T>
+Iterator<Person> people = driver.select(Person.class, "person");
+while (people.hasNext()) {
+    System.out.println(people.next());
+}
 ```
 
-### Async Operations with CompletableFuture
+### Queries
+
+The SDK exposes two query methods: `query(sql)` for parameter-free
+SurrealQL and `queryBind(sql, params)` for parameterized statements.
+There is **no** `queryAsync` and the SDK does **not** return a
+`CompletableFuture` from query methods.
 
 ```java
-CompletableFuture<List<Map<String, Object>>> future = db.queryAsync(
-    "SELECT * FROM person WHERE age > $min_age",
-    Map.of("min_age", 25)
-);
+// Parameter-free
+driver.query("SELECT * FROM person");
 
-future.thenAccept(results -> {
-    results.forEach(System.out::println);
-}).exceptionally(error -> {
-    System.err.println("Query failed: " + error.getMessage());
-    return null;
-});
+// Parameterized
+driver.queryBind(
+    "SELECT * FROM person WHERE age > $min_age",
+    Map.of("min_age", 25));
 ```
+
+### Cross-references
+
+- Upstream README: `https://github.com/surrealdb/surrealdb.java`
+- Upstream Javadoc: `https://surrealdb.github.io/surrealdb.java/javadoc/`
+- Upstream docs portal: `https://surrealdb.com/docs/integration/libraries/java`
 
 ---
 
@@ -1289,8 +1347,17 @@ var adults = await db.Select<Person>("person")
 
 ## PHP SDK
 
+> **v1.4.3 status note:** the previous version of this section used
+> `"username"` / `"password"` keys in `signin()` (verified upstream uses
+> `"user"` / `"pass"`), did not capture the `signin()` token return
+> value, used double-quoted SurrealQL strings (PHP would interpolate
+> `$min_age`), and used string record-IDs everywhere where the
+> canonical upstream API uses typed `RecordId::create()` and
+> `Table::create()` objects. Rewritten 2026-05-05 against the upstream
+> `surrealdb/surrealdb.php` README + `src/Surreal.php` source.
+
 **Package**: `surrealdb/surrealdb.php` on Packagist
-**Repository**: github.com/surrealdb/surrealdb.php
+**Repository**: `github.com/surrealdb/surrealdb.php`
 
 ### Installation
 
@@ -1298,54 +1365,57 @@ var adults = await db.Select<Person>("person")
 composer require surrealdb/surrealdb.php
 ```
 
-### Basic Usage
+### Basic usage
 
 ```php
 use Surreal\Surreal;
+use Surreal\Cbor\Types\Record\RecordId;
+use Surreal\Cbor\Types\Table;
 
 $db = new Surreal();
 
 // Connect via WebSocket
 $db->connect("ws://localhost:8000/rpc");
 
-// Or via HTTP
-$db->connect("http://localhost:8000");
-
-// Authenticate
-$db->signin([
-    "username" => "root",
-    "password" => "root",
+// Authenticate -- keys are "user" / "pass" upstream (NOT
+// "username" / "password"). The signin call returns a token.
+$token = $db->signin([
+    "user" => "root",
+    "pass" => "root",
 ]);
 
 $db->use(["namespace" => "my_ns", "database" => "my_db"]);
 
-// Create
-$person = $db->create("person", [
+// Create -- prefer typed Table / RecordId objects per the upstream
+// canonical API; string targets may work but are not the documented
+// surface
+$person = $db->create(Table::create("person"), [
     "name" => "Alice",
     "age" => 30,
 ]);
 
 // Select
-$people = $db->select("person");
-$alice = $db->select("person:alice");
+$people = $db->select(Table::create("person"));
+$alice = $db->select(RecordId::create("person", "alice"));
 
-// Query
+// Query -- use SINGLE quotes around SurrealQL so PHP doesn't try to
+// interpolate `$min_age` as a variable
 $results = $db->query(
-    "SELECT * FROM person WHERE age > $min_age",
+    'SELECT * FROM person WHERE age > $min_age',
     ["min_age" => 25]
 );
 
 // Update
-$db->update("person:alice", [
+$db->update(RecordId::create("person", "alice"), [
     "name" => "Alice Smith",
     "age" => 31,
 ]);
 
 // Merge
-$db->merge("person:alice", ["age" => 32]);
+$db->merge(RecordId::create("person", "alice"), ["age" => 32]);
 
 // Delete
-$db->delete("person:alice");
+$db->delete(RecordId::create("person", "alice"));
 
 // Close
 $db->close();
@@ -1443,7 +1513,7 @@ the package exposes a freestanding macro DSL (`#select`, `#create`,
 **Package**: not yet published. The repo's `gradle.properties` declares
 `GROUP=com.surrealdb`, `VERSION_NAME=0.1.0-SNAPSHOT`. Maven Central has
 **no** `com.surrealdb:surrealdb-kotlin` artifact at the v1.4.2 cut.
-The Java SDK (`com.surrealdb:surrealdb` `1.0.0-beta.1`) is a separate
+The Java SDK (`com.surrealdb:surrealdb` `2.0.1`) is a separate
 artifact; consume that from Kotlin if you need a published JVM client
 today.
 **Repository**: `github.com/surrealdb/surrealdb.kotlin`
@@ -1601,7 +1671,7 @@ end
 | Factor | JS/TS | Python | Go | Rust | Java | .NET | PHP | Swift | Kotlin | Ruby |
 |--------|-------|--------|----|------|------|------|-----|-------|--------|------|
 | Published release | Yes | Yes | Yes | Yes | Yes (beta) | Yes | Yes | **No (no tags)** | **No (SNAPSHOT)** | Yes (0.7.0) |
-| Embedded engine | Yes | Yes | Yes | Yes | No | No | No | Unverified | No (HTTP/WS only in source) | Yes (`surrealdb-embedded` gem 0.7.0; FFI to `libsurrealdb_c`) |
+| Embedded engine | Yes | Yes (`mem://` / `file://`) | Yes | Yes | Yes (`memory` only) | Yes (`SurrealDb.Embedded.*` packages) | No | Unverified | No (HTTP/WS only in source) | Yes (`surrealdb-embedded` gem 0.7.0; FFI to `libsurrealdb_c`) |
 | WebSocket | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes (actor client) | Yes | Yes |
 | HTTP | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes (actor client) | Yes | Yes |
 | Live queries | Yes | Yes | Yes | Yes | Limited | Limited | No | Yes (`AsyncStream`) | Yes (`LiveQuerySubscription`) | Yes (UUID + subscribe) |
@@ -1616,7 +1686,7 @@ end
 - **Python**: data science, ML pipelines, scripting, backend APIs (FastAPI/Django), prototyping. Pair with `rules/langchain.md` for RAG.
 - **Go**: microservices, high-concurrency servers, CLI tools, cloud-native applications.
 - **Rust**: performance-critical apps, systems programming, embedded databases, Surrealism extensions (`rules/surrealism.md`).
-- **Java**: enterprise apps, Spring Boot services, JVM codebases. The published Maven artifact today is `com.surrealdb:surrealdb 1.0.0-beta.1`.
+- **Java**: enterprise apps, Spring Boot services, JVM codebases. The published Maven artifact today is `com.surrealdb:surrealdb 2.0.1` (verified via `repo1.maven.org/maven2/com/surrealdb/surrealdb/maven-metadata.xml`, last updated 2026-04-28). Supports embedded `memory` mode plus remote connections.
 - **Kotlin**: at the v1.4.2 cut, **no Maven release**; consume the Java SDK from Kotlin until upstream publishes `surrealdb-kotlin`.
 - **.NET**: ASP.NET, Windows services, C# codebases, Blazor.
 - **PHP**: Laravel/Symfony, WordPress plugins, traditional web apps.
