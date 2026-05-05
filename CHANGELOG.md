@@ -43,7 +43,7 @@ pre-release SDKs is deferred to v1.5.0.
 - Corrected version pin: latest gem `surrealdb` is `0.7.0` (published 2026-04-01 by SurrealDB authors). The v1.4.0 `~> 1.0` pin would not resolve.
 - Corrected required Ruby: `>= 3.2` (verified from `surrealdb.gemspec`); the v1.4.0 documentation said 3.1+.
 - Removed the entirely-fabricated `surrealdb-rails` gem, `SurrealDB::Record` ActiveRecord-shaped class, and `where`/`order`/`limit` chain examples. Neither the gem nor a `surrealdb/surrealdb-rails` GitHub repo exists (verified via rubygems.org and api.github.com).
-- Removed the fabricated `surrealdb-embedded` companion gem with FFI to `surrealdb-core` (does not exist on RubyGems).
+- Corrected the `surrealdb-embedded` companion gem claim. The gem **does** exist on RubyGems at v0.7.0 (published 2026-04-01 by SurrealDB authors, FFI to `libsurrealdb_c`, supports `mem://` / `surrealkv://` / `file://` URLs); the v1.4.0 API surface descriptions for it were hallucinated, so the section now points to the gem with a "API documentation pending v1.5.0 verification" caveat rather than restating the fabricated shape.
 - Corrected constructor: `SurrealDB::Client.new(url, **options)` then `.connect` (URL goes to constructor, not `connect`). Auth `signin(credentials_hash)` takes a positional Hash, not keyword arguments.
 - Corrected live-query shape: `live(resource)` returns a UUID; subscribe with `db.subscribe(uuid) { |event| ... }` and clean up with `db.kill(uuid)`. The v1.4.0 enumerator-returning `live(...).each do |event|` shape does not exist.
 
@@ -73,11 +73,13 @@ pre-release SDKs is deferred to v1.5.0.
 No consumer code changes. Rule-file content has been replaced; consumers
 that copy-pasted from v1.4.0 / v1.4.1 should re-pin to v1.4.2 and
 re-derive any code from the corrected rule text. In particular: drop
-`surrealdb-rails` / `surrealdb-embedded` gem references, drop
-`com.surrealdb:surrealdb-kotlin` Maven coordinates (use the published
-Java SDK `com.surrealdb:surrealdb 1.0.0-beta.1` from Kotlin until the
-KMP package publishes), and drop any `setup-surreal init / provision /
-grant` CLI invocations.
+`surrealdb-rails` gem references (the gem does not exist), keep
+`surrealdb-embedded` gem references but discard any v1.4.0 API
+example for it (the gem is real at v0.7.0 but the documented API
+shape was fabricated), drop `com.surrealdb:surrealdb-kotlin` Maven
+coordinates (use the published Java SDK `com.surrealdb:surrealdb
+1.0.0-beta.1` from Kotlin until the KMP package publishes), and drop
+any `setup-surreal init / provision / grant` CLI invocations.
 
 ## [1.4.1] - 2026-05-05
 
@@ -159,7 +161,9 @@ No consumer code changes (the skill ships rules + scripts; no library API). One 
 >   Maven coordinates, version pins, platform deployment targets, embedded
 >   engine support, API surfaces (`Surreal()` class shape, `db.connect`,
 >   `db.live(table:)`, `event.value()`), and companion gems
->   (`surrealdb-embedded`, `surrealdb-rails`). **Retracted in v1.4.2.**
+>   (`surrealdb-rails`; `surrealdb-embedded` is real but the v1.4.0
+>   API documentation for it was hallucinated). **Retracted in
+>   v1.4.2.**
 > - **`rules/deployment.md`** `setup-surreal` section -- documented the
 >   project as an opinionated CLI bootstrap binary with `init` /
 >   `provision` / `grant` / `helm-values` / `verify` subcommands and

@@ -1484,11 +1484,25 @@ and `Token(token: String)` variants -- there is no `Root` /
 > `surrealdb-rails` companion gem with `SurrealDB::Record` /
 > ActiveRecord-shaped chains, an `access:` keyword-style auth variant,
 > and a `live(...).each do |event|` enumerator-returning live-query
-> shape. **The companion gems do not exist** (rubygems.org 404 for
-> `surrealdb-rails` and `surrealdb-embedded`; GitHub `surrealdb-rails`
-> repo is 404). **The pinned `~> 1.0` does not exist either** -- the
-> latest official release is `0.7.0`. The remaining shape was
-> rewritten on 2026-05-05 to match the actual gem.
+> shape.
+>
+> Verified upstream on 2026-05-05:
+>
+> - `surrealdb-rails` does **not** exist (rubygems.org 404; GitHub
+>   `surrealdb/surrealdb-rails` repo 404). The `SurrealDB::Record`
+>   class and the ActiveRecord-shaped chain examples were fabricated.
+> - `surrealdb-embedded` **does** exist (RubyGems v0.7.0 published
+>   2026-04-01 by SurrealDB authors). It provides embedded database
+>   support (`mem://`, `surrealkv://`, `file://`) via FFI bindings to
+>   `libsurrealdb_c` (not `surrealdb-core` as the v1.4.0 narrative
+>   claimed). The v1.4.0 documented API for it was hallucinated; the
+>   gem itself is real but its surface needs fresh verification.
+> - The pinned `~> 1.0` does not exist -- the latest official release
+>   is `0.7.0`.
+>
+> The main-gem shape below was rewritten on 2026-05-05 to match the
+> actual `surrealdb` gem; `surrealdb-embedded` API documentation is
+> deferred to v1.5.0 after a fresh upstream pass.
 
 **Package**: `surrealdb` on RubyGems (verified)
 **Verified version at v1.4.2 cut**: `0.7.0` (published 2026-04-01 by
@@ -1570,7 +1584,7 @@ end
 | Factor | JS/TS | Python | Go | Rust | Java | .NET | PHP | Swift | Kotlin | Ruby |
 |--------|-------|--------|----|------|------|------|-----|-------|--------|------|
 | Published release | Yes | Yes | Yes | Yes | Yes (beta) | Yes | Yes | **No (no tags)** | **No (SNAPSHOT)** | Yes (0.7.0) |
-| Embedded engine | Yes | Yes | Yes | Yes | No | No | No | Unverified | No (HTTP/WS only in source) | Unverified |
+| Embedded engine | Yes | Yes | Yes | Yes | No | No | No | Unverified | No (HTTP/WS only in source) | Yes (`surrealdb-embedded` gem 0.7.0; FFI to `libsurrealdb_c`) |
 | WebSocket | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes (actor client) | Yes | Yes |
 | HTTP | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes (actor client) | Yes | Yes |
 | Live queries | Yes | Yes | Yes | Yes | Limited | Limited | No | Yes (`AsyncStream`) | Yes (`LiveQuerySubscription`) | Yes (UUID + subscribe) |
