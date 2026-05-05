@@ -142,3 +142,7 @@ jobs:
             head -1 "$subskill" | grep -q "^---" || { echo "ERROR: $subskill missing frontmatter"; exit 1; }
           done
           echo "All sub-skill manifests valid."
+
+      - name: Version consistency
+        run: |
+          python3 scripts/check_version_consistency.py
