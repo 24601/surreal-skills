@@ -452,7 +452,33 @@ external identity providers (Auth0, Okta, AWS Cognito, Google,
 Azure AD) that publish a JWKS document and rotate signing keys on
 their own schedule. The parser accepts `URL '<jwks-uri>'` as an
 alternative to `ALGORITHM <alg> KEY '<key>'` on both `TYPE JWT`
-and the nested `WITH JWT` clause inside `TYPE RECORD`.
+and the nested `WITH JWT` clause inside `TYPE RECORD` (the same
+`parse_jwt()` function is invoked from both call sites at
+`core/src/syn/parser/stmt/define.rs:454` and `:484`).
+
+> **JWKS verification requires the `jwks` Cargo feature at
+> build time.** The parser accepts `URL '<jwks-uri>'`
+> unconditionally, but every runtime arm that handles
+> `JwtAccessVerify::Jwks` is gated `#[cfg(feature = "jwks")]`
+> in `core/src/iam/verify.rs` (lines 228-240, 340-352, 412-424,
+> 573-585, 725-737). Without the feature, the JWKS arm is
+> replaced by a `_ => bail!(Error::AccessMethodMismatch)`
+> branch and the access definition stops authenticating.
+>
+> The `jwks` feature is **NOT** in the default
+> `surrealdb-server` feature set (`server/Cargo.toml:19-30` —
+> default = `[allocator, allocation-tracking, storage-mem,
+> storage-surrealkv, storage-rocksdb, scripting, http,
+> surrealism, graphql, cli]`); it is declared at
+> `server/Cargo.toml:32` as `jwks = ["surrealdb-core/jwks"]`,
+> which transitively gates `core/src/iam/jwks.rs` itself
+> (`core/Cargo.toml:45` makes the `jwks` core feature pull in
+> `dep:reqwest`).
+>
+> If you build SurrealDB from source, pass `--features jwks` to
+> `cargo build`. If you consume an official binary, verify
+> against the release notes that JWKS is enabled before relying
+> on `URL '<jwks-uri>'` for production verification.
 
 Verified against:
 
@@ -460,11 +486,15 @@ Verified against:
   inside `parse_jwt()` — `URL` is one of the two valid first
   tokens after the JWT type marker (alternative is `ALGORITHM`).
 - Verifier path: `core/src/iam/jwks.rs` (HTTP fetch, in-memory
-  cache keyed by URL, JWK lookup by `kid` header).
+  cache keyed by URL, JWK lookup by `kid` header). Compiled out
+  unless `--features jwks` is enabled per the callout above.
 - Test fixtures: `core/src/syn/parser/test/stmt.rs:703`, `:731`,
   `:762`, `:792`, `:823` exercising `TYPE JWT URL '…/jwks.json'`
   with and without `WITH ISSUER`, `DURATION FOR TOKEN`, and
-  `DURATION FOR SESSION` clauses.
+  `DURATION FOR SESSION` clauses. **No direct fixture covers
+  `TYPE RECORD WITH JWT URL` at present** — the parser
+  structure (`parse_jwt()` shared between call sites) makes the
+  shape supported, but the test coverage gap is worth noting.
 
 Operational notes:
 
@@ -473,17 +503,24 @@ Operational notes:
   variables read at `core/src/iam/jwks.rs:31-66`:
   `SURREAL_JWKS_CACHE_EXPIRATION_SECONDS` (default 12h),
   `SURREAL_JWKS_CACHE_COOLDOWN_SECONDS` (default 5m, throttles
-  re-fetch attempts after a `kid` miss), and
-  `SURREAL_JWKS_REMOTE_TIMEOUT_MILLISECONDS` (default 1000ms).
+  re-fetch after any cache miss including expired-cache + `kid`
+  miss), and `SURREAL_JWKS_REMOTE_TIMEOUT_MILLISECONDS` (default
+  1000ms).
 - Network access to the JWKS URL must be permitted by the
   capabilities allowlist at server start (e.g. `--allow-net
   '<jwks-host>'` or a broader policy). Otherwise verification
   fails with "Network access to JWKS location is not allowed"
-  (`core/src/iam/jwks.rs:238`).
-- When SurrealDB issues its own tokens (e.g.
-  `WITH ISSUER ALGORITHM … KEY …`), the `WITH ISSUER KEY` clause
-  is independent of the JWKS verification configuration. JWKS is
-  verification-only.
+  (`core/src/iam/jwks.rs:238`). Only the original URL host is
+  capability-checked; redirect targets are handled by the
+  underlying `reqwest` client without an additional
+  capabilities check (do not assume capability enforcement
+  applies to redirect chains — keep your IdP under a stable
+  hostname, or run JWKS through a proxy you control).
+- `WITH ISSUER` is **not** a JWKS-issuance hybrid for `TYPE
+  JWT` — see the verification-only callout at the top of
+  "JWT-Based Authentication" above. Use `TYPE RECORD WITH JWT
+  URL … WITH ISSUER KEY …` if you need both JWKS validation and
+  SurrealDB-side token minting.
 
 ```surrealql
 -- Validate JWTs issued by an external IdP (e.g. Auth0). No
@@ -519,13 +556,24 @@ DEFINE ACCESS hybrid_record ON DATABASE TYPE RECORD
     DURATION FOR TOKEN 10s, FOR SESSION 2d;
 ```
 
-When deploying with capabilities locked down, remember to allow
-the JWKS host (and any redirect targets) explicitly:
+When deploying with capabilities locked down, allow the JWKS
+host explicitly. Pin the IdP under one stable hostname rather
+than relying on capability enforcement of redirect chains
+(`core/src/iam/jwks.rs:268-313` only checks the original URL
+host before issuing the `reqwest` request):
 
 ```bash
 surreal start \
     --allow-net 'your-tenant.auth0.com' \
     rocksdb:///var/data/surreal.db
+```
+
+Build with the `jwks` feature for `URL` to actually authenticate
+incoming tokens:
+
+```bash
+# If building from source
+cargo build --release --features 'jwks,storage-rocksdb,storage-mem'
 ```
 
 ### Bearer-Token Authentication
