@@ -310,6 +310,85 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
 | PS256, PS384, PS512 | RSA-PSS (asymmetric) | Public key for verification |
 | EdDSA | EdDSA (asymmetric) | Public key for verification |
 
+### JWKS-Backed JWT (`URL` clause)
+
+Instead of pinning a single inline `KEY`, JWT access can resolve
+verification keys at request time from a remote
+[JSON Web Key Set](https://datatracker.ietf.org/doc/html/rfc7517#section-5)
+endpoint. This is the standard pattern for integrating with
+external identity providers (Auth0, Okta, AWS Cognito, Google,
+Azure AD) that publish a JWKS document and rotate signing keys on
+their own schedule. The parser accepts `URL '<jwks-uri>'` as an
+alternative to `ALGORITHM <alg> KEY '<key>'` on both `TYPE JWT`
+and the nested `WITH JWT` clause inside `TYPE RECORD`.
+
+Verified against:
+
+- Parser branch: `core/src/syn/parser/stmt/define.rs:1716-1722`
+  inside `parse_jwt()` — `URL` is one of the two valid first
+  tokens after the JWT type marker (alternative is `ALGORITHM`).
+- Verifier path: `core/src/iam/jwks.rs` (HTTP fetch, in-memory
+  cache keyed by URL, JWK lookup by `kid` header).
+- Test fixtures: `core/src/syn/parser/test/stmt.rs:703`, `:731`,
+  `:762`, `:792`, `:823` exercising `TYPE JWT URL '…/jwks.json'`
+  with and without `WITH ISSUER`, `DURATION FOR TOKEN`, and
+  `DURATION FOR SESSION` clauses.
+
+Operational notes:
+
+- The JWKS document is fetched lazily on the first verification
+  request and cached. Cache TTL is governed by environment
+  variables read at `core/src/iam/jwks.rs:31-66`:
+  `SURREAL_JWKS_CACHE_EXPIRATION_SECONDS` (default 12h),
+  `SURREAL_JWKS_CACHE_COOLDOWN_SECONDS` (default 5m, throttles
+  re-fetch attempts after a `kid` miss), and
+  `SURREAL_JWKS_REMOTE_TIMEOUT_MILLISECONDS` (default 1000ms).
+- Network access to the JWKS URL must be permitted by the
+  capabilities allowlist at server start (e.g. `--allow-net
+  '<jwks-host>'` or a broader policy). Otherwise verification
+  fails with "Network access to JWKS location is not allowed"
+  (`core/src/iam/jwks.rs:238`).
+- When SurrealDB issues its own tokens (e.g.
+  `WITH ISSUER ALGORITHM … KEY …`), the `WITH ISSUER KEY` clause
+  is independent of the JWKS verification configuration. JWKS is
+  verification-only.
+
+```surrealql
+-- Validate JWTs issued by an external IdP (e.g. Auth0). No
+-- inline KEY: SurrealDB fetches the JWK Set at request time and
+-- caches it for SURREAL_JWKS_CACHE_EXPIRATION_SECONDS.
+DEFINE ACCESS auth0_jwt ON DATABASE TYPE JWT
+    URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
+    DURATION FOR SESSION 12h;
+
+-- Same pattern, but as the JWT side of a TYPE RECORD access:
+-- third-party JWTs sign in record users.
+DEFINE ACCESS account ON DATABASE TYPE RECORD
+    WITH JWT
+        URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
+    DURATION FOR TOKEN 15m, FOR SESSION 12h;
+
+-- TYPE JWT can ALSO mint its own tokens (WITH ISSUER) while
+-- accepting JWKS-validated incoming tokens. Useful when SurrealDB
+-- federates with an external IdP for verification but issues its
+-- own short-lived tokens for SDK clients.
+DEFINE ACCESS hybrid_jwt ON DATABASE TYPE JWT
+    URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
+    WITH ISSUER ALGORITHM PS256 KEY '-----BEGIN PRIVATE KEY-----
+…
+-----END PRIVATE KEY-----'
+    DURATION FOR TOKEN 10s, FOR SESSION 2d;
+```
+
+When deploying with capabilities locked down, remember to allow
+the JWKS host (and any redirect targets) explicitly:
+
+```bash
+surreal start \
+    --allow-net 'your-tenant.auth0.com' \
+    rocksdb:///var/data/surreal.db
+```
+
 ### Bearer-Token Authentication
 
 SurrealDB v3 has no `TYPE API KEY` access -- pre-v1.5.1 revisions of
