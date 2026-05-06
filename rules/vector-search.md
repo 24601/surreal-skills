@@ -340,15 +340,20 @@ FROM document
 ORDER BY distance ASC
 LIMIT 10;
 
--- Jaccard similarity (set-based over numeric token IDs)
+-- Jaccard similarity over numeric token IDs (set semantics after dedup)
 -- Note: vector::similarity::jaccard dispatches as (Vec<Number>, Vec<Number>)
 -- per core/src/fnc/vector.rs:130. String tag arrays will fail runtime
 -- coercion; map your tokens to stable numeric IDs first.
-LET $query_tag_ids = [101, 205, 309];
+-- Wrap both arguments in array::distinct(...) to neutralise the v3.0.5
+-- multiset-asymmetric numerator (see callout below) and keep scores in [0, 1].
+LET $query_tag_ids = array::distinct([101, 205, 309]);
 
 SELECT
     id, name,
-    vector::similarity::jaccard(tag_ids, $query_tag_ids) AS similarity
+    vector::similarity::jaccard(
+        array::distinct(tag_ids),
+        $query_tag_ids
+    ) AS similarity
 FROM article
 ORDER BY similarity DESC
 LIMIT 10;
@@ -404,15 +409,28 @@ LIMIT 10;
 > - `vector::similarity::pearson(a, b)` computes the Pearson
 >   correlation coefficient
 >   (`covar / (std_dev_a * std_dev_b)`). Range `[-1, 1]` for
->   finite, non-zero-variance inputs. **Edge cases:** if either
->   operand is a constant vector (zero variance), the
->   denominator is zero AND the numerator is simultaneously
->   zero — for a constant `a`, every term
->   `(a_i − mean(a)) * (b_i − mean(b))` is zero, so `covar = 0`
->   and the result is `0 / 0 = NaN` (Infinity is mathematically
->   impossible here). Any `NaN` element in either input
->   propagates to a `NaN` result via NaN-poisoned mean and
->   covariance arithmetic (fixture
+>   finite, non-zero-variance inputs. **Edge cases:** if the
+>   `deviation(...)` calculation
+>   (`core/src/fnc/util/math/vector.rs:9-21`) returns exactly
+>   `0.0` for either operand, the numerator collapses
+>   simultaneously — every term
+>   `(a_i − mean(a)) * (b_i − mean(b))` evaluates to zero
+>   when `a` is exactly constant — so the result is
+>   `0 / 0 = NaN` (Infinity cannot occur because the
+>   constant-operand path forces `covar = 0` whenever
+>   `std_dev_a = 0`). This zero-deviation path is reachable
+>   for **integer** constant operands (e.g. `[1, 1, 1]`, where
+>   `mean()` returns `1` exactly and each `x_i − mean` is
+>   exactly `0.0`); for **floating-point** constant operands
+>   (e.g. `[0.1, 0.1, 0.1]`), `mean()` accumulates via
+>   `try_add` and the rounded mean is
+>   `0.10000000000000002`, so each `x_i − mean` is a non-zero
+>   ~1e-17, `std_dev_a` is a tiny positive value, and the
+>   ratio resolves to a tiny finite score (NOT `NaN`).
+>   Treat float-constant inputs as a degenerate-but-finite
+>   case rather than a guaranteed-NaN case. Any `NaN` element
+>   in either input propagates to a `NaN` result via
+>   NaN-poisoned mean and covariance arithmetic (fixture
 >   `core/tests/function.rs:3489-3495` asserts `"NaN"` as the
 >   second expected result for the NaN-element test). Suitable
 >   for
@@ -920,7 +938,7 @@ DEFINE INDEX idx_embedding ON TABLE document
 | MINKOWSKI | Generalised distance (Lp norm); set order via `DIST MINKOWSKI <p>` | No | [0, inf) |
 | CHEBYSHEV | Worst-case dimension difference | No | [0, inf) |
 | HAMMING | Binary features, hash comparison | N/A | [0, dim] |
-| JACCARD ⚠ | Set similarity (NOT distance — see warning below) | N/A | [0, 1] (similarity) |
+| JACCARD ⚠ | Numeric-token similarity (NOT distance — see warning below); pre-dedup inputs with `array::distinct(...)` for textbook set semantics | N/A | `[0, |b|]` raw (multiset-asymmetric numerator); `[0, 1]` after pre-dedup |
 | PEARSON ⚠ | Correlation-based similarity (NOT distance — see warning below) | No | [-1, 1] (similarity) |
 
 Most text embedding models produce normalized vectors, making COSINE the standard choice. If you are unsure, use COSINE.
