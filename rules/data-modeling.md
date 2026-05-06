@@ -323,7 +323,12 @@ RELATE person:alice->purchased->product:laptop SET
     price = 1299.99,
     purchased_at = time::now();
 
--- CONTENT syntax for edge properties
+-- CONTENT syntax for edge properties — define the edge first.
+DEFINE TABLE reviewed TYPE RELATION IN person OUT product ENFORCED;
+DEFINE FIELD rating ON TABLE reviewed TYPE int;
+DEFINE FIELD text ON TABLE reviewed TYPE option<string>;
+DEFINE FIELD helpful_votes ON TABLE reviewed TYPE int DEFAULT 0;
+
 RELATE person:bob->reviewed->product:laptop CONTENT {
     rating: 5,
     text: 'Excellent product',
@@ -334,6 +339,12 @@ RELATE person:bob->reviewed->product:laptop CONTENT {
 ### Graph Traversal Patterns
 
 ```surql
+-- Edges used in this section (define before use; v3 still
+-- creates RELATE rows on undefined edge tables under
+-- SCHEMALESS, but the explicit definition documents the
+-- expected shape and lets ENFORCED reject malformed RELATEs):
+DEFINE TABLE knows TYPE RELATION IN person OUT person ENFORCED;
+
 -- Forward traversal: who did person:tobie write articles for?
 SELECT ->wrote->article FROM person:tobie;
 
@@ -365,7 +376,10 @@ SELECT ->purchased[WHERE quantity > 1]->product FROM person:tobie;
 ### Recursive Graph Queries
 
 ```surql
--- Setup: family tree
+-- Setup: family tree. Define the edge first so ENFORCED
+-- catches malformed RELATEs at write time.
+DEFINE TABLE parent_of TYPE RELATION IN person OUT person ENFORCED;
+
 CREATE person:alice, person:bob, person:charlie, person:diana;
 RELATE person:bob->parent_of->person:alice;
 RELATE person:charlie->parent_of->person:bob;
