@@ -49,10 +49,33 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Process notes
 
-3 atomic feature commits (kNN metric fix; illustrative-edge
-consistency; security.md ride-along cite) + release commit.
-Per the v1.6.3 fast-ratification pattern (1-pass cycle for
-small-surface polish), expect 1-3 4-WAY review revisions.
+3 atomic commits (kNN metric fix; illustrative-edge
+consistency; release-with-bundled-security-cite) + 1 rev-2
+review-fix commit closing pass-1 findings.
+
+Pass-1 4-WAY review:
+- Cursor: CONDITIONAL GO (0 CRITs / 1 IMP / 3 minors)
+- Codex:  NO-GO          (1 CRIT / 2 IMPs / 1 minor)
+- Gemini: GO              (0 findings)
+- Pi:     pending at rev-2 dispatch
+
+Rev-2 closes:
+- **Codex C1**: rev-1 doc described `<|k|>` (NearestNeighbor::KTree)
+  as "requires a defined index" — but per
+  `core/src/exec/planner/util.rs:391` + `analysis.rs:1001-1005`
+  + `select.rs:1421-1425`, KTree is parser-accepted but NOT
+  handled at the planner level in v3.0.5 (legacy v2 m-tree
+  remnant). Rewrote to clarify only `<|k,dist|>` and
+  `<|k,ef|>` are implemented; `<|k|>` is grammar-accepted
+  with no active planner path.
+- **Cursor I1**: security.md still had two stale `verify.rs:288-297`
+  + one `:824-825` ref at lines 548 + 1659-1661 that the
+  rev-1 ride-along missed. Replace-all fixed.
+- **Codex I1**: CHANGELOG commit-count drift. Now accurately
+  reflects 3 atomic + 1 rev-2 review-fix commit shape.
+- **Codex M1**: `:826` is the closing brace, not the body
+  line — reworded to describe the arm as `_ => Err(...)` on
+  `:825-826` (pattern + body).
 
 ## [1.6.3] - 2026-05-06 — `rules/security.md` v1.6.2 pass-7 deferred-IMP polish (1 atomic doc commit + release commit + rev-2 review-fix commit)
 

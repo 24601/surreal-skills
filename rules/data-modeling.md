@@ -806,11 +806,27 @@ WHERE embedding <|10,EUCLIDEAN|> $query_embedding
 ORDER BY distance ASC;
 ```
 
-The `<|k,…|>` brute-force form has two siblings — `<|k|>`
-(`NearestNeighbor::KTree`, requires a defined index) and
-`<|k,ef|>` (`NearestNeighbor::Approximate`, HNSW with explicit
-`ef` parameter). Keep the score-vs-filter metric paired in all
-three forms.
+The `<|k,…|>` brute-force form has two siblings in the
+parser, but only one is fully implemented at the planner
+level in v3.0.5:
+
+- `<|k,dist|>` = `NearestNeighbor::K` — **brute-force kNN**
+  (the form shown above). Always handled.
+- `<|k,ef|>` = `NearestNeighbor::Approximate` — **HNSW with
+  explicit `ef` parameter**. Stripped + consumed by
+  `KnnScan` via the HNSW index per
+  `core/src/exec/planner/util.rs:391`.
+- `<|k|>` = `NearestNeighbor::KTree` — **parser-accepted but
+  not handled** in v3.0.5: `util.rs:391` notes it "is left in
+  place" and `core/src/exec/index/analysis.rs:1001-1005` +
+  `core/src/exec/planner/select.rs:1421-1425` document that
+  the planner does not currently strip / dispatch it. Stick
+  to the explicit `<|k,dist|>` (brute-force) or `<|k,ef|>`
+  (HNSW) forms; the bare `<|k|>` shape is a legacy v2 m-tree
+  remnant in the grammar with no active planner path.
+
+Keep the score-vs-filter metric paired in the two
+implemented forms.
 
 ### RAG (Retrieval-Augmented Generation) Pattern
 
