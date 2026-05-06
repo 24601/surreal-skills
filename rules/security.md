@@ -548,6 +548,17 @@ and the nested `WITH JWT` clause inside `TYPE RECORD` (the same
 > `cargo build`. If you consume an official binary, verify
 > against the release notes that JWKS is enabled before relying
 > on `URL '<jwks-uri>'` for production verification.
+>
+> **The gate applies even to hybrid setups.** A `TYPE RECORD WITH
+> JWT URL '<jwks>' WITH ISSUER ALGORITHM <alg> KEY '<priv>'`
+> definition keeps inline-key issuance (the `WITH ISSUER` half
+> doesn't itself need `reqwest`), but the verification half still
+> goes through the same `JwtAccessVerify::Jwks` arms that are
+> `#[cfg(feature = "jwks")]`. Without `--features jwks`, the
+> access method **stops authenticating entirely** even though
+> the issuance side technically still has its key — incoming
+> tokens hit the `_ => bail!(AccessMethodMismatch)` branch on
+> the verification path before the issuer ever runs.
 
 Verified against:
 
@@ -560,10 +571,15 @@ Verified against:
 - Test fixtures: `core/src/syn/parser/test/stmt.rs:703`, `:731`,
   `:762`, `:792`, `:823` exercising `TYPE JWT URL '…/jwks.json'`
   with and without `WITH ISSUER`, `DURATION FOR TOKEN`, and
-  `DURATION FOR SESSION` clauses. **No direct fixture covers
-  `TYPE RECORD WITH JWT URL` at present** — the parser
-  structure (`parse_jwt()` shared between call sites) makes the
-  shape supported, but the test coverage gap is worth noting.
+  `DURATION FOR SESSION` clauses. **No dedicated parser fixture
+  covers `TYPE RECORD WITH JWT URL` directly**, but the runtime
+  verifier exercises the shape via the
+  `#[cfg(feature = "jwks")]` test at
+  `core/src/iam/verify.rs:1495-1497` (definition at `:1560-1564`,
+  end-to-end JWT validation at `:1607-1623`). Combined with the
+  shared `parse_jwt()` call from both `t!("JWT")` (line 454,
+  standalone) and the `WITH JWT` arm of TYPE RECORD (line 484),
+  the nested form is fully supported.
 
 Operational notes:
 
@@ -622,7 +638,7 @@ DEFINE ACCESS hybrid_record ON DATABASE TYPE RECORD
     WITH ISSUER ALGORITHM PS256 KEY '-----BEGIN PRIVATE KEY-----
 …
 -----END PRIVATE KEY-----'
-    DURATION FOR TOKEN 10s, FOR SESSION 2d;
+    DURATION FOR TOKEN 15m, FOR SESSION 12h;
 ```
 
 When deploying with capabilities locked down, allow the JWKS
