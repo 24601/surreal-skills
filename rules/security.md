@@ -158,10 +158,26 @@ DEFINE ACCESS tenant_account ON DATABASE TYPE RECORD
 
 JWT access allows external identity providers to authenticate users with SurrealDB.
 
-> **`TYPE JWT` only supports `DURATION FOR SESSION`** — it does not
-> accept `DURATION FOR TOKEN` because the token lifetime is set by the
-> external issuer, not by SurrealDB. Use `FOR SESSION` to bound how
-> long an authenticated session backed by a JWT may last on the server.
+> **`TYPE JWT` accepts both `DURATION FOR TOKEN` and `DURATION FOR
+> SESSION`** (verified against the v3.0.5 parser at SHA `a97d3af85d79`
+> — see test fixtures in `core/src/syn/parser/tests/stmt.rs:560` /
+> `:764` / `:825` which exercise `TYPE JWT … DURATION FOR TOKEN 10s
+> [, FOR SESSION 2d]` patterns successfully). Semantics depend on
+> whether the access definition includes an issuer key:
+>
+> - **With `WITH ISSUER KEY` present** (SurrealDB issues JWTs): `FOR
+>   TOKEN` controls the lifetime of tokens SurrealDB mints. Default
+>   is 1h (`AccessDuration::default()` in `core/src/sql/access_type.rs`);
+>   `signin.rs:319` calls `expiration(av.token_duration)` when issuing.
+> - **Verification-only JWT** (no issuer key, SurrealDB only validates
+>   externally-issued JWTs): the parser accepts `FOR TOKEN` but the
+>   external issuer's `exp` claim controls the actual token lifetime —
+>   the `FOR TOKEN` value here is effectively a no-op upper bound.
+>
+> Use `FOR SESSION` to bound how long an authenticated session backed
+> by a JWT may last on the server. Pre-v1.5.8 revisions of this rule
+> incorrectly claimed `FOR TOKEN` was rejected on `TYPE JWT`; that
+> claim came from a docs-only reading and contradicts the parser.
 
 ```surrealql
 -- HMAC-based JWT (symmetric key)

@@ -1039,6 +1039,55 @@ REMOVE MODULE my_module;
 REMOVE BUCKET images;
 ```
 
+### ALTER
+
+Modifies an existing schema object in-place. v3 dispatches `ALTER`
+across seven targets (verified at `core/src/syn/parser/stmt/alter.rs`
+lines 14-29 and `core/src/expr/statements/alter/`):
+`ALTER SYSTEM`, `ALTER NAMESPACE`, `ALTER DATABASE`, `ALTER TABLE`,
+`ALTER INDEX`, `ALTER FIELD`, `ALTER SEQUENCE`. Use `ALTER` when you
+need to change an attribute of an existing definition without
+losing the object's history or dropping dependent objects (which a
+`REMOVE` + `DEFINE` cycle would do).
+
+```surql
+-- ALTER SYSTEM — set or drop the global query timeout, run a global
+-- compaction.
+ALTER SYSTEM COMPACT;
+ALTER SYSTEM QUERY_TIMEOUT 30s;
+ALTER SYSTEM DROP QUERY_TIMEOUT;
+
+-- ALTER NAMESPACE / ALTER DATABASE — primarily for COMPACT.
+ALTER NAMESPACE COMPACT;
+ALTER DATABASE COMPACT;
+
+-- ALTER TABLE — change an existing table's attributes without
+-- dropping the table or its data. Supports COMPACT, SET/DROP
+-- COMMENT, SET/DROP CHANGEFEED, schema-mode toggle (SCHEMAFULL /
+-- SCHEMALESS), TYPE switch (NORMAL / RELATION / ANY), and
+-- PERMISSIONS rewriting.
+ALTER TABLE person COMPACT;
+ALTER TABLE person COMMENT 'User accounts';
+ALTER TABLE person DROP COMMENT;
+ALTER TABLE person CHANGEFEED 7d;
+ALTER TABLE person DROP CHANGEFEED;
+ALTER TABLE person SCHEMAFULL;
+ALTER TABLE wrote TYPE RELATION FROM person TO article;
+ALTER TABLE person PERMISSIONS FOR select WHERE id = $auth.id;
+
+-- ALTER INDEX — primarily COMPACT, optionally idempotent.
+ALTER INDEX email_idx ON TABLE person COMPACT;
+ALTER INDEX IF EXISTS optional_idx ON TABLE person COMPACT;
+
+-- ALTER FIELD — change an existing field's DEFAULT, ASSERT,
+-- VALUE, READONLY, or PERMISSIONS without dropping the field.
+ALTER FIELD email ON TABLE person DEFAULT 'unknown@example.com';
+ALTER FIELD age ON TABLE person ASSERT $value >= 0;
+
+-- ALTER SEQUENCE — restart the sequence at a new starting value.
+ALTER SEQUENCE order_no RESTART 1000;
+```
+
 ### REBUILD INDEX
 
 Rebuilds indexes, useful after bulk data operations.

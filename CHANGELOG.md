@@ -3,6 +3,108 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.8] - 2026-05-05
+
+### Fixed (atomic-protocol patch — v1.5.7 Pi-only re-audit CRIT remediation)
+
+An eighth Pi+DeepSeek-V4-Pro:xhigh adversarial pass over the same
+six rules audited in pass-7 returned **3 GO + 1 CONDITIONAL GO + 2
+NO-GO** with **2 CRITs** total. v1.5.8 patches both. Both CRITs are
+**pre-existing latent bugs** missed by all 7 prior passes — not
+fix-drift from the v1.5.7 surgery — surfaced by pass-8's deeper
+parser-source verification.
+
+#### Per-file CRIT counts (pass-8)
+
+- **`rules/security.md` (1 CRIT — pre-existing since v1.4.x):
+  TYPE JWT DURATION FOR TOKEN claim has been wrong since v1.4.x.**
+  The callout block at line ~161 stated "TYPE JWT only supports
+  DURATION FOR SESSION — it does not accept DURATION FOR TOKEN
+  because the token lifetime is set by the external issuer." Pass-8
+  verified against the v3.0.5 parser at SHA `a97d3af85d79`:
+  - `core/src/syn/parser/tests/stmt.rs:560` — `TYPE JWT ALGORITHM
+    HS256 KEY "foo" DURATION FOR TOKEN 10s` parses successfully.
+  - `core/src/syn/parser/tests/stmt.rs:825` — `TYPE JWT URL "..."
+    WITH ISSUER ALGORITHM PS256 KEY "foo" DURATION FOR TOKEN 10s,
+    FOR SESSION 2d` parses successfully.
+  - `core/src/syn/parser/tests/stmt.rs:764` — same pattern succeeds.
+  - `AccessDuration::default()` sets `token=1h` even for `TYPE JWT`.
+  - `signin.rs:319` issues JWT with
+    `expiration(av.token_duration)`.
+  The pass-1 fix (which led to the original callout being added in
+  v1.5.1) was based on incomplete docs reading; the parser actually
+  accepts `FOR TOKEN` on `TYPE JWT`. Semantics depend on whether an
+  issuer key is present: with `WITH ISSUER KEY`, SurrealDB issues
+  tokens and `FOR TOKEN` controls their lifetime; for verification-
+  only JWT (no issuer), the parser accepts `FOR TOKEN` but the
+  external issuer's `exp` claim is authoritative. The callout is
+  rewritten with the corrected semantics + parser-source citation.
+
+- **`rules/surrealql.md` (1 CRIT — pre-existing since before
+  v1.4.0): `ALTER` statement category entirely absent.** v3.0.5
+  has `ALTER` as a DDL statement category dispatching to seven
+  targets (verified at `core/src/syn/parser/stmt/alter.rs:14-29`
+  and `core/src/expr/statements/alter/`):
+  - `ALTER SYSTEM` — COMPACT, set/drop QUERY_TIMEOUT.
+  - `ALTER NAMESPACE` / `ALTER DATABASE` — COMPACT.
+  - `ALTER TABLE` — COMPACT, COMMENT, CHANGEFEED, schema-mode
+    toggle (SCHEMAFULL/SCHEMALESS), TYPE switch (NORMAL/RELATION/
+    ANY), PERMISSIONS rewriting.
+  - `ALTER INDEX` — COMPACT (with optional IF EXISTS).
+  - `ALTER FIELD` — change DEFAULT, ASSERT, VALUE, READONLY,
+    PERMISSIONS without dropping the field.
+  - `ALTER SEQUENCE` — RESTART value.
+  The file's own v3.0.5 patch-notes entry references "ALTER
+  coverage expanded (#7126)" — creating a discoverability
+  asymmetry where users learn ALTER exists but can't find the
+  syntax. v1.5.8 adds an `### ALTER` section under the Statements
+  section after `### REMOVE`, with parser-verified examples for
+  all seven targets.
+
+`rules/data-modeling.md`, `rules/vector-search.md`,
+`rules/performance.md` returned **GO** with 0 CRITs.
+`rules/graph-queries.md` returned **CONDITIONAL GO** with 0 CRITs
+(one IMPORTANT — `fn::refresh_user_stats` SELECT vs SELECT VALUE
+in `count()` subqueries — deferred to v1.6.0 as a non-blocking
+documentation polish).
+
+`rules/performance.md` achieving GO is the most significant single
+result of the cycle: this file had the highest cumulative CRIT
+count (18 across passes 1-7) and historically the largest fix-drift
+surface. Pass-8 verifies all 18 fabrications (DEFER,
+`--rocksdb-cache-size`, `--max-connections`, EXPLAIN-shape claims,
+RangeScan/standalone-Iterate, --conn, FORMAT TEXT regression, etc.)
+are corrected and held under fresh source-cited scrutiny.
+
+Pass-8 IMPORTANTs (security.md WITH REFRESH on TYPE RECORD / JWKS
+URL discovery / ACCESS REVOKE-SHOW-PURGE / DEFINE USER PASSHASH;
+surrealql.md `encoding::*`, `bytes::*`, `file::*`, `schema::*`,
+`sequence::*` function namespaces / DEFINE API / DEFINE CONFIG /
+INFO FOR INDEX-USER variants; graph-queries.md SELECT vs SELECT
+VALUE bug in fn::refresh_user_stats) and MINORs are deferred to
+v1.6.0 — they are documentation gaps or polish, not contradictions
+of upstream — tracked in residual-risk lists at
+`/tmp/pi-{rule}-pass8-out.md`.
+
+Migration: consumers who copied the `TYPE JWT only supports
+DURATION FOR SESSION` callout from any pre-v1.5.8 revision should
+re-read the corrected callout — `TYPE JWT` accepts both `FOR
+TOKEN` and `FOR SESSION`; semantics depend on issuer-key presence.
+Consumers seeking `ALTER` syntax in pre-v1.5.8 revisions of
+surrealql.md should now consult the new §"ALTER" subsection.
+Machine-checked version-consistency CI gate continues to apply.
+
+Cumulative CRITs across atomic-protocol cycle: v1.5.1=21, v1.5.2=7,
+v1.5.3=15, v1.5.4=6, v1.5.5=6, v1.5.6=5, v1.5.7=1, v1.5.8=2 =
+**63 CRITs found-and-fixed across eight passes**. Pass-8 surfaces
+two pre-existing latent bugs that 7 prior passes (and the v1.4.4
+adversarial round) all missed — demonstrating the atomic-protocol
+cycle is still finding real upstream-mismatches even at this depth.
+Pass-9 will test whether v1.5.8's small surgery (callout rewrite +
+new ALTER section) introduces fix-drift; given the ALTER section
+is ~50 new lines of grammar examples it has the highest drift risk
+of any post-pass-7 surgery.
+
 ## [1.5.7] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — v1.5.6 Pi-only re-audit CRIT remediation)
