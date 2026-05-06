@@ -70,7 +70,7 @@ DEFINE USER db_reader ON DATABASE PASSWORD 'reader-pass' ROLES VIEWER;
 verified against the v3.0.5 parser at
 `core/src/syn/parser/stmt/define.rs:310-413` (`parse_define_user`)
 and the test fixtures at `core/src/syn/parser/test/stmt.rs:291`,
-`:318`, `:344`, `:373`, `:402`.
+`:318`, `:344`, `:373`.
 
 #### `PASSHASH '<phc-string>'` — Provide a Pre-Hashed Password
 
@@ -83,7 +83,21 @@ time
 that you have hashed yourself (or migrated from another system),
 and stores it as-is. The two clauses are mutually exclusive — the
 parser bails with "Can't set both a passhash and a password" at
-`define.rs:349` / `:356`.
+`define.rs:348-349` / `:355-356`.
+
+> **PHC validation runs at signin time, not define time.** The
+> parser stores whatever string you pass verbatim
+> (`define.rs:353-358` assigns `PassType::Hash(self.parse_string_lit()?)`
+> with no format check, and `core/src/expr/statements/define/user.rs:97-103`
+> persists `hash: self.hash.clone()`). The first time the value
+> is interpreted is during signin at
+> `core/src/iam/verify.rs:945-952` — `PasswordHash::new(hash)`
+> rejects malformed PHC strings there. So `DEFINE USER alice ON
+> ROOT PASSHASH 'not-actually-a-phc-string'` succeeds at define
+> time and fails on first signin attempt with
+> "Invalid password hash". Treat `PASSHASH` as a "store as-is,
+> validate-on-use" clause; do not rely on define-time syntax
+> checking.
 
 Use `PASSHASH` when:
 
@@ -96,9 +110,10 @@ Use `PASSHASH` when:
   source file (hash externally, commit the PHC string).
 
 ```surrealql
--- Migrate an existing argon2-hashed user. The hash MUST be a
--- valid PHC string (starts with $argon2id$ / $argon2i$ / $argon2d$);
--- bare hex digests will not authenticate.
+-- Migrate an existing argon2-hashed user. The hash must be a
+-- valid argon2 PHC string at the time of the user's first
+-- signin (starts with $argon2id$ / $argon2i$ / $argon2d$);
+-- bare hex digests will store successfully but fail signin.
 DEFINE USER alice ON ROOT
     PASSHASH '$argon2id$v=19$m=19456,t=2,p=1$<salt-b64>$<hash-b64>'
     ROLES EDITOR
@@ -126,9 +141,13 @@ at `define.rs:336`; default session = `Literal::None` at
 `core/src/sql/statements/define/user.rs:43`). The `DURATION`
 clause overrides those defaults per user. Both
 `FOR TOKEN <dur>` and `FOR SESSION <dur>` are accepted, in either
-order, comma-separated; either one alone is also valid. Use
-`NONE` to opt out of any expiry on the corresponding axis (test
-fixture at `stmt.rs:402` exercises `DURATION FOR TOKEN NONE`).
+order, comma-separated; either one alone is also valid. The
+parser also accepts `NONE` as an expiry value (the parser parses
+through `parse_expr_field()` which evaluates `NONE` to a sentinel
+value the runtime treats as no-expiry); the v3.0.5 test suite
+contains a commented-out `DURATION FOR TOKEN NONE` block at
+`stmt.rs:398-407` that is not active, so the public-test
+provenance for this exact form is indirect.
 
 Apply at signin time at
 `core/src/iam/signin.rs:481` / `:502` (token + session expiry
