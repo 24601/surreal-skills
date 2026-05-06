@@ -144,15 +144,22 @@ clause overrides those defaults per user. Both
 order, comma-separated; either one alone is also valid. The
 parser also accepts `NONE` as an expiry value (the parser parses
 through `parse_expr_field()` which evaluates `NONE` to a sentinel
-value the runtime treats as no-expiry). For `DEFINE USER`
-specifically, the v3.0.5 test suite has a commented-out `DURATION
-FOR TOKEN NONE` block at `core/src/syn/parser/test/stmt.rs:398-407`
-that is not active, so direct public-test provenance for the
-`DEFINE USER … DURATION FOR TOKEN NONE` shape is indirect; for
-`DEFINE ACCESS`, the same syntax is exercised by active fixtures
-at `stmt.rs:627` (TYPE JWT), `:1256` (TYPE RECORD ON DB), `:1264`
-(TYPE RECORD ON ROOT), and `:1272` (TYPE RECORD ON NS) which
-share the underlying parser path.
+value the runtime treats as no-expiry). The v3.0.5 test suite
+contains `DURATION FOR TOKEN NONE` blocks at
+`core/src/syn/parser/test/stmt.rs:398-407` (DEFINE USER),
+`:623-631` (DEFINE ACCESS TYPE JWT), and `:1250-1276` (DEFINE
+ACCESS TYPE RECORD on DB / ROOT / NS), but **all four blocks
+are commented out** with `/* ... */` wrappers and call
+`unwrap_err()` on the parse — they exist as anti-fixtures
+documenting why the syntax was suppressed during a
+parameterization refactor (see the `// TODO: Parameterization
+broke the guarantee that token duration is not none.` note at
+stmt.rs:1252). So direct positive-fixture provenance for
+`DURATION FOR TOKEN NONE` does not exist in v3.0.5; the syntax
+flows through `parse_expr_field()` and the runtime treats
+`Literal::None` as no-expiry, but consumers who need the
+behaviour should validate against an actual signin/authenticate
+round-trip rather than relying on parse-only confirmation.
 
 Apply at signin time at
 `core/src/iam/signin.rs:481` / `:502` (token + session expiry
@@ -323,15 +330,20 @@ Key semantics:
   `core/src/iam/signin.rs:893-917`). Reusing a consumed refresh
   token is rejected.
 - The refresh value the client sees is the full bearer key with
-  the prefix `surreal-refresh-<id>-<secret>` (constructed inside
-  `core/src/iam/access.rs:107-170` via the `create_grant`
-  dispatch at `core/src/expr/statements/access.rs:121-126` and
-  the bearer-key assembly at `:133-134`). Signin validates four
-  dash-separated parts at `core/src/iam/signin.rs:1042-1056`,
-  with the runtime regex confirming the shape at `:1582-1584`.
-  Persist the entire string SurrealDB hands back verbatim — do
-  not strip the `surreal-refresh-` prefix or split on `-`
-  client-side.
+  the prefix `surreal-refresh-<id>-<secret>`. Construction
+  chain: `core/src/iam/access.rs:107-170`
+  (`create_refresh_token_record`) calls into `create_grant` at
+  `core/src/expr/statements/access.rs:181+`, which constructs
+  the literal key in `new_grant_bearer` at `:121-126`
+  (`format!("{prefix}-{id}-{secret}")`); the record-refresh
+  call site is `:237-242`. Signin validates four dash-separated
+  parts (prefix-type / `refresh` / id / secret) inside
+  `validate_grant_bearer` at `core/src/iam/signin.rs:1042-1056`.
+  The integration test at `signin.rs:1582-1584` asserts the
+  `surreal-refresh-…` regex on the returned plaintext — that
+  reference is a test, not a production code path. Persist the
+  entire string SurrealDB hands back verbatim — do not strip
+  the `surreal-refresh-` prefix or split on `-` client-side.
 - `WITH REFRESH` and `WITH JWT` can coexist in either order; the
   parser loop accepts repeated `WITH` clauses (test fixtures
   `:1108` shows `WITH REFRESH WITH JWT …`; `:1163` shows
@@ -472,9 +484,11 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 --     RS256 / HS256 / etc. from the verifier — works correctly
 --     for asymmetric pairs as long as the verifier alg is set.
 --   • SYMMETRIC inline verifiers (HS256/HS384/HS512) ALSO copy
---     the verifier key into `iss.key` automatically (line 1707)
---     — `WITH ISSUER` is optional for those; you can mint with
---     just the inline `ALGORITHM HS256 KEY '<secret>'`.
+--     the verifier key into `iss.key` automatically (line 1703;
+--     full block at lines 1702-1708 sets `iss.key = key` then
+--     `res.issue = Some(iss.clone())`) — `WITH ISSUER` is
+--     optional for those; you can mint with just the inline
+--     `ALGORITHM HS256 KEY '<secret>'`.
 --   • `URL '<jwks>'` (JWKS) verifier: parser does NOT set
 --     `iss.alg` (the URL arm at lines 1716-1722 has no
 --     `iss.alg = ...` line). `iss.alg` stays at
@@ -527,9 +541,22 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
 |---|---|---|
 | HS256, HS384, HS512 | HMAC (symmetric) | Shared secret key |
 | RS256, RS384, RS512 | RSA (asymmetric) | Public key for verification |
-| ES256, ES384, ES512 | ECDSA (asymmetric) | Public key for verification |
+| ES256, ES384 | ECDSA (asymmetric) | Public key for verification |
+| ES512 | ECDSA (asymmetric) | **Maps to ES384 at runtime** — see caveat below |
 | PS256, PS384, PS512 | RSA-PSS (asymmetric) | Public key for verification |
 | EdDSA | EdDSA (asymmetric) | Public key for verification |
+
+> **ES512 caveat.** The parser accepts `ALGORITHM ES512` but
+> v3.0.5 maps `catalog::Algorithm::Es512` to
+> `jsonwebtoken::Algorithm::ES384` in both verification
+> (`core/src/iam/verify.rs:47-48`) and the
+> algorithm-to-jwt-algorithm helper used during issuance
+> (`core/src/iam/mod.rs:46-47`). Tokens minted under `ES512`
+> are actually signed with the ES384 algorithm, and external
+> JWTs that carry an `alg: ES512` header will be validated as
+> ES384. Use `ES384` directly (or one of the other ECDSA /
+> EdDSA algorithms) if you want truthful algorithm advertising
+> in your JWT headers.
 
 ### JWKS-Backed JWT (`URL` clause)
 
