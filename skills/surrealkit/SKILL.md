@@ -3,10 +3,10 @@ name: surrealkit
 description: "SurrealKit schema sync, rollout migrations, seeding, and declarative testing for SurrealDB apps. Part of the surreal-skills collection."
 license: MIT
 metadata:
-  version: "1.5.10"
+  version: "1.6.0"
   author: "24601"
   parent_skill: "surrealdb"
-  snapshot_date: "2026-05-05"
+  snapshot_date: "2026-05-06"
   upstream:
     repo: "surrealdb/surrealkit"
     release: "v0.6.0"

@@ -1,12 +1,12 @@
 ---
 name: surrealdb
 description: "Expert SurrealDB 3 architect and developer skill. SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust, Java, .NET, PHP, Swift, Kotlin, Ruby), Surrealism WASM extensions, SurrealML scope coverage (preview), SurrealMCP for AI agent hosts, LangChain Python integration, editor tooling (LSP, tree-sitter, VS Code/JetBrains/Neovim/Zed), and the wider ecosystem (Surrealist, Surreal-Sync, SurrealFS, SurrealKit, setup-surreal). Universal skill for 30+ AI agents."
-version: "1.5.10"
+version: "1.6.0"
 license: MIT
 metadata:
-  version: "1.5.10"
+  version: "1.6.0"
   author: "24601"
-  snapshot_date: "2026-05-05"
+  snapshot_date: "2026-05-06"
   repository: "https://github.com/24601/surreal-skills"
   openclaw:
     requires:

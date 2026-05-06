@@ -1,8 +1,8 @@
 {
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
-  "skill_version": "1.5.10",
-  "snapshot_date": "2026-05-05",
+  "skill_version": "1.6.0",
+  "snapshot_date": "2026-05-06",
   "repos": {
     "surrealdb/surrealdb": {
       "sha": "a97d3af85d79",
