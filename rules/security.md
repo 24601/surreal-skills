@@ -389,12 +389,14 @@ JWT access allows external identity providers to authenticate users with Surreal
 >   `db_access` / `ns_access` / `root_access` signin paths only
 >   match `Record` and `Bearer` access types; everything else falls
 >   through to `Error::AccessMethodMismatch`
->   (`core/src/iam/signin.rs:449 / :550 / :686`). `WITH ISSUER KEY`
->   on a pure `TYPE JWT` is parser-accepted and persisted but
->   currently has no signin entry point that consumes it for
->   issuance — it only matters when the same access definition is
->   nested inside `TYPE RECORD WITH JWT` (where `signin.rs:275-318`
->   does mint a token using `at.jwt.issue.key` /
+>   (`core/src/iam/signin.rs:449 / :550 / :686`, plus the
+>   `signin_bearer` fallthrough at `:739` for bearer access methods
+>   without a configured `at.jwt.issue` key). `WITH ISSUER ALGORITHM
+>   <alg> KEY <key>` on a pure `TYPE JWT` is parser-accepted and
+>   persisted but currently has no signin entry point that consumes
+>   it for issuance — it only matters when the same access
+>   definition is nested inside `TYPE RECORD WITH JWT` (where
+>   `signin.rs:275-318` does mint a token using `at.jwt.issue.key` /
 >   `expiration(av.token_duration)`).
 > - **`FOR TOKEN` is unused on the `authenticate` path.** Incoming
 >   third-party JWTs are validated against the access method's
@@ -408,10 +410,13 @@ JWT access allows external identity providers to authenticate users with Surreal
 >   expiration(de.session_duration)` at `verify.rs:394`.
 >
 > If you need SurrealDB to *mint* tokens (not just validate
-> external ones), use `TYPE RECORD WITH JWT … WITH ISSUER KEY …`
-> rather than `TYPE JWT … WITH ISSUER KEY …`. Pre-v1.6.2 revisions
-> of this rule incorrectly described the latter as a first-class
-> issuance path.
+> external ones), use `TYPE RECORD WITH JWT … WITH ISSUER
+> ALGORITHM <alg> KEY <key>` rather than `TYPE JWT … WITH ISSUER
+> ALGORITHM <alg> KEY <key>` (the `ALGORITHM` token in `WITH
+> ISSUER` is REQUIRED for asymmetric / JWKS verifier paths — see
+> "Issuer key defaults" below). Pre-v1.6.2 revisions of this rule
+> incorrectly described pure `TYPE JWT` as a first-class issuance
+> path.
 
 ```surrealql
 -- HMAC-based JWT (symmetric key)
@@ -440,16 +445,42 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- Inside a `TYPE RECORD WITH JWT` definition, the `WITH JWT KEY`
 -- clause is the *verification* key (used to validate incoming
 -- tokens the access method accepts). To also let SurrealDB *issue*
--- tokens under this access method, add a separate `WITH ISSUER
--- KEY` clause holding the signing-side credential. SurrealDB then
--- consumes `at.jwt.issue.key` at `core/src/iam/signin.rs:275-318`
--- when minting a record-bound token after `SIGNUP`/`SIGNIN`. If
--- `WITH ISSUER KEY` is omitted, SurrealDB defaults to `ALGORITHM
--- HS512` with a random per-process key — adequate for
--- verification-only flows but not for issuing tokens that survive
--- a restart. Note: `WITH ISSUER KEY` on a pure `TYPE JWT` (no
--- enclosing `TYPE RECORD`) is parser-accepted but currently has no
--- runtime signin path that consumes it.
+-- record-bound tokens, add a separate `WITH ISSUER` clause
+-- holding the signing-side credential. SurrealDB then consumes
+-- `at.jwt.issue.key` at `core/src/iam/signin.rs:275-318` when
+-- minting a token after SIGNUP/SIGNIN.
+--
+-- ISSUER KEY DEFAULTS (verified at `core/src/syn/parser/stmt/define.rs:1696-1708`
+-- + `:1726-1762`). The issuer's algorithm — `iss.alg` —
+-- propagates as follows:
+--   • Inline `ALGORITHM <alg> KEY <key>` verifier (HMAC, RSA,
+--     ECDSA, EdDSA): line 1697 unconditionally sets `iss.alg =
+--     <verifier-alg>` BEFORE the WITH ISSUER block runs. So a
+--     bare `WITH ISSUER KEY '<priv>'` (no ALGORITHM) inherits
+--     RS256 / HS256 / etc. from the verifier — works correctly
+--     for asymmetric pairs as long as the verifier alg is set.
+--   • SYMMETRIC inline verifiers (HS256/HS384/HS512) ALSO copy
+--     the verifier key into `iss.key` automatically (line 1707)
+--     — `WITH ISSUER` is optional for those; you can mint with
+--     just the inline `ALGORITHM HS256 KEY '<secret>'`.
+--   • `URL '<jwks>'` (JWKS) verifier: parser does NOT set
+--     `iss.alg` (the URL arm at lines 1716-1722 has no
+--     `iss.alg = ...` line). `iss.alg` stays at
+--     `JwtAccessIssue::default()` — `Algorithm::Hs512` from
+--     `core/src/sql/access_type.rs:181-191`. If you need to mint
+--     RSA / ECDSA tokens alongside JWKS verification, you MUST
+--     specify `WITH ISSUER ALGORITHM <alg> KEY '<priv>'` —
+--     omitting ALGORITHM there will treat your private-key PEM
+--     as an HMAC secret at `core/src/iam/issue.rs:10-28`.
+--   • If no `WITH ISSUER` clause and no symmetric inline
+--     auto-population, `at.jwt.issue` is `None`; signin's
+--     "check if record access supports issuing tokens" guard at
+--     `signin.rs:275-278` bails with `AccessMethodMismatch`.
+--
+-- A pure `TYPE JWT … WITH ISSUER ALGORITHM … KEY …` (no
+-- enclosing `TYPE RECORD`) is parser-accepted but currently has
+-- NO runtime signin path that consumes it — see the
+-- "verification-only" callout above.
 DEFINE ACCESS external_auth ON DATABASE TYPE RECORD
     SIGNIN (
         -- Map a JWT subject claim to a user record. Without a
@@ -462,6 +493,8 @@ DEFINE ACCESS external_auth ON DATABASE TYPE RECORD
         ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 -----END PUBLIC KEY-----'
+    -- The verifier sets iss.alg = RS256 at parse time (define.rs:1697),
+    -- so `WITH ISSUER KEY '<priv>'` correctly inherits RS256 here.
     WITH ISSUER KEY '-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
 -----END PRIVATE KEY-----'
