@@ -103,7 +103,7 @@ surreal upgrade --path ./mydata.db
 | `--log` | Log level (none, full, error, warn, info, debug, trace) | `info` |
 | `--user` | Root username | Required |
 | `--pass` | Root password | Required |
-| `--strict` | Strict mode (require explicit namespace/database) | `false` |
+| `--strict` | **Deprecated in v3** — flag still parses but is silently ignored. Enforce strictness via `DEFINE DATABASE <db> STRICT;` / `DEFINE NAMESPACE <ns> STRICT;` at the schema layer; require authentication via `--deny-guests` instead. | (no-op) |
 | `--web-crt` | Path to TLS certificate | None |
 | `--web-key` | Path to TLS private key | None |
 | `--client-crt` | Path to client CA certificate (mTLS) | None |
@@ -164,7 +164,7 @@ jobs:
 | `surrealdb_username` | (none) | Initial root username |
 | `surrealdb_password` | (none) | Initial root password |
 | `surrealdb_auth` | `"false"` | Enable auth |
-| `surrealdb_strict` | `"false"` | Enable strict mode |
+| `surrealdb_strict` | `"false"` | **Deprecated** — passes `--strict` to `surreal start`, which is silently ignored in v3. Use `surrealdb_additional_args: --deny-guests` and define databases as `STRICT` at the schema layer instead. |
 | `surrealdb_log` | (none) | Log level |
 | `surrealdb_additional_args` | (none) | Extra args to pass to `surreal start` |
 | `surrealdb_retry_count` | `"30"` | Connect-retry count for health check |

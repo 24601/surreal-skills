@@ -554,20 +554,30 @@ DEFINE ACCESS banking ON DATABASE TYPE RECORD
 CORS is configured at the server level when starting SurrealDB, not in SurrealQL.
 
 ```bash
-# Allow specific origins
-surreal start --allow-origins "https://app.example.com,https://admin.example.com"
+# Allow specific origins. The flag is `--allow-origin` (singular) in
+# v3 — verified against `surrealdb/server/src/cli/start.rs`. Pass it
+# multiple times (or use a comma-separated list) to allow multiple
+# origins.
+surreal start --allow-origin "https://app.example.com" \
+              --allow-origin "https://admin.example.com"
 
 # Allow all origins (development only)
-surreal start --allow-origins "*"
+surreal start --allow-origin "*"
 
-# Full server startup with security flags
+# Full server startup with security flags. NOTE: in v3, strictness
+# is no longer a server-startup flag — `--strict` is deprecated and
+# silently ignored. Use `DEFINE DATABASE <db> STRICT;` (per-database)
+# or `DEFINE NAMESPACE <ns> STRICT;` (per-namespace) at runtime
+# instead. To restrict server-level surface, use the capabilities
+# flags (`--deny-guests`, `--deny-arbitrary-query`,
+# `--deny-funcs <list>`, etc.) covered in §"Capabilities".
 surreal start \
     --bind 0.0.0.0:8000 \
     --user root \
     --pass "strong-root-password" \
-    --allow-origins "https://app.example.com" \
-    --strict \
-    file:///var/data/surreal.db
+    --allow-origin "https://app.example.com" \
+    --deny-guests \
+    rocksdb:///var/data/surreal.db
 ```
 
 ### TLS/SSL Configuration
@@ -596,8 +606,13 @@ surreal start --bind 10.0.1.5:8000
 # 3. SurrealDB compute nodes connect to TiKV over private network
 surreal start --kvs-ca /etc/tikv/ca.pem --kvs-crt /etc/tikv/client.crt --kvs-key /etc/tikv/client.key tikv://10.0.1.10:2379
 
-# Use --strict mode in production to require authentication
-surreal start --strict
+# In v3, `--strict` is deprecated and silently ignored. Enforce
+# strict mode per-namespace/per-database at runtime instead:
+#   DEFINE DATABASE app STRICT;
+#   DEFINE NAMESPACE prod STRICT;
+# To require authentication for all connections, deny guest access
+# at the server level via the capabilities flag below.
+surreal start --deny-guests --deny-arbitrary-query
 ```
 
 ### Audit Logging Patterns
@@ -653,7 +668,7 @@ DEFINE EVENT audit_permission_changes ON TABLE system_config
 
 5. Using overly long token durations. Keep tokens short (5-30 minutes) and sessions reasonable.
 
-6. Not using `--strict` mode in production. Without it, unauthenticated connections may have elevated access.
+6. Relying on `--strict` for production hardening. The flag is deprecated in v3 and silently ignored at startup. Enforce strict mode at the schema layer with `DEFINE DATABASE <db> STRICT;` / `DEFINE NAMESPACE <ns> STRICT;`, and lock down server-level surface with `--deny-guests` and `--deny-arbitrary-query`.
 
 7. Exposing SurrealDB directly to the internet without TLS. Always use TLS in production.
 
@@ -855,7 +870,7 @@ DEFINE FIELD tenant ON TABLE data TYPE record<tenant> DEFAULT $auth.tenant READO
 
 Before deploying SurrealDB to production:
 
-- Use `--strict` mode to require authentication for all connections
+- Use `--deny-guests` and `--deny-arbitrary-query` to require authentication for all connections (the legacy `--strict` flag is deprecated and silently ignored in v3); enforce schema strictness via `DEFINE DATABASE <db> STRICT;` / `DEFINE NAMESPACE <ns> STRICT;`
 - Enable TLS with valid certificates (`--web-crt`, `--web-key`)
 - Set strong root passwords (minimum 20 characters, random)
 - Define PERMISSIONS on every table that record users access

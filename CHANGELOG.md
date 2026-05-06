@@ -3,6 +3,142 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.4] - 2026-05-05
+
+### Fixed (atomic-protocol patch — v1.5.3 Pi-only re-audit CRIT remediation)
+
+A fourth Pi+DeepSeek-V4-Pro:xhigh adversarial pass over the same six
+rules patched/audited in v1.5.3 returned **3 NO-GO + 2 CONDITIONAL GO
++ 1 GO** with **6 CRITs** total. v1.5.4 patches every CRIT.
+
+Three of the six CRITs sit in `rules/surrealql.md` and are a textbook
+case of the empirical fix-patch-drift pattern noted in `~/CLAUDE.md`:
+v1.5.3 added four "missing" vector functions to surrealql.md based on
+function-registration tables in the v3.0.5 source — but pass-4
+verified the actual function bodies and surfaced that **two of those
+functions always return `Error::Unimplemented` at runtime** in v3.0.5
+(`vector::distance::mahalanobis` and `vector::similarity::spearman`),
+and a **third has a fundamentally different signature** than v1.5.3
+documented (`vector::distance::knn` is a context-only function that
+reads the current HNSW-index iteration result, not a standalone
+`(vec_a, vec_b, k)` callable). Documenting registered-but-unimplemented
+functions as if they worked is worse than not mentioning them at all.
+
+The other three CRITs cover:
+- A graph-queries.md `+shortest=target+path` example whose `+path`
+  sub-modifier the v3.0.5 parser explicitly rejects (Path / Collect /
+  Shortest are mutually exclusive `RecurseInstruction` variants —
+  only `+inclusive` is accepted as a secondary flag on `+shortest`).
+- Two security/deployment CLI flag corrections that turn into silent
+  production-security failures: `--strict` is deprecated in v3 and
+  silently ignored at startup, and `--allow-origins` (plural) does
+  not exist — the v3 flag is `--allow-origin` (singular).
+
+#### Per-file CRIT counts (pass-4)
+
+- **`rules/surrealql.md` (3 CRITs — all v1.5.3-introduced):**
+  - **CRIT-1: `vector::distance::knn` fabricated signature.** v1.5.3
+    documented `vector::distance::knn([1, 2], [3, 4], 5)` as a
+    standalone 3-arg distance computation. Source proves
+    (`core/src/fnc/vector.rs:87-103`) the function takes a single
+    optional `Optional<Value>` (KNN reference index, default 0) and
+    reads the current iteration result from the execution context —
+    it cannot be called with two vectors and a `k` argument. Replaced
+    with an accurate description noting it is a context-only
+    function used inside SELECTs that scan an HNSW index, with
+    cross-reference to the `<|K,DIST|>` brute-force operator for
+    ad-hoc nearest-neighbour computation.
+  - **CRIT-2: `vector::distance::mahalanobis` wrong arity AND
+    unimplemented.** v1.5.3 documented a 3-arg form with a
+    covariance matrix. Source proves (`core/src/fnc/vector.rs:
+    105-108`) the function takes exactly 2 `Vec<Number>` args (no
+    covariance matrix) and **always returns `Error::Unimplemented`**
+    at runtime. v1.5.4 documents the actual 2-arg signature and
+    explicit unimplemented status, with a "do not call in
+    production" warning until it ships an implementation.
+  - **CRIT-3: `vector::similarity::spearman` unimplemented.** The
+    2-arg signature v1.5.3 documented is correct, but the function
+    body always returns `Error::Unimplemented` (`core/src/fnc/
+    vector.rs:140-143`). Same treatment as CRIT-2 — explicit
+    unimplemented warning so consumers don't ship code that errors
+    at runtime.
+
+- **`rules/security.md` (2 CRITs — both v3 CLI deprecations missed
+  by passes 1-3) + cross-fix into `rules/deployment.md`:**
+  - **CRIT-1: `--strict` deprecated in v3.** Verified against
+    `surrealdb/server/src/cli/start.rs` and `dbs/mod.rs`: the flag
+    still parses but emits a warning and is **silently ignored**.
+    security.md cited `--strict` for four separate security-critical
+    contexts (server startup example, recommendation, common
+    pitfalls list, production checklist) — all four were giving
+    consumers a false sense of security. v1.5.4 replaces every
+    `--strict` reference with the correct v3 mechanism: enforce
+    strict mode at the schema layer with `DEFINE DATABASE <db>
+    STRICT;` / `DEFINE NAMESPACE <ns> STRICT;`, and require
+    authentication via `--deny-guests` / `--deny-arbitrary-query`
+    capabilities flags. Cross-fix in `rules/deployment.md`: the
+    server-flags reference table at line 106 and the setup-surreal
+    GitHub Action input `surrealdb_strict` at line 167 both now
+    explicitly mark `--strict` as deprecated/no-op with the same
+    replacement guidance.
+  - **CRIT-2: `--allow-origins` (plural) does not exist; the v3
+    flag is `--allow-origin` (singular).** Verified against
+    `server/src/cli/start.rs`. The plural form would fail at
+    `surreal start` parse time. Three CORS-configuration examples
+    in security.md were corrected. The new singular form accepts
+    the flag multiple times for multiple origins (or a comma list).
+
+- **`rules/graph-queries.md` (1 CRIT — v1.5.3 fix RESIDUAL
+  promoted to CRIT):** The §"Native Shortest-Path" example combined
+  `+shortest=person:ceo` with `+path` to "return the full path."
+  Both halves of that claim were wrong:
+  - The v3.0.5 parser (`parse_recurse_instruction` in `idiom.rs`)
+    returns a single `Option<RecurseInstruction>` — Path / Collect
+    / Shortest are mutually exclusive variants. After `+shortest=`,
+    only `+inclusive` is accepted as a secondary flag.
+  - `+shortest=` already returns the full path array by default
+    (verified against the upstream language test
+    `language-tests/tests/language/graph/path_shortest.surql`,
+    test 0 returns `[person:lead_infra, person:dir_platform,
+    person:vp_eng, person:ceo]`). There is no "just the terminal
+    node" mode to escape from.
+  Replaced with a `+inclusive` example (the only valid secondary
+  flag on `+shortest`), and added a precision paragraph documenting
+  the default path-array return shape and the parser-level
+  mutex on Path / Collect / Shortest.
+
+`rules/data-modeling.md`, `rules/vector-search.md`, and
+`rules/performance.md` returned no CRITs in pass-4 (data-modeling GO,
+vector-search and performance CONDITIONAL GO with documentation-only
+IMPs deferred). vector-search.md's pass-3 LM rewrite — the most
+consequential v1.5.x correction — held cleanly under pass-4
+re-scrutiny.
+
+Pass-4 IMPORTANTs (surrealql.md missing data types `regex` / `range`
+/ `number` / `literal` / `geometry<feature>` union; missing function
+namespaces `bytes::*` / `encoding::*` / `file::*` / `not::*` /
+`set::*` / `sequence::*` / `schema::*` / `api::*`; missing ALTER
+statements section; missing `DEFINE API` / `DEFINE MODEL` /
+`DEFINE CONFIG`; missing `array<T,N>` / `set<T,N>` cardinality docs;
+missing `CONCURRENTLY` / `IF NOT EXISTS` on `DEFINE INDEX`;
+performance.md `EXPLAIN FULL` clause / `SURREAL_HNSW_CACHE_SIZE` env
+var / `EXPLAIN ANALYZE` semantics; security.md `WITH REFRESH` /
+`AUTHENTICATE` on RECORD / JWKS URL on RECORD / capabilities flag
+surface / `ACCESS … REVOKE GRANT` / `ACCESS … SHOW`;
+graph-queries.md RELATE `RETURN` clause / `ONLY` / sub-SELECT graph
+clause / edge deletion / FETCH-on-graph-paths) and MINORs are
+deferred — they are documentation gaps or polish, not contradictions
+of upstream — and tracked in the residual-risk lists of the per-rule
+re-audit reports at `/tmp/pi-{rule}-pass4-out.md`.
+
+Migration: consumers who copied the `+shortest=target+path` pattern,
+`--strict`, `--allow-origins` (plural), or any of
+`vector::distance::knn(@vec_a, @vec_b, @k)` /
+`vector::distance::mahalanobis([…], […], @cov_matrix)` /
+`vector::similarity::spearman([…], […])` calling them as if
+implemented need to apply the corrections noted above. Machine-
+checked version-consistency CI gate continues to apply.
+
 ## [1.5.3] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — v1.5.2 Pi-only re-audit CRIT remediation, including foundational `rules/surrealql.md`)

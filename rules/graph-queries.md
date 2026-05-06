@@ -421,10 +421,23 @@ person:alice.{..+shortest=person:ceo}->reports_to->person;
 -- Bounded variant: only consider paths of at most 3 hops.
 person:alice.{..3+shortest=person:ceo}->reports_to->person;
 
--- Combine with +path to return the full path (rather than just the
--- terminal node).
-person:alice.{..+shortest=person:ceo+path}->reports_to->person;
+-- Include the start node in the returned path. `+inclusive` is the
+-- only sub-modifier valid after `+shortest=` (verified against the
+-- v3.0.5 parser — `parse_recurse_instruction` returns a single
+-- `Option<RecurseInstruction>`, so `Path` / `Collect` / `Shortest`
+-- are mutually exclusive; only `+inclusive` is accepted as a
+-- secondary flag on `+shortest`).
+person:alice.{..+shortest=person:ceo+inclusive}->reports_to->person;
 ```
+
+`+shortest=` already returns the full path array (intermediate +
+target nodes) by default — verified against the upstream language
+test `language-tests/tests/language/graph/path_shortest.surql`,
+where test 0 returns
+`[person:lead_infra, person:dir_platform, person:vp_eng, person:ceo]`.
+There is no separate "+path" sub-modifier on `+shortest=` (those
+two recurse instructions are mutually exclusive in the parser);
+add `+inclusive` if you also want the start node in the array.
 
 `+shortest=` evaluates lazily and returns the first path that
 matches the target record, so it terminates as soon as the BFS

@@ -1771,9 +1771,23 @@ vector::distance::euclidean([1, 2], [4, 6])      -- 5.0
 vector::distance::hamming([1, 0, 1], [1, 1, 0])  -- 2
 vector::distance::manhattan([1, 2], [4, 6])      -- 7
 vector::distance::minkowski([1, 2], [4, 6], 3)   -- minkowski with p=3
-vector::distance::knn([1, 2], [3, 4], 5)         -- KNN distance
-vector::distance::mahalanobis([1, 2], [3, 4], [[1, 0], [0, 1]])
-                                                 -- Mahalanobis distance (with covariance matrix)
+-- vector::distance::knn is NOT a standalone callable distance
+-- function. It is a context-only function that reads the current
+-- HNSW-index iteration result and accepts an optional 0-indexed
+-- KNN reference (default 0). It cannot be called with a `(vec_a,
+-- vec_b, k)` form. Source: `core/src/fnc/vector.rs:87-103`.
+-- Use the brute-force `<|K,DIST|>` operator (see "KNN Operators"
+-- below) for ad-hoc nearest-neighbour computation; use
+-- `vector::distance::knn(@idx)` only inside a SELECT that scans
+-- the HNSW index it refers to.
+
+-- vector::distance::mahalanobis exists as a registered function
+-- with a 2-argument signature (`Vec<Number>, Vec<Number>`), but
+-- in v3.0.5 it ALWAYS returns `Error::Unimplemented` at runtime.
+-- Source: `core/src/fnc/vector.rs:105-108`. There is no covariance-
+-- matrix argument. Do NOT call this function in production until
+-- it ships an implementation. Equivalent guidance:
+--   vector::distance::mahalanobis([1, 2], [3, 4]) -- ERRORS in v3.0.5
 
 -- Similarity functions (higher = more similar)
 -- For cosine / jaccard / pearson, the upstream function lives ONLY
@@ -1783,7 +1797,11 @@ vector::distance::mahalanobis([1, 2], [3, 4], [[1, 0], [0, 1]])
 vector::similarity::cosine([1, 2], [3, 4])       -- cosine similarity
 vector::similarity::jaccard([1, 2, 3], [2, 3, 4]) -- jaccard similarity
 vector::similarity::pearson([1, 2, 3], [4, 5, 6]) -- pearson similarity
-vector::similarity::spearman([1, 2, 3], [4, 5, 6]) -- spearman rank correlation
+-- vector::similarity::spearman is registered with a 2-argument
+-- signature but ALWAYS returns `Error::Unimplemented` at runtime
+-- in v3.0.5. Source: `core/src/fnc/vector.rs:140-143`. Do NOT call
+-- it in production until it ships an implementation.
+--   vector::similarity::spearman([1, 2, 3], [4, 5, 6]) -- ERRORS in v3.0.5
 ```
 
 ### Search Functions
