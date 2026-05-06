@@ -2306,6 +2306,33 @@ Argument-shape notes:
   and rejects any value outside `100..=599` with
   `ApiError::InvalidStatusCode`.
 
+### Sleep Function
+
+Verified against v3.0.5 `core/src/fnc/sleep.rs`. Registered as the
+TOP-LEVEL function name `"sleep"` in `core/src/fnc/mod.rs:639` —
+NOT under any namespace. Do NOT call it as `session::sleep`,
+`time::sleep`, or `system::sleep`; those names are unregistered and
+will fail with "function not found".
+
+```surql
+-- sleep(dur: duration) -> NONE
+-- Pause execution for the given duration. The actual sleep is
+-- clamped by the surrounding query / transaction timeout — if the
+-- context timeout is shorter than `dur`, sleep returns when the
+-- context timeout elapses, NOT after the full requested duration.
+sleep(100ms)                                 -- pause 100ms, return NONE
+sleep(2s)                                    -- pause 2 seconds
+
+-- Useful for rate-limit testing, deterministic backoff, or
+-- exercising TIMEOUT clauses:
+RETURN (BEGIN; sleep(10s); RETURN 'done'; COMMIT) TIMEOUT 1s;
+-- Returns the timeout error after ~1s, not after 10s.
+```
+
+The sleep is implemented via `tokio::time::sleep` (or
+`wasmtimer::tokio::sleep` on wasm builds), so it does NOT block the
+async runtime — other concurrent queries proceed normally.
+
 ---
 
 ## Subqueries and Expressions
