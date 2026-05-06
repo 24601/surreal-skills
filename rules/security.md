@@ -507,32 +507,92 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- enclosing `TYPE RECORD`) is parser-accepted but currently has
 -- NO runtime signin path that consumes it — see the
 -- "verification-only" callout above.
-DEFINE ACCESS external_auth ON DATABASE TYPE RECORD
-    -- Map a JWT subject claim to a user record. `$token` holds the
-    -- decoded JWT claims and is available inside AUTHENTICATE
-    -- (NOT inside SIGNIN — SIGNIN runs against signin variables
-    -- like `$id`/`$email`/`$pass` and does not see `$token`;
-    -- `sess.tk` is populated at `core/src/iam/signin.rs:340-345`
-    -- before AUTHENTICATE runs but after SIGNIN evaluates).
-    -- Without an AUTHENTICATE clause, SurrealDB validates the JWT
-    -- via the verifier but does not bind it to a record —
-    -- `$auth.id` stays unset, only `$token` claims are available
-    -- in PERMISSIONS. The canonical pattern (test fixture at
-    -- `core/src/iam/verify.rs:2034`) wires AUTHENTICATE for
-    -- `$token`-driven record lookup.
+--
+-- The two flows below are SEPARATE PATTERNS — each access
+-- definition supports one entry path, not both. The earlier
+-- v1.5.x / v1.6.2-pre-rev-5 single-definition "hybrid" pattern
+-- (a TYPE RECORD with WITH ISSUER + AUTHENTICATE that tries to
+-- handle BOTH credential SIGNIN and inbound JWT) is broken
+-- because:
+--   • Credential SIGNIN mints a token whose claims object
+--     contains `$token.ID` (uppercase) — the record id from
+--     `Claims { id: Some(rid.to_sql()), .. }` at
+--     `core/src/iam/signin.rs:314-324`, serialised by
+--     `into_claims_object` at `core/src/iam/token.rs:289-345`.
+--     The minted token has NO `sub` claim (Claims::default sets
+--     sub: None at `token.rs:243`).
+--   • Inbound third-party JWTs typically carry `$token.sub` (the
+--     IdP-assigned subject) but no `$token.ID`.
+-- A single AUTHENTICATE clause would have to branch on which
+-- claim is present; cleaner to define two access methods.
+--
+-- For runtime semantics: when `AUTHENTICATE` is omitted, record
+-- access against an inbound JWT requires the token to carry
+-- SurrealDB's own `id` claim — `verify.rs:177-245` reads `id`
+-- from claims to bind the record directly; if `id` is absent
+-- AND there's no AUTHENTICATE, `verify.rs:464` bails
+-- `AccessMethodMismatch`. (Inbound IdP JWTs almost never carry
+-- a SurrealDB record id, so AUTHENTICATE is effectively
+-- required for IdP integration.)
+
+-- Pattern A — Inbound third-party JWT verification.
+-- For when an external IdP (Auth0 / Okta / Cognito) issues
+-- JWTs that carry `sub` and you want SurrealDB to map them to
+-- a user record. NO SIGNIN clause: clients call
+-- `db.authenticate(externalJwt)` directly. WITH ISSUER KEY is
+-- omitted because there is no SurrealDB-side minting in this
+-- pattern.
+DEFINE ACCESS external_jwt_auth ON DATABASE TYPE RECORD
     AUTHENTICATE (
+        -- $token.sub is the IdP's subject claim; map it to
+        -- the local user record. Canonical pattern from
+        -- `core/src/iam/verify.rs:2034` (test fixture wires
+        -- AUTHENTICATE to read $token.* claims; sess.tk is
+        -- populated at signin.rs:340-345 / verify.rs:255-260
+        -- before AUTHENTICATE runs).
         SELECT id FROM user WHERE external_id = $token.sub
     )
     WITH JWT
         ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 -----END PUBLIC KEY-----'
-    -- The verifier sets iss.alg = RS256 at parse time (define.rs:1697),
-    -- so `WITH ISSUER KEY '<priv>'` correctly inherits RS256 here.
+    DURATION FOR SESSION 12h;
+-- Note: `DURATION FOR TOKEN` is NOT applied on the authenticate
+-- path for AccessType::Jwt-shaped flows — the IdP's own `exp`
+-- claim governs token lifetime. `DURATION FOR SESSION` IS applied
+-- (verify.rs:394) to bound the SurrealDB session.
+
+-- Pattern B — Credential SIGNIN with SurrealDB-minted JWT.
+-- For a classic email/password flow where SurrealDB issues a
+-- JWT after credentials validate. Inline ALGORITHM RS256 KEY on
+-- the verifier means iss.alg = RS256 (from define.rs:1697),
+-- which the bare `WITH ISSUER KEY '<priv>'` then inherits
+-- correctly; the issued token is round-trippable because
+-- `verify.rs:177-245` reads SurrealDB's `id` claim and binds
+-- the record directly (no `kid` lookup required for inline-KEY
+-- verifiers).
+DEFINE ACCESS credential_auth ON DATABASE TYPE RECORD
+    SIGNIN (
+        SELECT * FROM user
+        WHERE email = $email
+        AND crypto::argon2::compare(pass, $pass)
+    )
+    WITH JWT
+        ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
+-----END PUBLIC KEY-----'
+    -- The verifier sets iss.alg = RS256 at parse time
+    -- (define.rs:1697), so bare `WITH ISSUER KEY '<priv>'`
+    -- correctly inherits RS256 here.
     WITH ISSUER KEY '-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
 -----END PRIVATE KEY-----'
     DURATION FOR TOKEN 1h, FOR SESSION 12h;
+-- Without an AUTHENTICATE clause, the issued token's `id`
+-- claim (set to `rid.to_sql()` at signin.rs:323) is what
+-- subsequent `db.authenticate(token)` calls use to re-bind
+-- the record (verify.rs:177-245). $auth.id stays populated
+-- across calls — no token-only-permissions trap.
 ```
 
 ### Supported JWT Algorithms
