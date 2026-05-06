@@ -323,7 +323,12 @@ RELATE person:alice->purchased->product:laptop SET
     price = 1299.99,
     purchased_at = time::now();
 
--- CONTENT syntax for edge properties
+-- CONTENT syntax for edge properties — define the edge first.
+DEFINE TABLE reviewed TYPE RELATION IN person OUT product ENFORCED;
+DEFINE FIELD rating ON TABLE reviewed TYPE int;
+DEFINE FIELD text ON TABLE reviewed TYPE option<string>;
+DEFINE FIELD helpful_votes ON TABLE reviewed TYPE int DEFAULT 0;
+
 RELATE person:bob->reviewed->product:laptop CONTENT {
     rating: 5,
     text: 'Excellent product',
@@ -334,6 +339,12 @@ RELATE person:bob->reviewed->product:laptop CONTENT {
 ### Graph Traversal Patterns
 
 ```surql
+-- Edges used in this section (define before use; v3 still
+-- creates RELATE rows on undefined edge tables under
+-- SCHEMALESS, but the explicit definition documents the
+-- expected shape and lets ENFORCED reject malformed RELATEs):
+DEFINE TABLE knows TYPE RELATION IN person OUT person ENFORCED;
+
 -- Forward traversal: who did person:tobie write articles for?
 SELECT ->wrote->article FROM person:tobie;
 
@@ -365,7 +376,10 @@ SELECT ->purchased[WHERE quantity > 1]->product FROM person:tobie;
 ### Recursive Graph Queries
 
 ```surql
--- Setup: family tree
+-- Setup: family tree. Define the edge first so ENFORCED
+-- catches malformed RELATEs at write time.
+DEFINE TABLE parent_of TYPE RELATION IN person OUT person ENFORCED;
+
 CREATE person:alice, person:bob, person:charlie, person:diana;
 RELATE person:bob->parent_of->person:alice;
 RELATE person:charlie->parent_of->person:bob;
@@ -764,15 +778,55 @@ ORDER BY similarity DESC;
 The `MTREE` index keyword that earlier rule revisions documented
 does not exist in the current SurrealDB v3 grammar (only `HNSW` is
 defined). For exact-kNN lookups without an index, use the
-brute-force operator:
+brute-force `<|k,dist|>` operator (`NearestNeighbor::K` variant
+at `core/src/sql/operator.rs:393`). The distance metric on the
+operator MUST match the score function used in `SELECT` /
+`ORDER BY` — mixing them (e.g. brute-force filter by Euclidean
+distance, then ranking by cosine similarity) returns the closest
+results by Euclidean and re-orders them by an unrelated cosine
+score, which is almost never what you want.
 
 ```surql
+-- Cosine: smaller = more similar in this operator (`<|k,COSINE|>`
+-- reduces to a distance, not a similarity), so use
+-- `vector::similarity::cosine(...)` for the projected score and
+-- ORDER BY similarity DESC to surface the most-similar first.
 SELECT id, title,
     vector::similarity::cosine(embedding, $query_embedding) AS similarity
 FROM document
-WHERE embedding <|10,EUCLIDEAN|> $query_embedding
+WHERE embedding <|10,COSINE|> $query_embedding
 ORDER BY similarity DESC;
+
+-- Euclidean: smaller distance = closer; project the matching
+-- distance function and ORDER BY ASCENDING.
+SELECT id, title,
+    vector::distance::euclidean(embedding, $query_embedding) AS distance
+FROM document
+WHERE embedding <|10,EUCLIDEAN|> $query_embedding
+ORDER BY distance ASC;
 ```
+
+The `<|k,…|>` brute-force form has two siblings in the
+parser, but only one is fully implemented at the planner
+level in v3.0.5:
+
+- `<|k,dist|>` = `NearestNeighbor::K` — **brute-force kNN**
+  (the form shown above). Always handled.
+- `<|k,ef|>` = `NearestNeighbor::Approximate` — **HNSW with
+  explicit `ef` parameter**. Stripped + consumed by
+  `KnnScan` via the HNSW index per
+  `core/src/exec/planner/util.rs:391`.
+- `<|k|>` = `NearestNeighbor::KTree` — **parser-accepted but
+  not handled** in v3.0.5: `util.rs:391` notes it "is left in
+  place" and `core/src/exec/index/analysis.rs:1001-1005` +
+  `core/src/exec/planner/select.rs:1421-1425` document that
+  the planner does not currently strip / dispatch it. Stick
+  to the explicit `<|k,dist|>` (brute-force) or `<|k,ef|>`
+  (HNSW) forms; the bare `<|k|>` shape is a legacy v2 m-tree
+  remnant in the grammar with no active planner path.
+
+Keep the score-vs-filter metric paired in the two
+implemented forms.
 
 ### RAG (Retrieval-Augmented Generation) Pattern
 

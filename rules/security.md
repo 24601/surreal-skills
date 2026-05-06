@@ -545,7 +545,7 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- required for IdP integration.)
 --
 -- ROUTING-CLAIM REQUIREMENT (verified at
--- `core/src/iam/verify.rs:288-297` + `core/src/iam/token.rs:248-275`).
+-- `core/src/iam/verify.rs:292-297` + `core/src/iam/token.rs:248-275`).
 -- Inbound JWTs MUST carry `ns`, `db`, and `ac` claims for
 -- SurrealDB to route them to an access method. The `token`
 -- entry point `fn token` at `verify.rs:155` calls
@@ -554,10 +554,14 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- the JWT WITHOUT verifying it first (the actual signature
 -- verification runs later, inside the access-method-specific
 -- branch); the resulting `token_data.claims` is then matched
--- against the database-access arm at `:288-297`:
+-- against the database-access arm at `:292-297`
+-- (the prior arm's closing brace + `Ok(())` sit on `:288-291`):
 --     Claims { ns: Some(ns), db: Some(db), ac: Some(ac), .. }
 -- Tokens missing any of those three fall through to
--- `_ => Err(InvalidAuth)` at `verify.rs:824-825`. The serde
+-- `_ => Err(InvalidAuth)` at `verify.rs:825` (the entire
+-- arm — pattern + body — sits on :825; :826 is the closing
+-- brace of the surrounding match). The
+-- serde
 -- aliases at `token.rs:248-275` accept any of these spellings:
 -- `ns` / `NS` / `https://surrealdb.com/ns` /
 -- `https://surrealdb.com/namespace`; same shape for `db` /
@@ -1653,9 +1657,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 
 -- The JWT payload MUST include `ns`, `db`, `ac` routing claims
 -- (or aliases per `core/src/iam/token.rs:248-275`) — without
--- them, `core/src/iam/verify.rs:288-297` cannot match the
+-- them, `core/src/iam/verify.rs:292-297` cannot match the
 -- database-access arm and falls through to InvalidAuth at
--- :824-825. Example JWT payload (issued by the IdP, NOT by
+-- :825-826. Example JWT payload (issued by the IdP, NOT by
 -- SurrealDB; configure the IdP to mint these custom claims via
 -- Auth0 Actions / Okta inline hooks / Cognito pre-token Lambda
 -- / Azure AD claim mapping):
