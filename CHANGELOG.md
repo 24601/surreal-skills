@@ -3,6 +3,750 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.2] - 2026-05-06 — `rules/security.md` deferred-IMPORTANT clause closure (4 atomic feature commits + release commit)
+
+### Added
+
+- **`rules/security.md` Access-and-user clause catalog (batch 3 of
+  the v1.5.x deferred-IMPORTANT cleanup).** Closes the five
+  deferred bullets attributed to `rules/security.md` in the v1.5.x
+  convergence notes, all verified against the v3.0.5 source tree
+  at `/tmp/surrealdb-v3.0.5/surrealdb/core/src/{syn,sql,iam}/`
+  rather than against the docs site (which still lags v3.0.5).
+  - **`WITH REFRESH` on `TYPE RECORD`** — bearer-grant-backed
+    refresh-token flow with single-use rotation; coexists with
+    `WITH JWT` in either order; `DURATION FOR GRANT` controls
+    refresh-token lifetime, `FOR TOKEN` controls access-token
+    lifetime, `FOR SESSION` controls session ceiling. Verified
+    against `core/src/syn/parser/stmt/define.rs:492-500`,
+    `core/src/iam/signin.rs:279-355`,
+    `core/src/iam/access.rs:107-170`, plus parser test fixtures
+    `core/src/syn/parser/test/stmt.rs:911 / :1108 / :1163`.
+    Includes a JS-SDK client renewal example showing the
+    `{access, refresh}` token shape.
+  - **`WITH JWT URL '<jwks-uri>'` (JWKS endpoint)** — alternative
+    to inline `ALGORITHM <alg> KEY <key>` for both `TYPE JWT` and
+    nested `WITH JWT` inside `TYPE RECORD`. Standard pattern for
+    integrating with external IdPs (Auth0, Okta, Cognito, Google,
+    Azure AD) that publish a JWKS document and rotate signing
+    keys on their own schedule. Documents the cache-TTL
+    environment variables (`SURREAL_JWKS_CACHE_EXPIRATION_SECONDS`,
+    `SURREAL_JWKS_CACHE_COOLDOWN_SECONDS`,
+    `SURREAL_JWKS_REMOTE_TIMEOUT_MILLISECONDS`), and the
+    capabilities requirement to permit network access to the
+    JWKS host. After the rev-4/rev-5 anti-pattern correction,
+    the JWKS section also documents `jwks_inbound` (TYPE RECORD
+    WITH JWT URL + AUTHENTICATE for federated IdP integration)
+    and `credential_mint` (TYPE RECORD WITH JWT inline-KEY +
+    SIGNIN + WITH ISSUER for round-trippable SurrealDB-side
+    minting) as TWO separate access definitions; combining
+    JWKS-verify with WITH ISSUER inline-key in a single TYPE
+    RECORD definition is documented as an anti-pattern (kid
+    round-trip + sub-vs-ID claim mismatch). Verified against
+    `core/src/syn/parser/stmt/define.rs:1716-1722` and
+    `core/src/iam/jwks.rs`, plus parser test fixtures
+    `core/src/syn/parser/test/stmt.rs:703 / :731 / :762 / :792 /
+    :823`.
+  - **`ACCESS GRANT / SHOW / REVOKE / PURGE` statements** — the
+    four top-level subcommands that manage bearer-grant lifecycle
+    against a `DEFINE ACCESS … TYPE BEARER` access method.
+    Documents the issue-once / hash-stored / no-recovery
+    semantics for `GRANT`, the auditing surface of `SHOW { ALL |
+    GRANT <id> | WHERE <cond> }`, the soft-revocation semantics
+    of `REVOKE` (revoked grants stop authenticating immediately
+    but remain visible until purged), and the `PURGE { EXPIRED |
+    REVOKED | EXPIRED, REVOKED } [ FOR <duration> ]` physical
+    deletion path with optional grace-period clause. Includes an
+    end-to-end credential-rotation playbook combining all four
+    subcommands. Verified against
+    `core/src/syn/parser/stmt/mod.rs:108-271` and parser test
+    fixtures `core/src/syn/parser/test/stmt.rs:2604 / :2621 /
+    :2645-2683 / :2703-2741 / :2761-2853` (every subcommand and
+    its parameter variants).
+  - **`DEFINE USER PASSHASH` clause** — accept a pre-hashed
+    [argon2 PHC string](https://en.wikipedia.org/wiki/PHC_string_format)
+    instead of a plaintext `PASSWORD`; mutually exclusive with
+    `PASSWORD` per parser bail at
+    `core/src/syn/parser/stmt/define.rs:349 / :356`. Documents
+    the migration-from-external-IdP use case (re-hashing an
+    already-hashed string locks legacy users out) and the
+    `crypto::argon2::generate($plaintext)` `RETURN`-trick for
+    on-the-fly hashing on the SurrealDB side.
+  - **`DEFINE USER DURATION FOR { TOKEN | SESSION } <expr>`
+    clause** — per-user override of the token (default 1h per
+    `define.rs:336`) and session (default unbounded per
+    `core/src/sql/statements/define/user.rs:43`) expiry; both
+    accepted in either order, comma-separated; either alone
+    valid; `NONE` opts out of expiry on the corresponding axis
+    (the v3.0.5 test suite has `DURATION FOR TOKEN NONE`
+    anti-fixtures across three commented regions at
+    `stmt.rs:398-407` (one DEFINE USER block), `:623-631` (one
+    DEFINE ACCESS TYPE JWT block), and `:1250-1276` (three
+    DEFINE ACCESS TYPE RECORD blocks at DB / ROOT / NS) —
+    five anti-fixtures total, all gated by /* */ wrappers and
+    calling `unwrap_err()`, so direct positive-fixture
+    provenance does not exist; consumers should validate via
+    round-trip signin/authenticate tests rather than parse-only
+    confirmation). Application path verified at
+    `core/src/iam/signin.rs:481 / :502` and
+    `core/src/iam/verify.rs:106`. Includes a combined `PASSHASH +
+    ROLES + DURATION + COMMENT` example showing the full v3
+    `DEFINE USER` clause set.
+
+### Process notes
+
+Five clauses landed across four atomic feature commits in rev-1
+(one for each of `WITH REFRESH`, `WITH JWT URL`, `ACCESS
+subcommands`, and the combined `PASSHASH + DURATION` subsection
+— the latter two clauses naturally compose on the same statement
+and share a verification path, so they ship as one atomic edit
+per the v1.6.0 / v1.6.1 atomic-protocol pattern).
+
+#### Rev-2 disposition (4-WAY adversarial pass-1)
+
+Pass-1 verdicts: Cursor NO-GO (2 CRITs / 5 IMPs / 3 minors),
+Codex NO-GO (1 CRIT / 4 IMPs / 2 minors), Gemini NO-GO (3 CRITs /
+2 IMPs), Pi CONDITIONAL GO (0 CRITs / 2 IMPs / 3 minors). Five
+atomic rev-2 commits closed every accepted finding:
+
+- **R1** — TYPE JWT issuance correction. Cursor C2 (CRIT, source-
+  cited at signin.rs:449/:550/:686 — pure TYPE JWT has no signin
+  branch) and Cursor I3 (token_duration unused on JWT
+  authenticate path) both pre-existing v1.5.x latent bugs.
+  Reframed the JWT FOR TOKEN/WITH ISSUER callout as
+  "verification-only" with explicit pointers at the
+  `at.jwt.issue` consumers (only signin.rs:275-318 inside the
+  Record branch + signin_bearer at :737). Replaced the fictional
+  `hybrid_jwt` mint example with the correct
+  `hybrid_record TYPE RECORD WITH JWT URL + WITH ISSUER` pattern.
+  Fixed the `parser/tests/stmt.rs` typo (Cursor I2).
+- **R2** — JWKS Cargo feature gate (CONVERGENT CRIT, Cursor C1 +
+  Codex C1). Parser accepts `URL` unconditionally, but every
+  runtime arm at `verify.rs:228-240/:340-352/:412-424/:573-585/:725-737`
+  is `#[cfg(feature = "jwks")]`. Default `surrealdb-server`
+  features at `server/Cargo.toml:19-30` lack `jwks`. Added a
+  callout citing every gated arm + the Cargo wiring + a `cargo
+  build --features jwks` recipe. Also removed the unsupported
+  "allow redirect targets" wording (Codex M2 — `jwks.rs:268-313`
+  only checks the original URL host) and added a "test-fixture
+  gap for `TYPE RECORD WITH JWT URL`" acknowledgement (Pi I1).
+- **R3** — refresh-rotation citation + token-shape fix. Convergent
+  IMP (Cursor I1 + Codex I2): the prior single-range
+  `signin.rs:279-355` citation conflated dispatch (279-295) +
+  initial issuance (352-364) with rotation (893-917 inside
+  `signin_bearer`'s `BearerAccessType::Refresh` arm). Split the
+  citation. Codex I2 unique catch on token shape: runtime returns
+  the full bearer key (id + secret), not just the grant id;
+  fixed JS-SDK example and added a "persist verbatim, do not
+  split" note.
+- **R4** — ACCESS section narrowings. Codex M1: PURGE grace is
+  strict greater-than (`> stmt.grace.secs()`), not "at least";
+  tightened to "older than". CONVERGENT IMP (Codex I1 + Cursor
+  I4): GRANT FOR RECORD is database-only at runtime
+  (`expr/statements/access.rs:226-234, :353-355`); replaced the
+  blanket "ON NAMESPACE / ON ROOT also accepted" paragraph with
+  an explicit base-scoping rubric that distinguishes
+  parse-acceptance from runtime-acceptance. Cursor I5: ON is
+  optional on every ACCESS subcommand; rubric flags this so
+  examples-with-explicit-ON are not read as required syntax.
+- **R5** — PASSHASH validation timing + DURATION fixture
+  cleanup. 3-WAY CONVERGENT (Codex I4 + Gemini C2 + Pi M1):
+  PASSHASH validation runs at signin (`verify.rs:945-952` —
+  `PasswordHash::new(hash)`), not at define
+  (`define.rs:353-358` stores verbatim). Added "store as-is,
+  validate-on-use" callout. Codex I3: prior `stmt.rs:402` test-
+  fixture citation pointed at a commented-out block; replaced
+  with an explicit "public-test provenance is indirect"
+  acknowledgement.
+
+REJECTED findings (with rationale):
+
+- **Gemini C1** (ACCESS ON ROOT invalid). REJECT — `parse_base()`
+  at `parts.rs:445` accepts `Base::Root` and `parse_define_access`
+  has no Root restriction for `TYPE BEARER FOR USER` /
+  `TYPE JWT`. Convergent rebuttal: Cursor I5 confirms `parse_access`
+  reads any base.
+- **Gemini C3** (URL on TYPE RECORD WITH JWT invalid). REJECT —
+  `parse_jwt()` at `define.rs:1716-1722` is the same function
+  invoked from both `t!("JWT")` (line 454, standalone) and the
+  `WITH JWT` arm of TYPE RECORD (line 484); URL works in both
+  call sites. Convergent rebuttal: Codex residual-risk #2
+  confirms support is structurally real; Pi I1 acknowledges the
+  parser path. Both REJECTs match the v1.6.1-pass-1 pattern of
+  Gemini producing wrong-direction CRITs without source access.
+
+#### Rev-3 disposition (4-WAY adversarial pass-2)
+
+Pass-2 verdicts: Cursor CONDITIONAL GO (0 CRITs / 2 IMPs / 2
+minors), Codex CONDITIONAL GO (0 CRITs / 2 IMPs / 2 minors),
+Gemini GO (0 CRITs / 0 IMPs / 1 minor), Pi NO-GO (1 CRIT / 2
+IMPs / 2 minors — but Pi's CRIT was source-checked and rejected;
+see below).
+
+Five atomic rev-3 commits closed every accepted finding:
+
+- **R1** — JWT-Based Authentication: issuer-default rubric. Codex
+  pass-2 I2 caught that the prior rev-2 'WITH ISSUER KEY omitted
+  defaults to HS512 with random key' prose was incomplete. Source
+  chain (define.rs:1696-1708 + :1716-1722 +
+  sql/access_type.rs:181-191): inline ALGORITHM verifier sets
+  iss.alg = <verifier-alg> at line 1697 BEFORE the WITH ISSUER
+  block runs (so bare WITH ISSUER KEY inherits the verifier alg
+  for asymmetric pairs); symmetric inline verifiers also auto-pop
+  iss.key (line 1707); URL/JWKS verifiers do NOT touch iss.alg
+  (URL arm at 1716-1722 has no iss.alg = ... line) so iss.alg
+  stays at JwtAccessIssue::default() = Hs512, REQUIRING explicit
+  WITH ISSUER ALGORITHM <alg> for asymmetric minting; missing
+  WITH ISSUER + missing symmetric auto-pop = AccessMethodMismatch
+  at signin.rs:275-278. Replaced the single-line stale comment
+  with a four-bullet rubric mapping every verifier shape to its
+  resulting iss.alg / iss.key / mint behaviour. Pi pass-2 I4
+  (signin_bearer fallthrough at :739) and Gemini pass-2 M1
+  (WITH ISSUER ALGORITHM prose tighten) folded into the same
+  commit since they touch the same prose region.
+- **R2** — JWKS section. Codex pass-2 I1: rev-2's 'no fixture
+  covers TYPE RECORD WITH JWT URL' was scoped to dedicated parser
+  fixtures; runtime verifier exercises the shape via
+  `#[cfg(feature = "jwks")]` test at verify.rs:1495-1497
+  (definition :1560-1564, end-to-end :1607-1623). Narrowed.
+  Pi pass-2 I3: hybrid TYPE RECORD WITH JWT URL + WITH ISSUER
+  inline-key still hits the JWKS feature gate on the verification
+  half; added 'gate applies even to hybrid setups' paragraph.
+  Pi pass-2 M3: hybrid_record DURATION FOR TOKEN 10s was
+  unrealistic; bumped to 15m / 12h.
+- **R3** — refresh-token shape. Codex pass-2 M1 + Cursor pass-2
+  M2: rev-2 omitted the literal 'surreal-refresh-' prefix on the
+  refresh-token value. Source: expr/statements/access.rs:121-126
+  + :133-134 + signin.rs:1042-1056 + :1582-1584. Doc now cites
+  the prefix explicitly in prose + JS-SDK example, and warns
+  against stripping or splitting client-side.
+- **R4** — citation tightening. Codex pass-2 M2: stmt.rs:758 was
+  wrong (close-bracket of prior no-duration case); :558 is the
+  inline-key TYPE JWT DURATION FOR TOKEN fixture. Fixed. Cursor
+  pass-2 I2: verify.rs PASSHASH PHC parse span tightened from
+  945-952 to :947-948 specifically inside verify_pass. Pi pass-2
+  M2: stmt.rs:402 commented-out block scope clarified to
+  DEFINE USER specifically, with explicit pointers at active
+  DEFINE ACCESS DURATION FOR TOKEN NONE fixtures at :627 / :1256
+  / :1264 / :1272. Cursor pass-2 M1: stmt.rs:2620 / :2621
+  disambiguated (harness vs SQL string).
+- **R5** — release/disposition commit (this one). Cursor pass-2
+  I1: this CHANGELOG entry's 'DEFINE USER DURATION' bullet
+  itself still cited stmt.rs:402 as a positive 'exercises'
+  fixture; updated to match the rev-2/rev-3 corrected narrative
+  (commented-out for DEFINE USER + active DEFINE ACCESS
+  fixtures).
+
+REJECTED finding (Pi pass-2 C1):
+
+- **Pi pass-2 C1** ('iss.alg defaults to Hs512 when WITH ISSUER
+  ALGORITHM omitted; external_auth example produces a broken
+  HS512-claiming token over RSA verifier'). REJECT — Pi missed
+  define.rs:1697 inside the verifier ALGORITHM arm, which sets
+  `iss.alg = alg` (the verifier alg) BEFORE the WITH ISSUER
+  block runs at :1726+. The algorithm-mismatch check at
+  :1739-1747 that Pi cited only governs WITH ISSUER ALGORITHM
+  <X> overrides; it does not gate the initial inheritance from
+  the verifier. For the external_auth example
+  (`WITH JWT ALGORITHM RS256 KEY '<pub>' WITH ISSUER KEY '<priv>'`),
+  iss.alg resolves to RS256 from the verifier line 1697, then
+  WITH ISSUER's KEY arm sets iss.key = '<priv>'. iss.alg STAYS
+  at RS256. The minted token correctly claims RS256 + signs with
+  the RSA private key.
+
+  Pi's claim WOULD be correct for `WITH JWT URL '<jwks>' WITH
+  ISSUER KEY '<priv>'` (the URL arm at :1716-1722 has no
+  `iss.alg = ...` line), in which case iss.alg stays at
+  Hs512 default. This case is now explicitly documented in
+  rev-3 R1's issuer-defaults rubric and was previously implicit.
+  Pi caught a real semantic gap there but mis-attributed the
+  bug to the wrong example.
+
+  R1's issuer-defaults rubric absorbs Pi's underlying concern
+  by enumerating exactly when explicit WITH ISSUER ALGORITHM is
+  required. The external_auth example is correct as-shipped;
+  the hybrid_record example already uses explicit
+  WITH ISSUER ALGORITHM PS256 (correct).
+
+  Convergent reviewer signal supports the REJECT: Cursor pass-2
+  ('No contradiction found: TYPE RECORD WITH JWT … WITH ISSUER …
+  still documents minting via signin.rs:275-318'), Codex pass-2
+  residual-risk ('TYPE JWT verification-only is correct'), and
+  Gemini pass-2 GO all cleared the JWT section without flagging
+  the alleged bug. Three reviewers reading the same source
+  reached the opposite conclusion from Pi.
+
+  This is the v1.5.x-pass-3 Pi-misreads-call-path pattern
+  recurring (Pi-pass-3 wrongly thought db.transaction API
+  didn't exist; here Pi wrongly thought iss.alg defaulted to
+  Hs512 in the verifier-set case). Pattern memory:
+  `feedback_pi_unique_crit_verify_against_source.md` (this
+  pattern is also covered in the v1.5.x convergence notes
+  "fix-drift" section).
+
+#### Rev-4 disposition (4-WAY adversarial pass-3)
+
+Pass-3 verdicts: Cursor CONDITIONAL GO (0 CRITs / 1 IMP / 2
+minors), Codex NO-GO (2 CRITs / 3 IMPs), Gemini GO (0 findings),
+Pi NO-GO (1 CRIT / 2 IMPs / 2 minors).
+
+Three real CRITs landed in this pass — two from Codex, one from
+Pi. All survived 8 prior reviewer passes (4 pass-1 + 4 pass-2)
+before pass-3 caught them. Five atomic rev-4 commits closed
+every accepted finding:
+
+- **R1-R2 combined** — JWT/JWKS section overhaul:
+  - **CRIT (Pi C1)**: `$token` in SIGNIN was wrong. SIGNIN runs
+    against signin variables (`$email`, `$pass`, `$id`); `$token`
+    is only set in AUTHENTICATE (`sess.tk = Some(claims)` at
+    `signin.rs:340-345` between SIGNIN evaluation and AUTHENTICATE
+    execution). Canonical fixture at `verify.rs:2034` confirms
+    AUTHENTICATE is the right clause for `$token.*` lookups.
+    Both v1.6.2-introduced examples (`external_auth` +
+    `hybrid_record`) corrected to use AUTHENTICATE for token-claim
+    binding + SIGNIN for credential-based password auth.
+    Pre-existing v1.6.2 R1 bug. Pi I2 (the prose comment that
+    said "Without a SIGNIN clause, ... `$auth.id` stays unset")
+    fixed to "Without an AUTHENTICATE clause" in same edit.
+  - **CRIT (Codex C1)**: hybrid `TYPE RECORD WITH JWT URL +
+    WITH ISSUER` mints tokens via SIGNIN, but those tokens
+    cannot be re-validated through the same access method's
+    JWKS verifier — SurrealDB encodes minted JWTs with bare
+    `Header::new(...)` at `signin.rs:369 / :938` and
+    `signup.rs:268`, omitting the `kid` claim that JWKS
+    verification requires (`verify.rs:230-237` etc., bails
+    "Missing token header 'kid'"). Added explicit "JWKS
+    round-trip limitation" callout in the JWKS feature-gate
+    block + inline NOTE in the hybrid_record example.
+    Recommends `TYPE RECORD WITH JWT ALGORITHM <alg> KEY
+    '<pub>'` (inline KEY, not URL) for round-trippable tokens.
+  - **CRIT (Codex C2)**: JWKS section bullet still abbreviated
+    to bare `WITH ISSUER KEY` which contradicts the rev-3 R1
+    issuer-defaults rubric. URL/JWKS verifiers don't set
+    `iss.alg` (URL arm at define.rs:1716-1722 has no
+    `iss.alg = ...` line); bare `WITH ISSUER KEY` would treat
+    asymmetric private keys as HMAC secrets at issue.rs:10-28.
+    Rewrote the bullet to explicitly require `WITH ISSUER
+    ALGORITHM <alg> KEY '<priv>'` for URL+ISSUER hybrids with
+    parser-source rationale.
+  - **CONVERGENT IMP (Cursor I1 + Pi I1)**: rev-3 R2's "access
+    definition stops authenticating entirely" overstated the
+    JWKS gate scope. For `TYPE RECORD WITH JWT URL +
+    SIGNIN/SIGNUP`, credential signin still works through
+    `db_access` at `signin.rs:245-410` (which never invokes the
+    JWKS verifier arms); only the verification path (incoming
+    third-party JWTs) fails without `--features jwks`.
+    Tightened to "gate scopes to incoming-JWT verification, not
+    all signin paths" with code-path citations.
+- **R3** — DURATION FOR TOKEN NONE fixture-citation cleanup.
+  Codex pass-3 I1: rev-3 R4 cited stmt.rs:627/:1256/:1264/:1272
+  as "active fixtures" but all four are inside `/* */`
+  commented-out blocks at stmt.rs:623-631 and :1250-1276 (with
+  a `// TODO: Parameterization broke the guarantee that token
+  duration is not none.` note explaining the suppression). Doc
+  now acknowledges no positive-fixture provenance exists for
+  DURATION FOR TOKEN NONE in v3.0.5; recommends round-trip
+  validation rather than parse-only confirmation.
+- **R4** — refresh-token citation chain labels. Codex pass-3
+  I2 + Cursor pass-3 M1+M2: access.rs:121-126 was labeled
+  'create_grant dispatch' but it's actually `new_grant_bearer`
+  (the `format!("{prefix}-{id}-{secret}")` construction).
+  `create_grant` begins at :181, record-refresh invocation is
+  at :237-242. signin.rs:1582-1584 was labeled 'runtime regex'
+  but is an integration-test assertion; production validation
+  is `validate_grant_bearer` at signin.rs:1042-1056. Rewrote
+  the citation chain with correct labels.
+- **R5** — ES512 algorithm runtime caveat + line-citation
+  tightening. Codex pass-3 I3: ES512 maps to ES384 at runtime
+  (verify.rs:47-48 + mod.rs:46-47); split ES256/ES384 from
+  ES512 in the algorithms table + added an explicit caveat.
+  Pi pass-3 M1: SYMMETRIC bullet cited line 1707 but the
+  `iss.key = key` assignment is on :1703; tightened to cite
+  both lines.
+- **R6** (this commit) — CHANGELOG pass-3 disposition + the
+  pre-existing CHANGELOG `stmt.rs:402` citation drift first
+  flagged in Cursor pass-2 I1; the previous rev-2 commit fixed
+  it via "or :627 / :1256 / :1264 / :1272" alternates which
+  themselves turned out to be commented-out (Codex pass-3 I1).
+  Final CHANGELOG narrative now matches the rev-4 R3
+  rule-file correction: no positive-fixture provenance, gated
+  blocks only.
+
+NO REJECTIONS this pass — all four pass-3 CRIT/IMP-level
+findings traced to real source; Pi pass-2's rejected C1 still
+holds (Cursor pass-3 cross-check appendix B + Codex pass-3
+residual risk + Gemini pass-3 GO all confirm).
+
+#### Rev-5 disposition (4-WAY adversarial pass-4)
+
+Pass-4 verdicts: Cursor NO-GO (1 CRIT / 2 IMPs / 2 minors),
+Codex NO-GO (1 CRIT / 2 IMPs / 1 minor), Gemini NO-GO (1 CRIT
+/ 0 IMPs), Pi CONDITIONAL GO (0 CRITs / 1 IMP / 2 minors).
+
+Pass-4 surfaced 3 real CRITs — pattern continues from pass-3
+(cumulative ~17 source-cited findings across the four passes).
+Three atomic rev-5 commits closed every accepted finding:
+
+- **R1** — JWT-Based Authentication: split external_auth into
+  Pattern A (external_jwt_auth, authenticate-only) +
+  Pattern B (credential_auth, SIGNIN-mint-roundtrippable).
+  Closes:
+  - **CONVERGENT CRIT** (Gemini C1 + Cursor I2 + Codex I1 +
+    Pi I1): rev-4 external_auth had WITH ISSUER KEY +
+    DURATION FOR TOKEN 1h but NO SIGNIN, making the issuance
+    machinery unreachable per signin.rs:296-437
+    (AccessRecordNoSignin error if SIGNIN missing).
+  - **UNIQUE CRIT** (Codex C1): rev-4 prose claimed
+    'no AUTHENTICATE -> $token-only permissions' — wrong.
+    Source: verify.rs:177-245 binds record from token's `id`
+    claim if present; verify.rs:464 bails
+    AccessMethodMismatch otherwise. Real rule documented in
+    the new prose preamble.
+- **R2** — JWKS section: replaced hybrid_record with two
+  separate access definitions (jwks_inbound for federated IdP,
+  credential_mint for SurrealDB-side mint) plus an explicit
+  ANTI-PATTERN callout. Closes:
+  - **UNIQUE CRIT** (Cursor C1): rev-4 hybrid_record had
+    AUTHENTICATE matching `$token.sub` after credential SIGNIN,
+    but credential SIGNIN mints tokens with `$token.ID`
+    (uppercase, from Claims { id: Some(rid.to_sql()), ..
+    Claims::default() } at signin.rs:314-324); default sub:
+    None at token.rs:243; into_claims_object at
+    token.rs:289-345 inserts 'ID' for the id claim and only
+    inserts 'sub' when Claims.sub is Some. So rev-4
+    hybrid_record's AUTHENTICATE predicate matched the wrong
+    key on the credential path.
+  - **CARRY-OVER from Codex pass-3 C1**: SurrealDB-minted
+    tokens use bare Header::new(...) at signin.rs:369/:938
+    + signup.rs:268 which omits the kid claim, so JWKS
+    verification round-trip fails. Anti-pattern callout
+    documents both reasons (sub vs ID + kid round-trip).
+- **R3** — Lower IdP integration example + ES512 caveat
+  tighten + four-blocks miscount + access.rs:237-242 label.
+  Closes:
+  - **UNIQUE** (Codex I2 — pre-existing v1.5.x latent): the
+    'JWT Token Integration with External Identity Providers'
+    lower example also had the no-AUTHENTICATE shape problem.
+    Rewrote to use AUTHENTICATE for sub mapping + dropped
+    WITH ISSUER (matches surrounding prose's authenticate-only
+    intent).
+  - **UNIQUE** (Codex M1): rev-4 R5 ES512 caveat overstated
+    inbound-header acceptance. Tightened to scope the claim
+    to 'configured ALGORITHM ES512 verifies and emits ES384'
+    only.
+  - **UNIQUE** (Cursor I1 + M2): rev-4 'all four blocks'
+    miscount for DURATION FOR TOKEN NONE fixtures. Actually
+    three commented regions contain five anti-fixtures.
+    Tightened wording in both rule file AND CHANGELOG.
+  - **UNIQUE** (Pi M1): rev-4 R4 labeled access.rs:237-242
+    as 'record-refresh call site'; actually it's the Base::Db
+    enforcement guard inside create_grant. Relabeled.
+
+NO REJECTIONS this pass — all four reviewers' CRIT/IMP
+findings traced to real source. Pi pass-2's earlier rejected
+C1 still holds (multiple cross-pass confirmations).
+
+#### Rev-6 disposition (4-WAY adversarial pass-5)
+
+Pass-5 verdicts: Cursor NO-GO (2 CRITs / 3 IMPs / 1 minor),
+Codex NO-GO (1 CRIT / 2 IMPs / 2 minors), Gemini GO (0 findings),
+Pi CONDITIONAL GO (0 CRITs / 2 IMPs / 0 minors).
+
+3 real CRITs landed in this pass — same fix-drift pattern
+documented in earlier disposition entries. Three atomic rev-6
+commits closed every accepted finding:
+
+- **R1** — Parser-order fix: 3 examples don't parse.
+  - **CRIT (Codex pass-5 C1)**: rev-5 examples external_jwt_auth,
+    jwks_inbound, and external_idp put AUTHENTICATE BEFORE
+    WITH JWT, which fails to parse in v3.0.5. Source:
+    parse_define_access at define.rs:415-573 has an outer loop
+    matching top-level clauses (TYPE at :456, AUTHENTICATE at
+    :545); the TYPE arm delegates to a TYPE RECORD subparser
+    (:456-507) with two inner loops (SIGNUP/SIGNIN, then
+    WITH JWT/REFRESH). If AUTHENTICATE comes before WITH JWT,
+    the outer loop consumes AUTHENTICATE, then sees WITH and
+    has no match arm -> exits, leaving WITH JWT unconsumed.
+    Canonical fixture order at verify.rs:2029-2037 confirms
+    the working shape: `TYPE RECORD ... SIGNIN ... WITH JWT ...
+    AUTHENTICATE ... DURATION ...`. Reordered all three
+    examples + added inline parser-cited comments in each.
+  - **CRIT (Cursor pass-5 C2)**: Pattern A (external_jwt_auth)
+    comment cited `signin.rs:340-345` for `$token` availability,
+    but that's the SIGNIN-mint path. Pattern A has no SIGNIN —
+    clients call db.authenticate(). On the authenticate path,
+    sess.tk is populated at verify.rs:256-263 (claims arm with
+    id) or :432-440 (claims arm without id), NOT signin.rs.
+    Updated the comment to cite the correct authenticate-path
+    locations.
+  - **UNIQUE (Codex pass-5 I2)**: jwks_inbound had
+    `DURATION FOR TOKEN 15m` but the doc itself documents that
+    FOR TOKEN is unused on the authenticate path for
+    AccessType::Record without minting. Removed the unused
+    clause + explanatory comment.
+- **R2** — access.rs line-label correction.
+  - **CONVERGENT CRIT (Cursor pass-5 C1 + Codex pass-5 I1)**:
+    rev-3 R4 first cited access.rs:237-242 as 'record-refresh
+    call site'; Pi pass-3 corrected to 'Base::Db enforcement
+    guard'; rev-5 R3 propagated that label. Source verification
+    at v3.0.5 expr/statements/access.rs:226-242 shows BOTH
+    labels are wrong:
+    - :231-234 IS the Base::Db enforcement guard (specifically
+      :233's `ensure!(matches!(base, Base::Db),
+      Error::DbEmpty);`)
+    - :237-242 is the bearer-presence check + new_grant_bearer
+      invocation that follows the guard
+    Final fix splits the citation: :231-234 for the guard,
+    :237-242 for the bearer + grant construction.
+  - This is a multi-pass label-drift pattern. Pi pass-2 I1 / Pi
+    pass-3 M1 / Pi pass-4 M1 / Pi pass-5 PASS-on-F all gave
+    different labels for :237-242 — Pi mis-attributes
+    successive lines without source-grep. Recorded as a
+    parallel pattern to the v1.5.x Pi-pass-3 db.transaction
+    misread.
+- **R3** — JWKS ops bullet + preamble ALGORITHM scope + lower
+  IdP arm citation.
+  - **CONVERGENT IMP (Cursor pass-5 I1 + Pi pass-5 I1)**: JWKS
+    'Operational notes' bullet still recommended single combined
+    TYPE RECORD WITH JWT URL + WITH ISSUER pattern,
+    contradicting the rev-5 anti-pattern callout. Rewrote to
+    redirect to the two-pattern approach (jwks_inbound +
+    credential_mint).
+  - **UNIQUE (Pi pass-5 I2)**: rev-5 preamble parenthetical
+    said `ALGORITHM token in WITH ISSUER is REQUIRED for
+    asymmetric / JWKS verifier paths`. Per define.rs:1697,
+    inline asymmetric verifiers DO inherit iss.alg; only
+    URL/JWKS verifiers need explicit `ALGORITHM`. Narrowed.
+  - **UNIQUE (Cursor pass-5 I2)**: lower IdP example cited
+    verify.rs:246-288 (first claims arm, with id) for
+    'no-encode authenticate-only' behaviour; inbound IdP JWTs
+    mapped via `$token.sub` follow the SECOND claims arm at
+    ~verify.rs:401-462. Retargeted the citation.
+- **R4** (this commit) — CHANGELOG pass-5 disposition +
+  cumulative trajectory table extension.
+
+NO REJECTIONS this pass. Pi pass-5's PASS-on-F (claiming
+:237-242 was the Base::Db guard) was wrong by the same source
+check Cursor C1 + Codex I1 surfaced; the convergent
+Cursor+Codex finding overrode Pi's PASS verdict. Pi pass-2 C1
+remains rejected (cross-pass confirmation).
+
+#### Cumulative trajectory after pass-5
+
+| Pass | Cursor | Codex | Gemini | Pi | Real CRITs | Real IMPs | Notes |
+|------|--------|-------|--------|----|------|-----------|-------|
+| 1 | NO-GO | NO-GO | NO-GO | COND | 2 | 5 | jwks gate + TYPE JWT signin path |
+| 2 | COND | COND | GO | NO-GO* | 0 | 4 | *Pi C1 rejected (parser misread) |
+| 3 | COND | NO-GO | GO | NO-GO | 3 | 4 | kid round-trip + WITH ISSUER KEY in JWKS bullet + $token in SIGNIN |
+| 4 | NO-GO | NO-GO | NO-GO | COND | 3 | 4 | external_auth no-SIGNIN + hybrid_record sub vs ID + no-AUTHENTICATE prose |
+| 5 | NO-GO | NO-GO | GO | COND | 3 | 4 | parser-order in 3 examples + access.rs label drift + signin.rs:340-345 wrong cite |
+
+11 real CRITs found-and-fixed across five passes. Multiple
+recurring patterns (access.rs:237-242 label drift across passes
+2-5; Pi misreads multi-arm match control flow; doc-vs-CHANGELOG
+drift on stmt.rs:402 across passes 2-3-4-5). Two Gemini CRITs
+rejected with parser-cited rebuttals across the cycle.
+
+#### Rev-7 disposition (4-WAY adversarial pass-6)
+
+Pass-6 verdicts: Cursor NO-GO (1 CRIT / 1 IMP / 2 minors),
+Codex NO-GO (4 CRITs / 0 IMPs / 1 minor), Gemini GO (0
+findings), Pi CONDITIONAL GO (0 CRITs / 2 IMPs / 2 minors —
+all CHANGELOG-hygiene only).
+
+5 real CRITs landed in this pass. Five atomic rev-7 commits
+closed every accepted finding:
+
+- **R1** — NS/DB/AC routing-claim requirement.
+  - **CRIT (Codex pass-6 C1)**: inbound JWTs MUST carry
+    `ns`/`db`/`ac` routing claims (or aliases per
+    `core/src/iam/token.rs:248-275` — uppercase or full URI
+    forms accepted) for SurrealDB to match the database-access
+    arm at `verify.rs:288-297`. Without them, validation
+    falls through to InvalidAuth at `:824-825` BEFORE the
+    access method's verifier or AUTHENTICATE clause runs.
+    The pre-existing v1.5.x `external_idp` example payload
+    showed only `sub/email/roles/tenant_id/exp` — none of
+    which routes. Added a ROUTING-CLAIM REQUIREMENT block to
+    the JWT-Based Authentication preamble + updated the lower
+    IdP example payload to include `ns/db/ac/sub/...` with
+    inline notes pointing at IdP custom-claim mechanisms
+    (Auth0 Actions, Okta inline hooks, Cognito pre-token
+    Lambda, Azure AD claim mapping).
+- **R2-R3** — `account` JWKS example shape fix + Pattern A
+  citation tightening + GRANT bullet line range.
+  - **CRIT (Codex pass-6 C2)**: pre-existing v1.5.x `account`
+    JWKS mini-example had `TYPE RECORD WITH JWT URL` with no
+    AUTHENTICATE and `DURATION FOR TOKEN 15m`. Without
+    AUTHENTICATE, inbound IdP JWTs lacking SurrealDB `id`
+    fall through to AccessMethodMismatch at `verify.rs:464`;
+    DURATION FOR TOKEN is unused on the authenticate path
+    for AccessType::Record without minting. Rewrote with
+    AUTHENTICATE for sub mapping + dropped FOR TOKEN.
+  - **CRIT (Cursor pass-6 C1)**: rev-5 Pattern A example
+    cited `verify.rs:394` for DURATION FOR SESSION — that's
+    the AccessType::Jwt branch, not AccessType::Record. The
+    Record arm uses `:282` (claims with id) or `:457` (claims
+    without id). Corrected both citations + relabeled the
+    comment to 'AccessType::Record authenticate path' (also
+    closes Codex pass-6 M1).
+  - **IMP (Cursor pass-6 I1)**: Pattern A's sess.tk citation
+    listed `:256-263 (claims arm with id) or :432-440 (claims
+    arm without id)` implying both are equally common. For
+    typical IdP-`sub` JWTs (no SurrealDB id), `:432-440` is
+    the path; reordered + framed `:256-263` as the
+    conditional case.
+  - **MINOR (Cursor pass-6 M1)**: GRANT FOR RECORD bullet
+    cited `:226-234`; per source, `:226-230` is the unrelated
+    Jwt grant rejection and the actual guard is `:231-234`
+    + `:353-355`. Tightened with explicit per-arm labels.
+- **R4** — CHANGELOG hygiene fixes.
+  - **CRIT (Codex pass-6 C3)**: top-of-file v1.6.2 'Added'
+    bullet for `WITH JWT URL` still said the doc 'documents
+    the hybrid pattern combining JWKS-verify with WITH ISSUER
+    inline-key issuance' — contradicts current security.md
+    which redirects to two patterns + labels the combined
+    shape an anti-pattern. Rewrote bullet to reference
+    `jwks_inbound` + `credential_mint` as separate definitions
+    with the anti-pattern callout.
+  - **CRIT (Codex pass-6 C4 + Pi pass-6 I1+I2+M1+M2)**: the
+    rev-3 R5 disposition's 'Cumulative trajectory after
+    pass-4' table was retained at the bottom of the [1.6.2]
+    section AFTER the rev-5 R4 added an updated 'Cumulative
+    trajectory after pass-5' table, creating a duplicate
+    that contradicted itself ('Eight real CRITs' vs '11 real
+    CRITs'). Same doc-vs-CHANGELOG drift class as the
+    pass-2/pass-3 stmt.rs:402 saga — recorded as a recurring
+    pattern. Removed the stale table + 'Eight real CRITs'
+    paragraph. Restructured 'Reviewer-blind-spot pattern'
+    + 'verification escalator' prose under explicit headings
+    that don't conflict with the pass-5 trajectory section.
+- **R5** (this commit) — CHANGELOG pass-6 disposition + new
+  trajectory row.
+
+NO REJECTIONS this pass. Pi pass-2 C1 still rejected
+(seventh-pass confirmation).
+
+#### Cumulative trajectory after pass-6
+
+| Pass | Cursor | Codex | Gemini | Pi | Real CRITs | Real IMPs |
+|------|--------|-------|--------|----|------|-----------|
+| 1 | NO-GO | NO-GO | NO-GO | COND | 2 | 5 |
+| 2 | COND | COND | GO | NO-GO* | 0 | 4 |
+| 3 | COND | NO-GO | GO | NO-GO | 3 | 4 |
+| 4 | NO-GO | NO-GO | NO-GO | COND | 3 | 4 |
+| 5 | NO-GO | NO-GO | GO | COND | 3 | 4 |
+| 6 | NO-GO | NO-GO | GO | COND | 5 | 1 |
+
+*Pi pass-2 C1 rejected with parser-cited rebuttal (see Rev-3
+disposition above).
+
+16 real CRITs found-and-fixed across six passes. Pass-6's
+spike to 5 CRITs reflects two pre-existing v1.5.x latent bugs
+finally surfacing (NS/DB/AC routing claims missing from IdP
+examples; `account` JWKS example shape) plus one new
+parser-arm citation drift introduced by rev-5 (Pattern A
+verify.rs:394 vs :282/:457). Per the v1.5.x convergence
+pattern, expect ratification within 1-2 more passes; remaining
+churn should be cite-line drift which Codex + Cursor catch
+reliably.
+
+#### Pass-7 ratification (4/4 GO+CONDITIONAL GO with 0 CRITs)
+
+Pass-7 verdicts:
+
+| Reviewer | Verdict | CRITs | IMPs | Minors |
+|---|---|---|---|---|
+| Pi       | **GO**         | 0 | 0 | 1 (auth0_jwt NS/DB/AC mention) |
+| Cursor   | CONDITIONAL GO | 0 | 2 (auth0_jwt cross-reference + jwks_inbound cite consistency) | 2 |
+| Codex    | CONDITIONAL GO | 0 | 1 (CHANGELOG hygiene — pass-5 table archival) | 2 |
+| Gemini   | CONDITIONAL GO | 0 | 2 (account/jwks_inbound consolidation + jwks_inbound NS/DB/AC) | 2 |
+
+Per `~/CLAUDE.md` aggregation rule: "CONDITIONAL GO w/ no CRIT
+= ship if maintainer accepts IMPs as deferred." Pi achieved
+full GO; remaining IMPs across the other three reviewers are
+documentation-polish (cross-reference cite consistency,
+example consolidation, single line-anchor tightening from
+:155+ → :158-159) with no source-correctness contradictions.
+
+**v1.6.2 ratified at pass-7.** Convergence trajectory:
+
+| Pass | Real CRITs | Verdicts |
+|------|------------|----------|
+| 1 | 2 | 1 NO-GO + 2 NO-GO + 1 NO-GO + 1 COND |
+| 2 | 0 | 2 COND + 1 GO + 1 NO-GO* |
+| 3 | 3 | 1 COND + 1 NO-GO + 1 GO + 1 NO-GO |
+| 4 | 3 | 3 NO-GO + 1 COND |
+| 5 | 3 | 2 NO-GO + 1 GO + 1 COND |
+| 6 | 5 | 2 NO-GO + 1 GO + 1 COND |
+| **7** | **0** | **3 COND + 1 GO** |
+
+16 cumulative real CRITs found-and-fixed across 7 passes;
+2 Gemini CRITs rejected with parser-cited rebuttals. Trajectory
+matches v1.5.x convergence pattern (rev-N closes pass-(N-1)
+findings while introducing 1-3 new bugs from fix surgery).
+Rev-7's edit was precisely scoped (5 commits) and pass-7
+introduced ZERO new bugs from surgery — the cleanest pass.
+
+#### Deferred to v1.6.3 (pass-7 IMPs and minors)
+
+- Add NS/DB/AC routing-claim mention to `auth0_jwt` TYPE JWT
+  example for per-example consistency (currently relies on
+  global preamble block).
+- Align `jwks_inbound`'s session-duration comment with the
+  `:282` / `:457` dual-pointer used in `external_jwt_auth`.
+- Consolidate the `account` + `jwks_inbound` examples in the
+  JWKS section (currently functionally identical after rev-7's
+  `account` rewrite).
+- Tighten `verify.rs:155+` cite in the routing-claim block to
+  `:158-159` (anchor where `decode_claims_unverified` is
+  called).
+- Archive or label the `Cumulative trajectory after pass-5`
+  table as historical (superseded by the pass-6 table below).
+
+None of these affect runtime correctness; all are documentation
+polish suitable for a v1.6.3 batch.
+
+#### Reviewer-blind-spot doctrine (carried forward from earlier passes)
+
+Pi pass-3 first noted that the `external_auth` example's `$token`
+in SIGNIN bug "survived 8 reviewer passes" before pass-3 caught
+it. The pattern: every reviewer verified JWT *issuance* semantics
+(iss.alg, iss.key, AccessMethodMismatch fallthroughs at
+:449/:550/:686) and parser-grammar acceptance, but none traced
+what `$token` actually resolves to inside SIGNIN vs AUTHENTICATE.
+The canonical test fixture at `verify.rs:2034` would have
+disambiguated this on first inspection. The same pattern recurred
+at pass-6 with Codex's NS/DB/AC routing-claim catch — five
+review passes verified parser correctness without checking that
+inbound JWTs actually carry the claims `verify.rs:288-297`
+requires for routing.
+
+Doctrine for future cycles: every example in a doc should be
+walked end-to-end at the SurrealQL evaluation level — "at each
+evaluation point, what do the session parameters actually
+contain? what claims does the JWT need to route?" — not just
+"does the example parse?". A parse-clean example can still be
+semantically broken (wrong clause for a given parameter, missing
+routing claims, wrong base for a given access type, wrong
+algorithm relationship between verifier and issuer). Memory
+file `feedback_walk_examples_end_to_end.md` carries the doctrine
+with two recorded instances.
+
+#### Verification escalator (v1.6.x)
+
+This release extends the v1.6.0 / v1.6.1 verification escalator —
+every claim grounded in a parser-source line range plus a parser
+test-fixture line plus a runtime path where applicable, so any
+reviewer can trace a clause back to the v3.0.5 commit that
+defined it. Remaining v1.5.x deferred IMPORTANTs after v1.6.2:
+surrealql.md data-type / DEFINE API / DEFINE CONFIG / INFO FOR
+INDEX|USER variants; vector-search.md HASHED_VECTOR / MINKOWSKI /
+jaccard-pearson similarity-function examples; performance.md
+TLS flags and SURREAL_HNSW_CACHE_SIZE env-var; graph-queries.md
+sub-SELECT graph clauses; data-modeling.md illustrative-edge
+consistency.
+
 ## [1.6.1] - 2026-05-06 — Function namespace catalog (10 atomic feature commits + release commit, plus rev-2 review-fix commits)
 
 ### Added
