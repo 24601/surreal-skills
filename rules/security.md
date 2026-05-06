@@ -558,8 +558,9 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- (the prior arm's closing brace + `Ok(())` sit on `:288-291`):
 --     Claims { ns: Some(ns), db: Some(db), ac: Some(ac), .. }
 -- Tokens missing any of those three fall through to
--- `_ => Err(InvalidAuth)` at `verify.rs:825-826` (the
--- `_ => …` arm pattern is on :825 and the body on :826). The
+-- `_ => Err(InvalidAuth)` at `verify.rs:825` (the entire
+-- arm — pattern + body — sits on :825; :826 is the closing
+-- brace of the surrounding match). The
 -- serde
 -- aliases at `token.rs:248-275` accept any of these spellings:
 -- `ns` / `NS` / `https://surrealdb.com/ns` /

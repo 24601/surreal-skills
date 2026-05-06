@@ -43,8 +43,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - **`rules/security.md`** — v1.6.3 Cursor pass-1 M3
   ride-along: tightened ROUTING-CLAIM REQUIREMENT block's
   `:288-297` cite to `:292-297` (the actual claims-match arm)
-  + `:824-825` to `:825-826` (the `_ => Err(InvalidAuth)` arm
-  pattern is on :825 with the body on :826). Cosmetic
+  + `:824-825` to `:825` (the entire `_ => Err(InvalidAuth)`
+  arm sits on :825; :826 is the surrounding match's closing
+  brace). Cosmetic
   precision improvement; no semantic change.
 
 ### Process notes
@@ -73,9 +74,10 @@ Rev-2 closes:
   rev-1 ride-along missed. Replace-all fixed.
 - **Codex I1**: CHANGELOG commit-count drift. Now accurately
   reflects 3 atomic + 1 rev-2 review-fix commit shape.
-- **Codex M1**: `:826` is the closing brace, not the body
-  line — reworded to describe the arm as `_ => Err(...)` on
-  `:825-826` (pattern + body).
+- **Codex M1 + Pi I1 (CONVERGENT)**: `:826` is the
+  surrounding match's closing brace, not the body line — the
+  entire `_ => Err(InvalidAuth)` arm sits on `:825`. Reworded
+  rule + CHANGELOG to cite `:825` only.
 
 ## [1.6.3] - 2026-05-06 — `rules/security.md` v1.6.2 pass-7 deferred-IMP polish (1 atomic doc commit + release commit + rev-2 review-fix commit)
 
