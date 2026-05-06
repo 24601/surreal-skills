@@ -2094,6 +2094,29 @@ ordered), `set::distinct` (sets are already deduplicated),
 casts or boolean checks via `set::intersect` / `set::complement`
 for the missing predicates.
 
+### Sequence Functions
+
+Verified against v3.0.5 `core/src/fnc/sequence.rs`. The `sequence::*`
+namespace exposes exactly ONE function in v3.0.5 — sequences are
+created with `DEFINE SEQUENCE` and read with this single function.
+
+```surql
+-- Create a sequence (DDL, not part of the function namespace)
+DEFINE SEQUENCE invoice_no START 1000 BATCH 100 TIMEOUT 5s;
+
+-- sequence::nextval(name: string) -> int
+-- Returns the next value for the named sequence. Atomic and
+-- monotonically increasing within a sequence. Errors if the
+-- sequence is undefined or the namespace/database is invalid.
+sequence::nextval('invoice_no')              -- 1000
+sequence::nextval('invoice_no')              -- 1001
+```
+
+`sequence::reset`, `sequence::current`, `sequence::peek` are NOT
+registered in v3.0.5. Use `REMOVE SEQUENCE name; DEFINE SEQUENCE
+name START n;` to reset (which renumbers from `n`). There is no
+non-mutating "peek the next value without consuming" function.
+
 ---
 
 ## Subqueries and Expressions
