@@ -439,9 +439,114 @@ NO REJECTIONS this pass — all four reviewers' CRIT/IMP
 findings traced to real source. Pi pass-2's earlier rejected
 C1 still holds (multiple cross-pass confirmations).
 
-#### Rev-5 outstanding
+#### Rev-6 disposition (4-WAY adversarial pass-5)
 
-Pass-5 4-WAY dispatch pending after this commit lands.
+Pass-5 verdicts: Cursor NO-GO (2 CRITs / 3 IMPs / 1 minor),
+Codex NO-GO (1 CRIT / 2 IMPs / 2 minors), Gemini GO (0 findings),
+Pi CONDITIONAL GO (0 CRITs / 2 IMPs / 0 minors).
+
+3 real CRITs landed in this pass — same fix-drift pattern
+documented in earlier disposition entries. Three atomic rev-6
+commits closed every accepted finding:
+
+- **R1** — Parser-order fix: 3 examples don't parse.
+  - **CRIT (Codex pass-5 C1)**: rev-5 examples external_jwt_auth,
+    jwks_inbound, and external_idp put AUTHENTICATE BEFORE
+    WITH JWT, which fails to parse in v3.0.5. Source:
+    parse_define_access at define.rs:415-573 has an outer loop
+    matching top-level clauses (TYPE at :456, AUTHENTICATE at
+    :545); the TYPE arm delegates to a TYPE RECORD subparser
+    (:456-507) with two inner loops (SIGNUP/SIGNIN, then
+    WITH JWT/REFRESH). If AUTHENTICATE comes before WITH JWT,
+    the outer loop consumes AUTHENTICATE, then sees WITH and
+    has no match arm -> exits, leaving WITH JWT unconsumed.
+    Canonical fixture order at verify.rs:2029-2037 confirms
+    the working shape: `TYPE RECORD ... SIGNIN ... WITH JWT ...
+    AUTHENTICATE ... DURATION ...`. Reordered all three
+    examples + added inline parser-cited comments in each.
+  - **CRIT (Cursor pass-5 C2)**: Pattern A (external_jwt_auth)
+    comment cited `signin.rs:340-345` for `$token` availability,
+    but that's the SIGNIN-mint path. Pattern A has no SIGNIN —
+    clients call db.authenticate(). On the authenticate path,
+    sess.tk is populated at verify.rs:256-263 (claims arm with
+    id) or :432-440 (claims arm without id), NOT signin.rs.
+    Updated the comment to cite the correct authenticate-path
+    locations.
+  - **UNIQUE (Codex pass-5 I2)**: jwks_inbound had
+    `DURATION FOR TOKEN 15m` but the doc itself documents that
+    FOR TOKEN is unused on the authenticate path for
+    AccessType::Record without minting. Removed the unused
+    clause + explanatory comment.
+- **R2** — access.rs line-label correction.
+  - **CONVERGENT CRIT (Cursor pass-5 C1 + Codex pass-5 I1)**:
+    rev-3 R4 first cited access.rs:237-242 as 'record-refresh
+    call site'; Pi pass-3 corrected to 'Base::Db enforcement
+    guard'; rev-5 R3 propagated that label. Source verification
+    at v3.0.5 expr/statements/access.rs:226-242 shows BOTH
+    labels are wrong:
+    - :231-234 IS the Base::Db enforcement guard (specifically
+      :233's `ensure!(matches!(base, Base::Db),
+      Error::DbEmpty);`)
+    - :237-242 is the bearer-presence check + new_grant_bearer
+      invocation that follows the guard
+    Final fix splits the citation: :231-234 for the guard,
+    :237-242 for the bearer + grant construction.
+  - This is a multi-pass label-drift pattern. Pi pass-2 I1 / Pi
+    pass-3 M1 / Pi pass-4 M1 / Pi pass-5 PASS-on-F all gave
+    different labels for :237-242 — Pi mis-attributes
+    successive lines without source-grep. Recorded as a
+    parallel pattern to the v1.5.x Pi-pass-3 db.transaction
+    misread.
+- **R3** — JWKS ops bullet + preamble ALGORITHM scope + lower
+  IdP arm citation.
+  - **CONVERGENT IMP (Cursor pass-5 I1 + Pi pass-5 I1)**: JWKS
+    'Operational notes' bullet still recommended single combined
+    TYPE RECORD WITH JWT URL + WITH ISSUER pattern,
+    contradicting the rev-5 anti-pattern callout. Rewrote to
+    redirect to the two-pattern approach (jwks_inbound +
+    credential_mint).
+  - **UNIQUE (Pi pass-5 I2)**: rev-5 preamble parenthetical
+    said `ALGORITHM token in WITH ISSUER is REQUIRED for
+    asymmetric / JWKS verifier paths`. Per define.rs:1697,
+    inline asymmetric verifiers DO inherit iss.alg; only
+    URL/JWKS verifiers need explicit `ALGORITHM`. Narrowed.
+  - **UNIQUE (Cursor pass-5 I2)**: lower IdP example cited
+    verify.rs:246-288 (first claims arm, with id) for
+    'no-encode authenticate-only' behaviour; inbound IdP JWTs
+    mapped via `$token.sub` follow the SECOND claims arm at
+    ~verify.rs:401-462. Retargeted the citation.
+- **R4** (this commit) — CHANGELOG pass-5 disposition +
+  cumulative trajectory table extension.
+
+NO REJECTIONS this pass. Pi pass-5's PASS-on-F (claiming
+:237-242 was the Base::Db guard) was wrong by the same source
+check Cursor C1 + Codex I1 surfaced; the convergent
+Cursor+Codex finding overrode Pi's PASS verdict. Pi pass-2 C1
+remains rejected (cross-pass confirmation).
+
+#### Cumulative trajectory after pass-5
+
+| Pass | Cursor | Codex | Gemini | Pi | Real CRITs | Real IMPs | Notes |
+|------|--------|-------|--------|----|------|-----------|-------|
+| 1 | NO-GO | NO-GO | NO-GO | COND | 2 | 5 | jwks gate + TYPE JWT signin path |
+| 2 | COND | COND | GO | NO-GO* | 0 | 4 | *Pi C1 rejected (parser misread) |
+| 3 | COND | NO-GO | GO | NO-GO | 3 | 4 | kid round-trip + WITH ISSUER KEY in JWKS bullet + $token in SIGNIN |
+| 4 | NO-GO | NO-GO | NO-GO | COND | 3 | 4 | external_auth no-SIGNIN + hybrid_record sub vs ID + no-AUTHENTICATE prose |
+| 5 | NO-GO | NO-GO | GO | COND | 3 | 4 | parser-order in 3 examples + access.rs label drift + signin.rs:340-345 wrong cite |
+
+11 real CRITs found-and-fixed across five passes. Multiple
+recurring patterns (access.rs:237-242 label drift across passes
+2-5; Pi misreads multi-arm match control flow; doc-vs-CHANGELOG
+drift on stmt.rs:402 across passes 2-3-4-5). Two Gemini CRITs
+rejected with parser-cited rebuttals across the cycle.
+
+#### Rev-6 outstanding
+
+Pass-6 4-WAY dispatch pending after this commit lands. Per the
+v1.5.x convergence pattern, expect ratification in 1-2 more
+passes (cumulative reviewer attention has surfaced most
+correctness surface; remaining churn is largely citation-line
+drift which Cursor + Codex now catch reliably).
 
 #### Cumulative trajectory after pass-4
 
