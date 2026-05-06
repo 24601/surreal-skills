@@ -2011,6 +2011,89 @@ any other transform are NOT registered in v3.0.5. Use `encoding::*`
 for format conversions and `string::*` after decoding for textual
 manipulation.
 
+### Set Functions
+
+Verified against v3.0.5 `core/src/fnc/set.rs` (396 LOC). The `set::*`
+namespace operates on the first-class `Set` value (constructed via
+`<set> [...]` cast or via SET fields in tables) and provides
+mathematical-set semantics that DIFFER from `array::*` in three
+important ways:
+
+1. **`set::difference(A, B)` is the SYMMETRIC difference (A △ B)**,
+   NOT `A \ B`. Use `set::complement(A, B)` for the relative
+   complement (`A \ B`). This is the OPPOSITE convention from
+   `array::difference`, which returns elements in either input but
+   not both — equivalent to symmetric difference for arrays without
+   duplicates, but `set::difference` makes it explicit.
+2. Sets have BTree ordering — `at`, `first`, `last`, `slice`
+   return elements in sorted order, not insertion order.
+3. Closure-based methods (`all`, `any`, `filter`, `find`, `fold`,
+   `map`, `reduce`) iterate in sorted order and the closure receives
+   one element at a time (or `(accum, val)` for fold/reduce).
+
+```surql
+-- Construction
+<set> [1, 2, 2, 3]                           -- {1, 2, 3} (deduped on cast)
+
+-- Membership and size
+set::contains(<set>[1, 2, 3], 2)             -- true
+set::len(<set>[1, 2, 3])                     -- 3
+set::is_empty(<set>[])                       -- true
+
+-- Mutating returns (the original set is not modified; result is new)
+set::add(<set>[1, 2], 3)                     -- {1, 2, 3}
+set::add(<set>[1, 2], [3, 4])                -- {1, 2, 3, 4} (array spread-insert)
+set::add(<set>[1, 2], <set>[3, 4])           -- {1, 2, 3, 4} (set spread-insert)
+set::remove(<set>[1, 2, 3], 2)               -- {1, 3}
+set::remove(<set>[1, 2, 3], [1, 2])          -- {3}            (array spread-remove)
+
+-- Set algebra
+set::union(<set>[1, 2], <set>[2, 3])         -- {1, 2, 3}     (A ∪ B)
+set::intersect(<set>[1, 2, 3], <set>[2, 3, 4]) -- {2, 3}      (A ∩ B)
+set::difference(<set>[1, 2, 3], <set>[2, 3, 4]) -- {1, 4}     (A △ B — SYMMETRIC)
+set::complement(<set>[1, 2, 3], <set>[2, 3]) -- {1}           (A \ B — RELATIVE)
+
+-- Element access (BTree order)
+set::first(<set>[3, 1, 2])                   -- 1             (minimum)
+set::last(<set>[3, 1, 2])                    -- 3             (maximum)
+set::at(<set>[1, 2, 3], 0)                   -- 1
+set::at(<set>[1, 2, 3], -1)                  -- 3             (negative = from end)
+set::min(<set>[3, 1, 2])                     -- 1
+set::max(<set>[3, 1, 2])                     -- 3
+
+-- Slicing (positional, BTree order)
+-- set::slice(set, start_or_range?, end?) -> set
+-- Three forms: no args (returns whole set), single int (start..),
+-- start+end (start..end exclusive), or a Range value.
+set::slice(<set>[1, 2, 3, 4, 5])             -- {1, 2, 3, 4, 5}
+set::slice(<set>[1, 2, 3, 4, 5], 1)          -- {2, 3, 4, 5}
+set::slice(<set>[1, 2, 3, 4, 5], 1, 3)       -- {2, 3}        (1..3 exclusive)
+set::slice(<set>[1, 2, 3, 4, 5], -2)         -- {4, 5}        (negative supported)
+
+-- Flattening + serialization
+set::flatten(<set>[<set>[1, 2], <set>[3]])   -- {1, 2, 3}
+set::join(<set>['a', 'b', 'c'], ', ')        -- 'a, b, c'
+
+-- Closure-based traversal (async — closure invoked per element)
+-- These are the seven async ones; they accept either a closure or a
+-- plain value (which is matched for equality in `all`/`any`/`filter`/
+-- `find`).
+set::all(<set>[1, 2, 3], |$x| $x > 0)        -- true
+set::any(<set>[1, 2, 3], |$x| $x > 2)        -- true
+set::filter(<set>[1, 2, 3, 4], |$x| $x % 2 = 0)  -- {2, 4}
+set::find(<set>[1, 2, 3], |$x| $x > 1)       -- 2
+set::map(<set>[1, 2, 3], |$x| $x * 2)        -- {2, 4, 6}
+set::fold(<set>[1, 2, 3], 0, |$acc, $x| $acc + $x)  -- 6
+set::reduce(<set>[1, 2, 3], |$acc, $x| $acc + $x)   -- 6 (uses first elem as init)
+```
+
+NOT exposed under `set::*` in v3.0.5: `set::sort` (sets are already
+ordered), `set::distinct` (sets are already deduplicated),
+`set::reverse`, `set::concat`, `set::sample`, and the symmetric
+`set::is_subset` / `set::is_superset` predicates. Use `array::*`
+casts or boolean checks via `set::intersect` / `set::complement`
+for the missing predicates.
+
 ---
 
 ## Subqueries and Expressions
