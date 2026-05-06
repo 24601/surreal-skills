@@ -547,19 +547,29 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- omitted because there is no SurrealDB-side minting in this
 -- pattern.
 DEFINE ACCESS external_jwt_auth ON DATABASE TYPE RECORD
-    AUTHENTICATE (
-        -- $token.sub is the IdP's subject claim; map it to
-        -- the local user record. Canonical pattern from
-        -- `core/src/iam/verify.rs:2034` (test fixture wires
-        -- AUTHENTICATE to read $token.* claims; sess.tk is
-        -- populated at signin.rs:340-345 / verify.rs:255-260
-        -- before AUTHENTICATE runs).
-        SELECT id FROM user WHERE external_id = $token.sub
-    )
+    -- Clause order matters: parser at
+    -- `core/src/syn/parser/stmt/define.rs:456-507` consumes
+    -- TYPE RECORD's SIGNUP/SIGNIN inner loop and WITH JWT/REFRESH
+    -- inner loop before returning to the outer parse_define_access
+    -- loop where AUTHENTICATE / DURATION are matched (line 545+).
+    -- Putting AUTHENTICATE before WITH would leave WITH unconsumed
+    -- by the outer loop and fail the parse. Canonical fixture
+    -- order at `core/src/iam/verify.rs:2029-2037`.
     WITH JWT
         ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 -----END PUBLIC KEY-----'
+    AUTHENTICATE (
+        -- $token.sub is the IdP's subject claim; map it to the
+        -- local user record. `sess.tk` (the source of $token) is
+        -- populated by the authenticate path at
+        -- `core/src/iam/verify.rs:256-263` (claims arm with id)
+        -- or `:432-440` (claims arm without id) before
+        -- AUTHENTICATE executes — NOT by the SIGNIN-mint path
+        -- at signin.rs:340-345 (this access method has no
+        -- SIGNIN clause).
+        SELECT id FROM user WHERE external_id = $token.sub
+    )
     DURATION FOR SESSION 12h;
 -- Note: `DURATION FOR TOKEN` is NOT applied on the authenticate
 -- path for AccessType::Jwt-shaped flows — the IdP's own `exp`
@@ -789,12 +799,18 @@ DEFINE ACCESS account ON DATABASE TYPE RECORD
 -- integration (Auth0 / Okta / Cognito) where SurrealDB
 -- never mints tokens itself.
 DEFINE ACCESS jwks_inbound ON DATABASE TYPE RECORD
+    -- Same clause-order constraint as external_jwt_auth above.
+    WITH JWT
+        URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
     AUTHENTICATE (
         SELECT id FROM user WHERE external_id = $token.sub
     )
-    WITH JWT
-        URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
     DURATION FOR SESSION 12h;
+-- DURATION FOR TOKEN is omitted: on the authenticate path for
+-- AccessType::Record without SurrealDB-side minting, the IdP's
+-- own `exp` claim governs token lifetime; verify.rs reads
+-- `de.session_duration` for session expiry but does not consume
+-- `de.token_duration` here.
 
 -- Pattern B — SurrealDB-side credential mint, round-trippable.
 -- Use INLINE KEY (not URL) on the verifier so SurrealDB-minted
@@ -1565,13 +1581,17 @@ const myProfile = await db.select('user');
 -- (`verify.rs:246-288` sets the session from the verified JWT
 -- without calling `encode`).
 DEFINE ACCESS external_idp ON DATABASE TYPE RECORD
-    AUTHENTICATE (
-        SELECT id FROM user WHERE external_id = $token.sub
-    )
+    -- Clause order: WITH JWT must precede AUTHENTICATE (the
+    -- TYPE RECORD subparser at define.rs:456-507 consumes WITH
+    -- JWT/REFRESH before returning to the outer access-define
+    -- loop where AUTHENTICATE is matched).
     WITH JWT
         ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 -----END PUBLIC KEY-----'
+    AUTHENTICATE (
+        SELECT id FROM user WHERE external_id = $token.sub
+    )
     DURATION FOR SESSION 12h;
 
 -- The JWT payload should include claims that map to user data
