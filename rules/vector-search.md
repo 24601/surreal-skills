@@ -409,16 +409,19 @@ LIMIT 10;
 > - `vector::similarity::pearson(a, b)` computes the Pearson
 >   correlation coefficient
 >   (`covar / (std_dev_a * std_dev_b)`). Range `[-1, 1]` for
->   finite, non-zero-variance inputs. **Edge cases:** if the
->   `deviation(...)` calculation
->   (`core/src/fnc/util/math/vector.rs:9-21`) returns exactly
->   `0.0` for either operand, the numerator collapses
->   simultaneously — every term
->   `(a_i − mean(a)) * (b_i − mean(b))` evaluates to zero
->   when `a` is exactly constant — so the result is
->   `0 / 0 = NaN` (Infinity cannot occur because the
->   constant-operand path forces `covar = 0` whenever
->   `std_dev_a = 0`). This zero-deviation path is reachable
+>   finite, non-zero-variance inputs. **Edge cases:** for
+>   exact constant operands whose `mean()` round-trip
+>   recovers the same value, every centered term
+>   `(a_i − mean(a)) * (b_i − mean(b))` is exactly `0.0`,
+>   so covariance is also `0.0` and the result is
+>   `0 / 0 = NaN`. This constant-operand sub-case cannot
+>   produce `Infinity` (the simultaneous collapse forces a
+>   `0 / 0` form). A separate f64 underflow regime — where
+>   centered squared terms underflow to `0` while pairwise
+>   products do not — can still drive `std_dev` to `0.0`
+>   with non-zero covariance, producing `±Infinity` instead
+>   of `NaN`; see the **Pearson zero-denominator path
+>   divergence** callout below for the worked example. This zero-deviation path is reachable
 >   for **integer** constant operands (e.g. `[1, 1, 1]`, where
 >   `mean()` returns `1` exactly and each `x_i − mean` is
 >   exactly `0.0`); for **some floating-point** constant
@@ -975,7 +978,7 @@ DEFINE INDEX idx_embedding ON TABLE document
 | CHEBYSHEV | Worst-case dimension difference | No | [0, inf) |
 | HAMMING | Binary features, hash comparison | N/A | [0, dim] |
 | JACCARD ⚠ | Numeric-token similarity (NOT distance — see warning below); pre-dedup inputs with `array::distinct(...)` for textbook set semantics | N/A | `NaN` if both inputs empty; otherwise `[0, |b|]` raw (multiset-asymmetric numerator) / `[0, 1]` after pre-dedup |
-| PEARSON ⚠ | Correlation-based similarity (NOT distance — see warning below) | No | `[-1, 1]` (similarity); `NaN` for zero-variance / NaN-element inputs (see callout) |
+| PEARSON ⚠ | Correlation-based similarity (NOT distance — see warning below) | No | finite results in `[-1, 1]`; non-finite (`NaN` / `±Infinity`) possible for zero-denominator or NaN-element inputs (see callout) |
 
 Most text embedding models produce normalized vectors, making COSINE the standard choice. If you are unsure, use COSINE.
 
@@ -1003,10 +1006,14 @@ Most text embedding models produce normalized vectors, making COSINE the standar
 > `0 / 0` case described in the callout above). They can
 > ALSO return `±Infinity` when f64 **underflow** drives the
 > denominator to `0.0` while covariance remains non-zero —
-> e.g. `pearson([0.0, 1e-308], [0.0, 1e154])` produces
-> `std_dev_a = 0.0` (since `(1e-308)² ≈ 1e-617` underflows to
-> `0`), non-zero covariance `~2.5e-155`, and a non-finite
-> `±Infinity` ratio. Treat any non-finite result (`NaN`,
+> e.g. `pearson([0.0, 1e-308], [0.0, 1e154])` centers to
+> `dx_i ∈ {-5e-309, +5e-309}` and `dy_i ∈ {-5e153, +5e153}`;
+> the squared centered terms `(5e-309)² ≈ 2.5e-617` underflow
+> to `0.0`, so `std_dev_a = 0.0`. Pairwise products
+> `dx_i * dy_i` stay at magnitude `2.5e-155` (well above the
+> f64 minimum normal `~2.2e-308`), so covariance is non-zero
+> at `~2.5e-155` and the final ratio is `+Infinity`
+> (sign-dependent on the operand pairing). Treat any non-finite result (`NaN`,
 > `+Inf`, `-Inf`) as a degenerate input regardless of which
 > route produced it. The HNSW-internal Pearson implementation
 > at
@@ -1014,9 +1021,11 @@ Most text embedding models produce normalized vectors, making COSINE the standar
 > `0.0` when `denominator == 0.0` (the explicit
 > `if denominator == 0.0 { return 0.0; }` short-circuit at
 > `:435-437`) — that does NOT match the standalone path's
-> NaN behaviour. This divergence does NOT make `DIST PEARSON`
-> safe for HNSW; the inversion bug above is the dominant
-> reason to avoid it. The note here is so that readers
-> debugging HNSW vs brute-force scoring understand why
-> zero-variance inputs produce different outputs depending
-> on which evaluation path runs.
+> non-finite behaviour (`NaN` for the `0 / 0`
+> zero-variance case; `±Infinity` for the underflow-driven
+> zero-denominator case). This divergence does NOT make
+> `DIST PEARSON` safe for HNSW; the inversion bug above is
+> the dominant reason to avoid it. The note here is so that
+> readers debugging HNSW vs brute-force scoring understand
+> why zero-denominator inputs produce different outputs
+> depending on which evaluation path runs.
