@@ -706,10 +706,11 @@ ACCESS service_tokens ON DATABASE REVOKE
 Physically deletes grants from the catalog. Always required as a
 follow-up to `REVOKE` — without `PURGE`, revoked grants
 accumulate in the catalog forever. Both keywords can be combined
-and the `FOR <duration>` grace period delays deletion until grants
-have been in the target state for at least that long (use it to
-keep a forensic window before permanently erasing audit
-evidence).
+and the `FOR <duration>` grace period requires the grant to be
+**older than** the duration (strict greater-than: runtime test
+is `elapsed_seconds > stmt.grace.secs()` at
+`core/src/expr/statements/access.rs:878-887`); use it to keep a
+forensic window before permanently erasing audit evidence.
 
 ```surrealql
 -- Delete all grants whose expiration has already passed
@@ -724,8 +725,8 @@ ACCESS service_tokens ON DATABASE PURGE EXPIRED, REVOKED FOR 30d;
 
 The parser order between `EXPIRED` and `REVOKED` is irrelevant
 (verified at `core/src/syn/parser/stmt/mod.rs:228-256`). Pass the
-`FOR <duration>` clause to require a minimum age before purging;
-omit it for an immediate sweep.
+`FOR <duration>` clause to require grants be older than that
+duration before they purge; omit it for an immediate sweep.
 
 #### Operational Pattern: Rotation Workflow
 
@@ -744,12 +745,35 @@ ACCESS service_tokens ON DATABASE REVOKE GRANT <old-grant-id>;
 ACCESS service_tokens ON DATABASE PURGE EXPIRED, REVOKED FOR 30d;
 ```
 
-`ACCESS … ON NAMESPACE` and `ACCESS … ON ROOT` are also accepted
-(verified at `core/src/syn/parser/stmt/mod.rs:131` —
-`self.eat(t!("ON")).then(|| self.parse_base())` accepts any base
-the catalog accepts for the access method). Match the `ON …`
-clause to the base the corresponding `DEFINE ACCESS` was created
-on.
+**Base scoping (`ON DATABASE` / `ON NAMESPACE` / `ON ROOT`):**
+
+- `ON …` is **optional** on every `ACCESS` subcommand
+  (`core/src/syn/parser/stmt/mod.rs:131`:
+  `self.eat(t!("ON")).then(|| self.parse_base())`); when omitted,
+  execution resolves the base from the current session context
+  via `opt.selected_base()`
+  (`core/src/expr/statements/access.rs:836-848`). The examples
+  above use explicit `ON DATABASE` for clarity, but `ACCESS
+  service_tokens SHOW ALL` is equivalent inside a `USE NS … DB
+  …` context.
+- `SHOW`, `REVOKE`, and `PURGE` accept whichever base the access
+  method was defined on. `DEFINE ACCESS … TYPE BEARER FOR USER`
+  and `TYPE JWT` are valid on `ROOT`, `NAMESPACE`, and
+  `DATABASE`, so their lifecycle subcommands work at the same
+  bases.
+- `GRANT FOR RECORD` is **database-only** at runtime
+  (`core/src/expr/statements/access.rs:226-234, :353-355`
+  enforces `Base::Db` for record subjects). The corresponding
+  `DEFINE ACCESS … TYPE BEARER FOR RECORD` and `TYPE RECORD`
+  are also DB-only at parse time
+  (`core/src/syn/parser/stmt/define.rs:457-461, :521-526`). The
+  parser will accept `ACCESS … ON NAMESPACE GRANT FOR RECORD …`
+  syntactically (test fixture `core/src/syn/parser/test/stmt.rs:2620`
+  exercises that exact shape), but execution will fail at
+  runtime because no record-typed access method can exist on a
+  namespace.
+- Match the `ON …` clause to the base the corresponding `DEFINE
+  ACCESS` was created on.
 
 ### Token Duration Configuration
 
