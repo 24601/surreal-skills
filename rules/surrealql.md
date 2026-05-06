@@ -1947,6 +1947,41 @@ ORDER BY score DESC;
 
 The `@N@` operator is the match operator for full-text search, where `N` is the index reference number used with `search::score()`, `search::highlight()`, and `search::offsets()`.
 
+```surql
+-- search::analyze(analyzer_name: string, text: string) -> array<string>
+-- Run a defined analyzer over a string and return the resulting
+-- token stream. Useful for previewing tokenization rules without
+-- having to index a document.
+DEFINE ANALYZER blog TOKENIZERS class FILTERS lowercase, snowball(english);
+search::analyze('blog', 'The Quick brown FOXES')
+                                              -- ['quick', 'brown', 'fox']
+
+-- search::rrf(results: array, limit: int, rrf_constant?: int=60) -> array
+-- Reciprocal Rank Fusion. Combines multiple ranked result lists
+-- into a single ranked list using the standard RRF formula
+-- `1 / (k + rank)` where `k` is `rrf_constant` (default 60) and
+-- `rank` is 1-based. Each result list MUST contain objects with
+-- an `id` field; documents are merged by id across lists.
+LET $vec = SELECT id, embedding FROM doc WHERE embedding <|10|> $q;
+LET $ft  = SELECT id, ft_score FROM doc WHERE content @1@ 'surrealdb';
+RETURN search::rrf([$vec, $ft], 10);          -- top 10 fused
+RETURN search::rrf([$vec, $ft], 10, 30);      -- with k=30 (sharper)
+
+-- search::linear(results: array, weights: array<number>, limit: int,
+--                norm: 'minmax' | 'zscore') -> array
+-- Linear-combination fusion with per-list weights and normalization.
+-- `weights.len()` MUST equal `results.len()`. Score extraction
+-- priority per document: `distance` (transformed via 1/(1+d)),
+-- `ft_score`, `score`, then rank-based fallback `1/(1+rank)`.
+RETURN search::linear([$vec, $ft], [2.0, 1.0], 10, 'minmax');
+RETURN search::linear([$vec, $ft], [1.0, 1.0], 10, 'zscore');
+```
+
+`search::rrf` rejects `limit < 1` and `rrf_constant < 0` with
+`InvalidFunctionArguments`. `search::linear` rejects mismatched
+array lengths, non-numeric weights, and any `norm` value other than
+the two listed.
+
 ### Value Functions
 
 ```surql
