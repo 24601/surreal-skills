@@ -2320,9 +2320,18 @@ distinct usage modes:
 -- api::invoke(path: string, req?: object) -> object
 -- Calls a defined API endpoint internally (server-side dispatch,
 -- no HTTP round-trip). Path MUST start with '/'. The optional
--- request object accepts:
---   { method: 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head',
---     headers: { ... }, body: <any>, params: { ... } }
+-- request object's fields (per core/src/api/request.rs:14-23):
+--   { method:  'get' | 'post' | 'put' | 'patch' | 'delete' | 'trace',
+--             -- NOTE: 'head' is NOT a valid ApiMethod variant in
+--             -- v3.0.5; the enum includes 'trace' instead. Source:
+--             -- core/src/catalog/schema/api.rs:111-126.
+--     headers: { string: string },
+--     body:    <any>,
+--     query:   { string: string },   -- query-string parameters
+--     params:  { string: string }    -- IGNORED on input; api::invoke
+--                                    -- overwrites this from path
+--                                    -- matching (fnc/api/mod.rs:92-95).
+--   }
 -- Defaults: GET, Content-Type + Accept set to native SurrealDB
 -- format if absent. Returns the response object with `context`
 -- stripped. Returns a NotFound-shaped response if no matching
@@ -2362,15 +2371,30 @@ DEFINE API "/not-found"
         THEN { RETURN { body: { error: 'gone' } }; };
 
 -- api::res::header(name: string, value?: string) — set or remove a
--- single response header. Pass NONE for value to remove.
+-- single response header. To REMOVE a header, OMIT the second
+-- argument (one-arg form). The function signature uses
+-- `Optional<String>` whose Optional<T> resolves to None ONLY when
+-- the argument is absent (core/src/fnc/args.rs:81-97); passing an
+-- explicit `NONE` value will be coerced via the String FromArg path
+-- and does NOT reliably remove the header. Use `api::res::headers`
+-- (the map form below) when you need to mix sets and removes in
+-- one call.
 DEFINE API "/cors"
     FOR get
         MIDDLEWARE api::res::header('Access-Control-Allow-Origin', '*')
         THEN { RETURN { status: 200, body: {} }; };
 
+-- Remove a header by omitting the value argument:
+DEFINE API "/strip-server"
+    FOR get
+        MIDDLEWARE api::res::header('Server')   -- one arg = remove
+        THEN { RETURN { status: 200, body: {} }; };
+
 -- api::res::headers(map: { string: string|NONE }) — batch set/remove.
--- Strings set; NONE removes. More efficient than chaining
--- api::res::header for many headers.
+-- The map's value type is `Option<String>` (core/src/fnc/api/res.rs:184),
+-- so `NONE` here DOES remove the header (different from
+-- `api::res::header`'s second arg semantics). More efficient than
+-- chaining api::res::header for many headers.
 DEFINE API "/secure"
     FOR get
         MIDDLEWARE api::res::headers({
