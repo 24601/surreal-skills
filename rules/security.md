@@ -422,6 +422,131 @@ and `DURATION FOR SESSION`. `FOR GRANT` controls how long the issued
 bearer token remains usable; `FOR TOKEN` and `FOR SESSION` follow
 the same shape as `TYPE RECORD`.
 
+### Bearer-Grant Lifecycle (`ACCESS GRANT / SHOW / REVOKE / PURGE`)
+
+`DEFINE ACCESS … TYPE BEARER` defines the access *method*; the
+actual long-lived tokens are minted by a separate top-level
+`ACCESS` statement. SurrealDB v3 ships four `ACCESS` subcommands
+for managing the lifecycle of bearer grants. Verified against
+the v3.0.5 parser at `core/src/syn/parser/stmt/mod.rs:108-271`
+(`parse_access` dispatches on `GRANT | SHOW | REVOKE | PURGE`)
+and the test fixtures at `core/src/syn/parser/test/stmt.rs:2604`
+(GRANT FOR USER), `:2621` (GRANT FOR RECORD), `:2645-2683`
+(SHOW), `:2703-2741` (REVOKE), `:2761-2853` (PURGE).
+
+#### `ACCESS … GRANT FOR { USER | RECORD }`
+
+Issues a new bearer grant under a `TYPE BEARER` access method.
+The grant token is returned to the caller exactly once; SurrealDB
+stores only the hash, so a lost token cannot be recovered and
+must be re-issued.
+
+```surrealql
+-- 1. Define the access method
+DEFINE ACCESS service_tokens ON DATABASE TYPE BEARER FOR USER
+    DURATION FOR GRANT 30d, FOR TOKEN 1h, FOR SESSION 12h;
+
+-- 2. Issue a grant for an existing user
+ACCESS service_tokens ON DATABASE GRANT FOR USER ci_runner;
+-- Returns the bearer token (only shown once); persist it in the
+-- consumer's secret store.
+
+-- Record-bound grants for FOR RECORD bearer access
+DEFINE ACCESS partner_tokens ON DATABASE TYPE BEARER FOR RECORD
+    DURATION FOR GRANT 90d, FOR TOKEN 1h, FOR SESSION 24h;
+
+ACCESS partner_tokens ON DATABASE GRANT FOR RECORD partner:acme;
+```
+
+#### `ACCESS … SHOW { ALL | GRANT <id> | WHERE <cond> }`
+
+Lists existing grants without revealing token material (the
+stored hash is opaque). Useful for auditing what tokens exist
+and which subjects they bind to.
+
+```surrealql
+-- All grants under an access method
+ACCESS service_tokens ON DATABASE SHOW ALL;
+
+-- A specific grant by id
+ACCESS service_tokens ON DATABASE SHOW GRANT abc123;
+
+-- Filter with a WHERE condition (predicate runs against grant
+-- metadata; expired and revoked grants are included unless you
+-- filter them out yourself)
+ACCESS service_tokens ON DATABASE SHOW WHERE expiration < time::now();
+```
+
+#### `ACCESS … REVOKE { ALL | GRANT <id> | WHERE <cond> }`
+
+Marks a grant as revoked. Revoked grants stop authenticating
+immediately but are NOT deleted; they remain visible to `SHOW`
+until purged. Use this to invalidate a leaked token, kick a
+former employee's CI runner, or force-rotate a partner's
+credentials.
+
+```surrealql
+-- Revoke every grant under this access method (kill switch)
+ACCESS service_tokens ON DATABASE REVOKE ALL;
+
+-- Revoke one grant by id
+ACCESS service_tokens ON DATABASE REVOKE GRANT abc123;
+
+-- Conditional revoke
+ACCESS service_tokens ON DATABASE REVOKE
+    WHERE subject.user = 'former_employee';
+```
+
+#### `ACCESS … PURGE { EXPIRED | REVOKED | EXPIRED, REVOKED } [ FOR <duration> ]`
+
+Physically deletes grants from the catalog. Always required as a
+follow-up to `REVOKE` — without `PURGE`, revoked grants
+accumulate in the catalog forever. Both keywords can be combined
+and the `FOR <duration>` grace period delays deletion until grants
+have been in the target state for at least that long (use it to
+keep a forensic window before permanently erasing audit
+evidence).
+
+```surrealql
+-- Delete all grants whose expiration has already passed
+ACCESS service_tokens ON DATABASE PURGE EXPIRED;
+
+-- Delete revoked grants but keep them around for 90 days first
+ACCESS service_tokens ON DATABASE PURGE REVOKED FOR 90d;
+
+-- Sweep both classes in one statement
+ACCESS service_tokens ON DATABASE PURGE EXPIRED, REVOKED FOR 30d;
+```
+
+The parser order between `EXPIRED` and `REVOKED` is irrelevant
+(verified at `core/src/syn/parser/stmt/mod.rs:228-256`). Pass the
+`FOR <duration>` clause to require a minimum age before purging;
+omit it for an immediate sweep.
+
+#### Operational Pattern: Rotation Workflow
+
+Combine the four subcommands for a credential-rotation playbook:
+
+```surrealql
+-- 1. Issue a fresh grant for the new key
+ACCESS service_tokens ON DATABASE GRANT FOR USER ci_runner;
+-- (deliver the returned token to the consumer)
+
+-- 2. Once the consumer is on the new token, revoke the old one
+ACCESS service_tokens ON DATABASE REVOKE GRANT <old-grant-id>;
+
+-- 3. Periodically purge revoked + expired grants, keeping a
+-- 30-day window for incident response
+ACCESS service_tokens ON DATABASE PURGE EXPIRED, REVOKED FOR 30d;
+```
+
+`ACCESS … ON NAMESPACE` and `ACCESS … ON ROOT` are also accepted
+(verified at `core/src/syn/parser/stmt/mod.rs:131` —
+`self.eat(t!("ON")).then(|| self.parse_base())` accepts any base
+the catalog accepts for the access method). Match the `ON …`
+clause to the base the corresponding `DEFINE ACCESS` was created
+on.
+
 ### Token Duration Configuration
 
 ```surrealql
