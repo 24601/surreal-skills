@@ -71,13 +71,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
     `core/src/sql/statements/define/user.rs:43`) expiry; both
     accepted in either order, comma-separated; either alone
     valid; `NONE` opts out of expiry on the corresponding axis
-    (the v3.0.5 test suite has commented-out
-    `DURATION FOR TOKEN NONE` blocks at `stmt.rs:398-407` for
-    DEFINE USER and `:623-631 / :1250-1276` for DEFINE ACCESS
-    variants — all gated by /* */ wrappers and calling
-    `unwrap_err()`, so direct positive-fixture provenance does
-    not exist; consumers should validate via round-trip
-    signin/authenticate tests rather than parse-only
+    (the v3.0.5 test suite has `DURATION FOR TOKEN NONE`
+    anti-fixtures across three commented regions at
+    `stmt.rs:398-407` (one DEFINE USER block), `:623-631` (one
+    DEFINE ACCESS TYPE JWT block), and `:1250-1276` (three
+    DEFINE ACCESS TYPE RECORD blocks at DB / ROOT / NS) —
+    five anti-fixtures total, all gated by /* */ wrappers and
+    calling `unwrap_err()`, so direct positive-fixture
+    provenance does not exist; consumers should validate via
+    round-trip signin/authenticate tests rather than parse-only
     confirmation). Application path verified at
     `core/src/iam/signin.rs:481 / :502` and
     `core/src/iam/verify.rs:106`. Includes a combined `PASSHASH +
@@ -368,9 +370,94 @@ findings traced to real source; Pi pass-2's rejected C1 still
 holds (Cursor pass-3 cross-check appendix B + Codex pass-3
 residual risk + Gemini pass-3 GO all confirm).
 
-#### Rev-4 outstanding
+#### Rev-5 disposition (4-WAY adversarial pass-4)
 
-Pass-4 4-WAY dispatch pending after this commit lands.
+Pass-4 verdicts: Cursor NO-GO (1 CRIT / 2 IMPs / 2 minors),
+Codex NO-GO (1 CRIT / 2 IMPs / 1 minor), Gemini NO-GO (1 CRIT
+/ 0 IMPs), Pi CONDITIONAL GO (0 CRITs / 1 IMP / 2 minors).
+
+Pass-4 surfaced 3 real CRITs — pattern continues from pass-3
+(cumulative ~17 source-cited findings across the four passes).
+Three atomic rev-5 commits closed every accepted finding:
+
+- **R1** — JWT-Based Authentication: split external_auth into
+  Pattern A (external_jwt_auth, authenticate-only) +
+  Pattern B (credential_auth, SIGNIN-mint-roundtrippable).
+  Closes:
+  - **CONVERGENT CRIT** (Gemini C1 + Cursor I2 + Codex I1 +
+    Pi I1): rev-4 external_auth had WITH ISSUER KEY +
+    DURATION FOR TOKEN 1h but NO SIGNIN, making the issuance
+    machinery unreachable per signin.rs:296-437
+    (AccessRecordNoSignin error if SIGNIN missing).
+  - **UNIQUE CRIT** (Codex C1): rev-4 prose claimed
+    'no AUTHENTICATE -> $token-only permissions' — wrong.
+    Source: verify.rs:177-245 binds record from token's `id`
+    claim if present; verify.rs:464 bails
+    AccessMethodMismatch otherwise. Real rule documented in
+    the new prose preamble.
+- **R2** — JWKS section: replaced hybrid_record with two
+  separate access definitions (jwks_inbound for federated IdP,
+  credential_mint for SurrealDB-side mint) plus an explicit
+  ANTI-PATTERN callout. Closes:
+  - **UNIQUE CRIT** (Cursor C1): rev-4 hybrid_record had
+    AUTHENTICATE matching `$token.sub` after credential SIGNIN,
+    but credential SIGNIN mints tokens with `$token.ID`
+    (uppercase, from Claims { id: Some(rid.to_sql()), ..
+    Claims::default() } at signin.rs:314-324); default sub:
+    None at token.rs:243; into_claims_object at
+    token.rs:289-345 inserts 'ID' for the id claim and only
+    inserts 'sub' when Claims.sub is Some. So rev-4
+    hybrid_record's AUTHENTICATE predicate matched the wrong
+    key on the credential path.
+  - **CARRY-OVER from Codex pass-3 C1**: SurrealDB-minted
+    tokens use bare Header::new(...) at signin.rs:369/:938
+    + signup.rs:268 which omits the kid claim, so JWKS
+    verification round-trip fails. Anti-pattern callout
+    documents both reasons (sub vs ID + kid round-trip).
+- **R3** — Lower IdP integration example + ES512 caveat
+  tighten + four-blocks miscount + access.rs:237-242 label.
+  Closes:
+  - **UNIQUE** (Codex I2 — pre-existing v1.5.x latent): the
+    'JWT Token Integration with External Identity Providers'
+    lower example also had the no-AUTHENTICATE shape problem.
+    Rewrote to use AUTHENTICATE for sub mapping + dropped
+    WITH ISSUER (matches surrounding prose's authenticate-only
+    intent).
+  - **UNIQUE** (Codex M1): rev-4 R5 ES512 caveat overstated
+    inbound-header acceptance. Tightened to scope the claim
+    to 'configured ALGORITHM ES512 verifies and emits ES384'
+    only.
+  - **UNIQUE** (Cursor I1 + M2): rev-4 'all four blocks'
+    miscount for DURATION FOR TOKEN NONE fixtures. Actually
+    three commented regions contain five anti-fixtures.
+    Tightened wording in both rule file AND CHANGELOG.
+  - **UNIQUE** (Pi M1): rev-4 R4 labeled access.rs:237-242
+    as 'record-refresh call site'; actually it's the Base::Db
+    enforcement guard inside create_grant. Relabeled.
+
+NO REJECTIONS this pass — all four reviewers' CRIT/IMP
+findings traced to real source. Pi pass-2's earlier rejected
+C1 still holds (multiple cross-pass confirmations).
+
+#### Rev-5 outstanding
+
+Pass-5 4-WAY dispatch pending after this commit lands.
+
+#### Cumulative trajectory after pass-4
+
+| Pass | Cursor | Codex | Gemini | Pi | Real CRITs | Real IMPs | Notes |
+|------|--------|-------|--------|----|------|-----------|-------|
+| 1 | NO-GO | NO-GO | NO-GO | COND | 2 | 5 | jwks gate + TYPE JWT signin path |
+| 2 | COND | COND | GO | NO-GO* | 0 | 4 | *Pi C1 rejected (parser misread) |
+| 3 | COND | NO-GO | GO | NO-GO | 3 | 4 | kid round-trip + WITH ISSUER KEY in JWKS bullet + $token in SIGNIN |
+| 4 | NO-GO | NO-GO | NO-GO | COND | 3 | 4 | external_auth no-SIGNIN + hybrid_record sub vs ID + no-AUTHENTICATE prose |
+
+Eight real CRITs found-and-fixed across four passes. The
+trajectory shows rev-N closing pass-(N-1) findings while
+introducing 1-3 new bugs from fix surgery — same fix-drift
+pattern documented in `notes/v1.5.x-convergence.md`. Two
+Gemini CRITs rejected with parser-cited rebuttals (one each
+from pass-1 and pass-2).
 
 #### Reviewer-blind-spot pattern
 
