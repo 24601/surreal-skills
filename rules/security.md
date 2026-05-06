@@ -543,6 +543,26 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- `AccessMethodMismatch`. (Inbound IdP JWTs almost never carry
 -- a SurrealDB record id, so AUTHENTICATE is effectively
 -- required for IdP integration.)
+--
+-- ROUTING-CLAIM REQUIREMENT (verified at
+-- `core/src/iam/verify.rs:288-297` + `core/src/iam/token.rs:248-275`).
+-- Inbound JWTs MUST carry `ns`, `db`, and `ac` claims for
+-- SurrealDB to route them to an access method. The `token`
+-- entry point at `verify.rs:155+` decodes the JWT WITHOUT
+-- verifying it first to extract those routing claims, then
+-- matches the database-access arm at `:288-297`:
+--     Claims { ns: Some(ns), db: Some(db), ac: Some(ac), .. }
+-- Tokens missing any of those three fall through to
+-- `_ => Err(InvalidAuth)` at `verify.rs:824-825`. The serde
+-- aliases at `token.rs:248-275` accept any of these spellings:
+-- `ns` / `NS` / `https://surrealdb.com/ns` /
+-- `https://surrealdb.com/namespace`; same shape for `db` /
+-- `DB` / `…/database` and `ac` / `AC` / `…/access`. Configure
+-- your IdP to mint custom claims for these three fields (most
+-- enterprise IdPs — Auth0 Actions, Okta inline hooks, AWS
+-- Cognito pre-token-generation Lambda, Azure AD claim mapping
+-- — support this). Without them, validation fails before the
+-- access method even runs.
 
 -- Pattern A — Inbound third-party JWT verification.
 -- For when an external IdP (Auth0 / Okta / Cognito) issues
@@ -1605,15 +1625,27 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
     )
     DURATION FOR SESSION 12h;
 
--- The JWT payload should include claims that map to user data
--- Example JWT payload (issued by the IdP, NOT by SurrealDB):
+-- The JWT payload MUST include `ns`, `db`, `ac` routing claims
+-- (or aliases per `core/src/iam/token.rs:248-275`) — without
+-- them, `core/src/iam/verify.rs:288-297` cannot match the
+-- database-access arm and falls through to InvalidAuth at
+-- :824-825. Example JWT payload (issued by the IdP, NOT by
+-- SurrealDB; configure the IdP to mint these custom claims via
+-- Auth0 Actions / Okta inline hooks / Cognito pre-token Lambda
+-- / Azure AD claim mapping):
 -- {
+--   "ns": "production",
+--   "db": "app",
+--   "ac": "external_idp",
 --   "sub": "auth0|12345",
 --   "email": "user@example.com",
 --   "roles": ["editor"],
 --   "tenant_id": "tenant:acme",
 --   "exp": 1700000000
 -- }
+-- (The serde aliases also accept "NS"/"DB"/"AC" or
+-- "https://surrealdb.com/ns" full-URI forms if your IdP
+-- requires namespaced claim keys.)
 
 -- Access JWT claims in permissions via $token. Permissions can
 -- read $token.* on EVERY query after authenticate; AUTHENTICATE
