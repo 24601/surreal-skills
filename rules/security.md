@@ -63,6 +63,112 @@ DEFINE USER db_writer ON DATABASE PASSWORD 'writer-pass' ROLES EDITOR;
 DEFINE USER db_reader ON DATABASE PASSWORD 'reader-pass' ROLES VIEWER;
 ```
 
+### `DEFINE USER` Advanced Clauses (`PASSHASH`, `DURATION`)
+
+`DEFINE USER` supports two clauses beyond `PASSWORD` / `ROLES` /
+`COMMENT` that matter for production deployments. Both are
+verified against the v3.0.5 parser at
+`core/src/syn/parser/stmt/define.rs:310-413` (`parse_define_user`)
+and the test fixtures at `core/src/syn/parser/test/stmt.rs:291`,
+`:318`, `:344`, `:373`, `:402`.
+
+#### `PASSHASH '<phc-string>'` — Provide a Pre-Hashed Password
+
+`PASSWORD '<plaintext>'` hashes the value with argon2 at define
+time
+(`core/src/sql/statements/define/user.rs:96` —
+`Argon2::default().hash_password(p.as_bytes(), &SaltString::generate(&mut OsRng))`).
+`PASSHASH '<phc-string>'` instead accepts an
+[argon2 PHC string](https://en.wikipedia.org/wiki/PHC_string_format)
+that you have hashed yourself (or migrated from another system),
+and stores it as-is. The two clauses are mutually exclusive — the
+parser bails with "Can't set both a passhash and a password" at
+`define.rs:349` / `:356`.
+
+Use `PASSHASH` when:
+
+- Migrating users from an external system that already stores
+  argon2-hashed passwords (e.g. an existing identity provider's
+  database dump). `PASSWORD` would re-hash an already-hashed
+  string and lock those users out.
+- Provisioning users from infrastructure-as-code where you do
+  not want plaintext passwords ever to touch the SurrealQL
+  source file (hash externally, commit the PHC string).
+
+```surrealql
+-- Migrate an existing argon2-hashed user. The hash MUST be a
+-- valid PHC string (starts with $argon2id$ / $argon2i$ / $argon2d$);
+-- bare hex digests will not authenticate.
+DEFINE USER alice ON ROOT
+    PASSHASH '$argon2id$v=19$m=19456,t=2,p=1$<salt-b64>$<hash-b64>'
+    ROLES EDITOR
+    COMMENT 'imported from legacy IdP 2026-05-06';
+```
+
+`crypto::argon2::generate($plaintext)` produces a PHC string of
+exactly the shape `PASSHASH` expects — useful for an
+ad-hoc hash on the SurrealDB side before committing it to source
+control:
+
+```surrealql
+-- One-off shell to obtain a PHC string for a known plaintext:
+RETURN crypto::argon2::generate('the-temporary-password');
+-- Then paste the result into the PASSHASH clause.
+```
+
+#### `DURATION FOR { TOKEN | SESSION } <expr>` — Per-User Token / Session Limits
+
+System users (root, namespace, database) issue both a JWT access
+token and a server-side session on signin. By default the token
+lives for **1 hour** and the session has **no upper bound** until
+the user signs out or the server restarts (default token = 3600s
+at `define.rs:336`; default session = `Literal::None` at
+`core/src/sql/statements/define/user.rs:43`). The `DURATION`
+clause overrides those defaults per user. Both
+`FOR TOKEN <dur>` and `FOR SESSION <dur>` are accepted, in either
+order, comma-separated; either one alone is also valid. Use
+`NONE` to opt out of any expiry on the corresponding axis (test
+fixture at `stmt.rs:402` exercises `DURATION FOR TOKEN NONE`).
+
+Apply at signin time at
+`core/src/iam/signin.rs:481` / `:502` (token + session expiry
+respectively for system users) and `core/src/iam/verify.rs:106`
+(session re-evaluation on subsequent verifications).
+
+```surrealql
+-- High-security operator: short tokens, bounded session
+DEFINE USER pager ON ROOT
+    PASSWORD 'rotated-weekly-via-ops-runbook'
+    ROLES OWNER
+    DURATION FOR TOKEN 5m, FOR SESSION 1h;
+
+-- CI runner: longer token to ride out long-running migrations,
+-- bounded session so a leaked CI host eventually loses access
+DEFINE USER ci_runner ON DATABASE
+    PASSWORD 'redacted'
+    ROLES EDITOR
+    DURATION FOR TOKEN 2h, FOR SESSION 8h;
+
+-- Read-only analyst dashboard: opt out of token expiry entirely
+-- (NOT recommended for write roles — kept here as an example of
+-- the syntax)
+DEFINE USER dashboard_viewer ON DATABASE
+    PASSWORD 'redacted'
+    ROLES VIEWER
+    DURATION FOR TOKEN NONE, FOR SESSION 24h;
+```
+
+Combining clauses in a single statement:
+
+```surrealql
+-- A migrated, role-scoped, bounded-duration user
+DEFINE USER service_account ON DATABASE
+    PASSHASH '$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>'
+    ROLES EDITOR
+    DURATION FOR TOKEN 15m, FOR SESSION 12h
+    COMMENT 'migrated 2026-05-06; rotates with infra refresh cycle';
+```
+
 ### Record Users
 
 Record users are end-user accounts authenticated via `DEFINE ACCESS ... TYPE RECORD`. They are the most granular level and are subject to table-level PERMISSIONS clauses.
