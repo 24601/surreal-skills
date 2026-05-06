@@ -3,6 +3,57 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.4] - 2026-05-06 — `rules/data-modeling.md` deferred-IMPORTANT clause closure + v1.6.3 ride-along security.md cite tightening (3 atomic feature commits + release commit)
+
+### Added
+
+- **`rules/data-modeling.md` deferred-IMPORTANT cleanup (batch
+  4 of the v1.5.x convergence cycle).** Closes both items
+  attributed to data-modeling.md in the v1.5.x convergence
+  notes:
+  - **Exact kNN metric mismatch fixed.** Pre-existing example
+    used `<|10,EUCLIDEAN|>` as the brute-force operator but
+    `vector::similarity::cosine()` as the projected score —
+    top-10 by Euclidean re-ordered by an unrelated cosine
+    score, almost never the intended semantic. Rewrote with
+    two correctly-paired examples (Cosine path:
+    `<|k,COSINE|>` + `vector::similarity::cosine()` + ORDER BY
+    similarity DESC; Euclidean path: `<|k,EUCLIDEAN|>` +
+    `vector::distance::euclidean()` + ORDER BY distance ASC).
+    Documents all three NearestNeighbor variants (`K` /
+    `KTree` / `Approximate` per
+    `core/src/sql/operator.rs:393-398`) so consumers know
+    which form to use for which case.
+  - **Illustrative-edge consistency.** Three edge tables
+    (`knows`, `reviewed`, `parent_of`) used in the doc's
+    traversal + recursive-query examples lacked
+    `DEFINE TABLE` statements. Added explicit definitions
+    with `TYPE RELATION ... IN ... OUT ... ENFORCED` matching
+    the doc's broader 'define edges first' pattern used for
+    `wrote` / `purchased` / `follows` / `likes` /
+    `ships_to` / `enrolled_in` / etc. Inline comment
+    explains that v3 SCHEMALESS still creates RELATE rows on
+    undefined edge tables (so the original examples worked at
+    runtime), but the explicit definition documents the
+    expected shape and lets ENFORCED reject malformed
+    RELATEs at write time.
+
+### Changed
+
+- **`rules/security.md`** — v1.6.3 Cursor pass-1 M3
+  ride-along: tightened ROUTING-CLAIM REQUIREMENT block's
+  `:288-297` cite to `:292-297` (the actual claims-match arm)
+  + `:824-825` to `:825-826` (the `_ => Err(InvalidAuth)` arm
+  pattern is on :825 with the body on :826). Cosmetic
+  precision improvement; no semantic change.
+
+### Process notes
+
+3 atomic feature commits (kNN metric fix; illustrative-edge
+consistency; security.md ride-along cite) + release commit.
+Per the v1.6.3 fast-ratification pattern (1-pass cycle for
+small-surface polish), expect 1-3 4-WAY review revisions.
+
 ## [1.6.3] - 2026-05-06 — `rules/security.md` v1.6.2 pass-7 deferred-IMP polish (1 atomic doc commit + release commit + rev-2 review-fix commit)
 
 ### Changed

@@ -554,10 +554,13 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- the JWT WITHOUT verifying it first (the actual signature
 -- verification runs later, inside the access-method-specific
 -- branch); the resulting `token_data.claims` is then matched
--- against the database-access arm at `:288-297`:
+-- against the database-access arm at `:292-297`
+-- (the prior arm's closing brace + `Ok(())` sit on `:288-291`):
 --     Claims { ns: Some(ns), db: Some(db), ac: Some(ac), .. }
 -- Tokens missing any of those three fall through to
--- `_ => Err(InvalidAuth)` at `verify.rs:824-825`. The serde
+-- `_ => Err(InvalidAuth)` at `verify.rs:825-826` (the
+-- `_ => …` arm pattern is on :825 and the body on :826). The
+-- serde
 -- aliases at `token.rs:248-275` accept any of these spellings:
 -- `ns` / `NS` / `https://surrealdb.com/ns` /
 -- `https://surrealdb.com/namespace`; same shape for `db` /
