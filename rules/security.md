@@ -764,47 +764,70 @@ DEFINE ACCESS account ON DATABASE TYPE RECORD
 
 -- TYPE JWT + WITH ISSUER is parser-accepted but currently has no
 -- signin entry point that mints tokens — see the "TYPE JWT is a
--- verification-only access method" callout above. To both verify
--- third-party JWTs via JWKS and mint SurrealDB-side tokens after
--- credential signin, wrap the JWT verifier in a TYPE RECORD
--- access method. SurrealDB mints a record-bound JWT after
--- SIGNIN/SIGNUP at `core/src/iam/signin.rs:275-318`. NOTE: the
--- minted token CANNOT be re-validated through this access
--- method's JWKS verifier — SurrealDB ships it without a `kid`
--- header (signin.rs:369), so `verify.rs:230-237` bails with
--- "Missing token header 'kid'" on round-trip. JWKS here is
--- ONE-WAY for inbound third-party tokens.
---
--- AUTHENTICATE (not SIGNIN) is the clause that can read
--- $token.* claims — sess.tk is populated at
--- core/src/iam/signin.rs:340-345 between SIGNIN evaluation and
--- AUTHENTICATE execution. SIGNIN runs first against signin
--- variables ($email, $pass, $id, ...) without $token; if you
--- need to map a JWT claim to a record, use AUTHENTICATE.
-DEFINE ACCESS hybrid_record ON DATABASE TYPE RECORD
-    SIGNIN (
-        -- Credential-based signin: validate password against the
-        -- record. $token is NOT available here.
-        SELECT * FROM user
-        WHERE email = $email
-        AND crypto::argon2::compare(pass, $pass)
-    )
+-- verification-only access method" callout above. The two
+-- patterns below show how to combine JWKS-backed inbound JWT
+-- verification with SurrealDB-side flows; they are SEPARATE
+-- access definitions because the claim shape after credential
+-- SIGNIN ($token.ID) differs from the inbound IdP JWT shape
+-- ($token.sub) — see the "JWT with record binding" comment in
+-- the JWT-Based Authentication section above for the
+-- claim-shape walkthrough.
+
+-- Pattern A — JWKS-verify inbound third-party JWTs only.
+-- Clients call db.authenticate(externalJwt). NO SIGNIN, NO
+-- WITH ISSUER. AUTHENTICATE maps the IdP's $token.sub to a
+-- local record. This is the natural shape for federated IdP
+-- integration (Auth0 / Okta / Cognito) where SurrealDB
+-- never mints tokens itself.
+DEFINE ACCESS jwks_inbound ON DATABASE TYPE RECORD
     AUTHENTICATE (
-        -- After a third-party JWT validates against the JWKS
-        -- endpoint above, AUTHENTICATE can resolve the bound
-        -- record from claims; canonical pattern from the test
-        -- fixture at `core/src/iam/verify.rs:2034`.
         SELECT id FROM user WHERE external_id = $token.sub
     )
     WITH JWT
         URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
-    -- ALGORITHM is REQUIRED with URL verifier (line 1716-1722
-    -- doesn't set iss.alg; default is Hs512 — would silently
-    -- treat the PS256 PEM as an HMAC secret without this).
-    WITH ISSUER ALGORITHM PS256 KEY '-----BEGIN PRIVATE KEY-----
-…
+    DURATION FOR SESSION 12h;
+
+-- Pattern B — SurrealDB-side credential mint, round-trippable.
+-- Use INLINE KEY (not URL) on the verifier so SurrealDB-minted
+-- tokens can be re-validated by the same access method. The
+-- minted token (from SIGNIN at signin.rs:275-318) ships without
+-- a `kid` header (Header::new at signin.rs:369), which would
+-- fail JWKS verification at verify.rs:230-237 ("Missing token
+-- header 'kid'") — the inline-KEY path doesn't lookup by `kid`,
+-- so round-trip works.
+DEFINE ACCESS credential_mint ON DATABASE TYPE RECORD
+    SIGNIN (
+        SELECT * FROM user
+        WHERE email = $email
+        AND crypto::argon2::compare(pass, $pass)
+    )
+    WITH JWT
+        ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
+-----END PUBLIC KEY-----'
+    WITH ISSUER KEY '-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
 -----END PRIVATE KEY-----'
-    DURATION FOR TOKEN 15m, FOR SESSION 12h;
+    DURATION FOR TOKEN 1h, FOR SESSION 12h;
+-- Bare `WITH ISSUER KEY '<priv>'` is correct here because the
+-- verifier ALGORITHM RS256 sets iss.alg = RS256 at define.rs:1697
+-- before the WITH ISSUER block runs. Subsequent
+-- db.authenticate(token) calls re-bind the record via the `id`
+-- claim at verify.rs:177-245.
+
+-- ANTI-PATTERN: TYPE RECORD WITH JWT URL '<jwks>' WITH ISSUER
+-- ALGORITHM <alg> KEY '<priv>' (single definition combining
+-- JWKS-verify inbound + credential-mint round-trip) is what
+-- v1.6.2-pre-rev-5 documented as `hybrid_record`. Source
+-- verification surfaced two reasons that pattern is broken:
+-- (1) credential SIGNIN mints tokens without a kid header, so
+-- the round-trip path through the JWKS verifier fails
+-- ("Missing token header 'kid'" at verify.rs:230-237);
+-- (2) the AUTHENTICATE clause cannot share predicates between
+-- the two entry paths because $token.sub (inbound IdP) and
+-- $token.ID (SurrealDB mint, see token.rs:289-345) are
+-- different keys. Use Pattern A OR Pattern B; do not try to
+-- compose them into a single access definition.
 ```
 
 When deploying with capabilities locked down, allow the JWKS
