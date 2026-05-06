@@ -2449,9 +2449,17 @@ sleep(100ms)                                 -- pause 100ms, return NONE
 sleep(2s)                                    -- pause 2 seconds
 
 -- Useful for rate-limit testing, deterministic backoff, or
--- exercising TIMEOUT clauses:
+-- exercising TIMEOUT clauses. The function itself returns `Ok(NONE)`
+-- after the (possibly clamped) wait — see core/src/fnc/sleep.rs:7-19.
+-- The surrounding TIMEOUT clause is what surfaces a timeout error to
+-- the client; the relationship between the clamped sleep and the
+-- TIMEOUT error is observed empirically here, not formally
+-- specified, so prefer keeping individual sleep durations short
+-- inside TIMEOUT blocks during tests.
 RETURN (BEGIN; sleep(10s); RETURN 'done'; COMMIT) TIMEOUT 1s;
--- Returns the timeout error after ~1s, not after 10s.
+-- After ~1s the surrounding TIMEOUT fires and the client receives a
+-- timeout-shaped error rather than the inner 'done' value. (Sleep
+-- itself does not return an error.)
 ```
 
 The sleep is implemented via `tokio::time::sleep` (or
