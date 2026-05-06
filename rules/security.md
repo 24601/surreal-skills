@@ -342,26 +342,40 @@ const renewed = await db.signin({
 
 JWT access allows external identity providers to authenticate users with SurrealDB.
 
-> **`TYPE JWT` accepts both `DURATION FOR TOKEN` and `DURATION FOR
-> SESSION`** (verified against the v3.0.5 parser at SHA `a97d3af85d79`
-> — see test fixtures in `core/src/syn/parser/tests/stmt.rs:560` /
-> `:764` / `:825` which exercise `TYPE JWT … DURATION FOR TOKEN 10s
-> [, FOR SESSION 2d]` patterns successfully). Semantics depend on
-> whether the access definition includes an issuer key:
+> **`TYPE JWT` is a verification-only access method.** The parser
+> accepts `DURATION FOR TOKEN` and `DURATION FOR SESSION` (verified
+> against test fixtures in `core/src/syn/parser/test/stmt.rs:758` /
+> `:762` / `:823` which exercise `TYPE JWT … DURATION FOR TOKEN 10s
+> [, FOR SESSION 2d]` patterns successfully), but the issuance
+> story is narrower than parser acceptance suggests:
 >
-> - **With `WITH ISSUER KEY` present** (SurrealDB issues JWTs): `FOR
->   TOKEN` controls the lifetime of tokens SurrealDB mints. Default
->   is 1h (`AccessDuration::default()` in `core/src/sql/access.rs`);
->   `signin.rs:319` calls `expiration(av.token_duration)` when issuing.
-> - **Verification-only JWT** (no issuer key, SurrealDB only validates
->   externally-issued JWTs): the parser accepts `FOR TOKEN` but the
->   external issuer's `exp` claim controls the actual token lifetime —
->   the `FOR TOKEN` value here is effectively a no-op upper bound.
+> - **`signin` does NOT mint tokens for `AccessType::Jwt`.** The
+>   `db_access` / `ns_access` / `root_access` signin paths only
+>   match `Record` and `Bearer` access types; everything else falls
+>   through to `Error::AccessMethodMismatch`
+>   (`core/src/iam/signin.rs:449 / :550 / :686`). `WITH ISSUER KEY`
+>   on a pure `TYPE JWT` is parser-accepted and persisted but
+>   currently has no signin entry point that consumes it for
+>   issuance — it only matters when the same access definition is
+>   nested inside `TYPE RECORD WITH JWT` (where `signin.rs:275-318`
+>   does mint a token using `at.jwt.issue.key` /
+>   `expiration(av.token_duration)`).
+> - **`FOR TOKEN` is unused on the `authenticate` path.** Incoming
+>   third-party JWTs are validated against the access method's
+>   verification key (or JWKS) and the JWT's own `exp` claim
+>   controls token lifetime; `verify.rs` reads `de.session_duration`
+>   for session expiry but does not consume `de.token_duration` for
+>   `AccessType::Jwt` (grep of `token_duration` in `verify.rs`
+>   surfaces only test fixtures).
+> - **`FOR SESSION` IS applied** to JWT-authenticated sessions —
+>   the DB-namespace branch sets `session.exp =
+>   expiration(de.session_duration)` at `verify.rs:394`.
 >
-> Use `FOR SESSION` to bound how long an authenticated session backed
-> by a JWT may last on the server. Pre-v1.5.8 revisions of this rule
-> incorrectly claimed `FOR TOKEN` was rejected on `TYPE JWT`; that
-> claim came from a docs-only reading and contradicts the parser.
+> If you need SurrealDB to *mint* tokens (not just validate
+> external ones), use `TYPE RECORD WITH JWT … WITH ISSUER KEY …`
+> rather than `TYPE JWT … WITH ISSUER KEY …`. Pre-v1.6.2 revisions
+> of this rule incorrectly described the latter as a first-class
+> issuance path.
 
 ```surrealql
 -- HMAC-based JWT (symmetric key)
@@ -388,14 +402,26 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 
 -- JWT with record binding (map JWT claims to a user record).
 -- Inside a `TYPE RECORD WITH JWT` definition, the `WITH JWT KEY`
--- clause is the *verification* key (used to validate incoming tokens
--- the access method accepts). To also let SurrealDB *issue* tokens
--- under this access method, add a separate `WITH ISSUER KEY` clause
--- holding the signing-side credential. If `WITH ISSUER KEY` is
--- omitted, SurrealDB defaults to `ALGORITHM HS512` with a random
--- per-process key — adequate for verification-only flows but not for
--- issuing tokens that survive a restart.
+-- clause is the *verification* key (used to validate incoming
+-- tokens the access method accepts). To also let SurrealDB *issue*
+-- tokens under this access method, add a separate `WITH ISSUER
+-- KEY` clause holding the signing-side credential. SurrealDB then
+-- consumes `at.jwt.issue.key` at `core/src/iam/signin.rs:275-318`
+-- when minting a record-bound token after `SIGNUP`/`SIGNIN`. If
+-- `WITH ISSUER KEY` is omitted, SurrealDB defaults to `ALGORITHM
+-- HS512` with a random per-process key — adequate for
+-- verification-only flows but not for issuing tokens that survive
+-- a restart. Note: `WITH ISSUER KEY` on a pure `TYPE JWT` (no
+-- enclosing `TYPE RECORD`) is parser-accepted but currently has no
+-- runtime signin path that consumes it.
 DEFINE ACCESS external_auth ON DATABASE TYPE RECORD
+    SIGNIN (
+        -- Map a JWT subject claim to a user record. Without a
+        -- SIGNIN clause, SurrealDB validates the JWT but does not
+        -- bind it to a record — `$auth.id` stays unset and only
+        -- `$token` is available in PERMISSIONS.
+        SELECT * FROM user WHERE external_id = $token.sub
+    )
     WITH JWT
         ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
@@ -474,12 +500,19 @@ DEFINE ACCESS account ON DATABASE TYPE RECORD
         URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
     DURATION FOR TOKEN 15m, FOR SESSION 12h;
 
--- TYPE JWT can ALSO mint its own tokens (WITH ISSUER) while
--- accepting JWKS-validated incoming tokens. Useful when SurrealDB
--- federates with an external IdP for verification but issues its
--- own short-lived tokens for SDK clients.
-DEFINE ACCESS hybrid_jwt ON DATABASE TYPE JWT
-    URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
+-- TYPE JWT + WITH ISSUER is parser-accepted but currently has no
+-- signin entry point that mints tokens — see the "TYPE JWT is a
+-- verification-only access method" callout above. To both verify
+-- via JWKS and mint SurrealDB-side tokens, wrap the JWT verifier
+-- in a TYPE RECORD access method. SurrealDB then mints a
+-- record-bound JWT after SIGNIN/SIGNUP at
+-- `core/src/iam/signin.rs:275-318`.
+DEFINE ACCESS hybrid_record ON DATABASE TYPE RECORD
+    SIGNIN (
+        SELECT * FROM user WHERE external_id = $token.sub
+    )
+    WITH JWT
+        URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
     WITH ISSUER ALGORITHM PS256 KEY '-----BEGIN PRIVATE KEY-----
 …
 -----END PRIVATE KEY-----'
