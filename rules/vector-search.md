@@ -450,8 +450,12 @@ LIMIT 10;
 >   in f64 the rounded residual need not be exactly zero
 >   (e.g. `[0.1, 0.2, 0.3]` has mean `0.20000000000000004`
 >   and a residual sum of ~`-1.11e-16`), so the numerator is
->   `O(ε) ×` that rounded residual — not literally `0` but
->   bounded by ~`ε² × |y|`; one
+>   `O(ε × |x|) ×` that rounded residual — not literally `0`
+>   but bounded by ~`ε² × |x| × |y|`. The final ratio after
+>   dividing by the tiny `std_dev_x` resolves to roughly
+>   `ε`-scale (Codex pass-3 trace example
+>   `pearson([0.1, 0.1, 0.1], [0.1, 0.2, 0.3])` returns
+>   `~4.53e-16`); one
 >   **float**-constant paired with one **integer**-constant
 >   operand still hits `NaN` because the integer side has
 >   exact zero variance regardless of whether the float side
@@ -995,8 +999,17 @@ Most text embedding models produce normalized vectors, making COSINE the standar
 > **Pearson zero-denominator path divergence (v3.0.5).** The
 > standalone `vector::similarity::pearson()` and the
 > catalog/brute-force `Distance::compute` path return `NaN`
-> when the denominator is zero (per the callout above). The
-> HNSW-internal Pearson implementation at
+> for exact zero-variance constant operands (the
+> `0 / 0` case described in the callout above). They can
+> ALSO return `±Infinity` when f64 **underflow** drives the
+> denominator to `0.0` while covariance remains non-zero —
+> e.g. `pearson([0.0, 1e-308], [0.0, 1e154])` produces
+> `std_dev_a = 0.0` (since `(1e-308)² ≈ 1e-617` underflows to
+> `0`), non-zero covariance `~2.5e-155`, and a non-finite
+> `±Infinity` ratio. Treat any non-finite result (`NaN`,
+> `+Inf`, `-Inf`) as a degenerate input regardless of which
+> route produced it. The HNSW-internal Pearson implementation
+> at
 > `core/src/idx/trees/vector.rs:413-440` instead returns
 > `0.0` when `denominator == 0.0` (the explicit
 > `if denominator == 0.0 { return 0.0; }` short-circuit at
