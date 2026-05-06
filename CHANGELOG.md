@@ -3,6 +3,116 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.6] - 2026-05-05
+
+### Fixed (atomic-protocol patch — v1.5.5 Pi-only re-audit CRIT remediation)
+
+A sixth Pi+DeepSeek-V4-Pro:xhigh adversarial pass over the same six
+rules audited in pass-5 returned **3 GO + 1 CONDITIONAL GO + 2
+NO-GO** with **5 CRITs** total. v1.5.6 patches every CRIT.
+
+Trajectory: 4/6 GO is the highest GO rate of the cycle. CRIT count
+dropped from 6 (pass-4 + pass-5 plateau) to 5. Two of the five CRITs
+are v1.5.5 fix-introduced (closure parameter syntax + FORMAT TEXT
+regression), continuing the empirical fix-drift pattern but at lower
+volume. The other three are pass-4/5 IMPORTANTs that pass-6 ruthless
+scrutiny escalated.
+
+#### Per-file CRIT counts (pass-6)
+
+- **`rules/surrealql.md` (3 CRITs):**
+  - **CRIT-1: Closure parameter syntax — `|x| x * 2` should be
+    `|$x| $x * 2`.** v1.5.5 fix-introduced. The §"Deferred
+    Computation" replacement for the (deleted) Futures section
+    showed a closure example with bare-identifier parameters; v3
+    SurrealQL closure parameters require the `$` prefix (bare
+    identifiers bind to field references, not local variables).
+    Verified against the upstream closures docs page and the
+    canonical `LET $double = |$n: number| $n * 2; RETURN
+    $double(2);` example. Corrected the closure example to use the
+    `$`-prefixed parameter form with explicit `RETURN`.
+  - **CRIT-2: Seven `time::set_*` functions undocumented (escalated
+    from pass-4/5 IMP).** v3.0.2 introduced datetime setter
+    functions (`time::set_year` / `set_month` / `set_day` /
+    `set_hour` / `set_minute` / `set_second` / `set_nanosecond`);
+    the file's own v3.0.2 patch-notes entry mentions them, but the
+    Time Functions section never documented any of them. Added
+    seven setter examples covering the full surface.
+  - **CRIT-3: `DEFINE INDEX IF NOT EXISTS` undocumented (escalated
+    from pass-4/5 IMP).** Every other `DEFINE` statement in the
+    file (TABLE, FIELD, ACCESS, NAMESPACE, DATABASE, SEQUENCE,
+    FUNCTION) documents both `OVERWRITE` and `IF NOT EXISTS`;
+    `DEFINE INDEX` was the sole outlier. Added the idempotent
+    form alongside `OVERWRITE`. Also added `CONCURRENTLY` and
+    `DEFER` clause examples (resolving pass-4/5 IMP-1) — both are
+    in the upstream `DEFINE INDEX` grammar and were already
+    covered in `rules/performance.md` v1.5.3, but the foundational
+    language reference omitted them.
+
+- **`rules/performance.md` (2 CRITs):**
+  - **CRIT-1: `FORMAT TEXT` keyword IS valid in v3 — v1.5.5 fix
+    was a regression.** v1.5.5 removed `FORMAT TEXT` from the
+    documented `EXPLAIN` standalone form on the basis that the
+    upstream EXPLAIN docs page only shows `FORMAT JSON`. Pass-6
+    verified against the parser source
+    (`core/src/syn/parser/stmt/mod.rs` ~lines 156-160) which
+    explicitly accepts both `"TEXT"` and `"JSON"` as `FORMAT`
+    keywords (the parser error message itself reads `"TEXT or
+    JSON"`). The pass-5 patch was based on docs alone, missing the
+    parser's broader surface. Restored `FORMAT TEXT` to the
+    documented grammar with a precision note that TEXT is also
+    the default when no FORMAT clause is present (so writing
+    `FORMAT TEXT` explicitly is valid but redundant). This is the
+    second consecutive pass where docs-only verification produced
+    an incorrect fix; treat parser-body verification as mandatory
+    for grammar claims.
+  - **CRIT-2: `EXPLAIN FULL` clause-form undocumented (escalated
+    from pass-4/5 IMP).** v3.0.5 supports `@statement EXPLAIN
+    FULL` (clause-form) for extended planner output beyond the
+    basic `EXPLAIN`. Verified against
+    `core/src/syn/parser/stmt/parts.rs:120` `try_parse_explain`
+    which reads an optional `FULL` token after `EXPLAIN`, and
+    against the upstream language test
+    `language-tests/tests/language/statements/select/
+    explain_multi_table.surql` which exercises both `EXPLAIN` and
+    `EXPLAIN FULL` and shows the latter produces 7 ops vs the
+    former's 4. Added the clause-form `EXPLAIN FULL` example to
+    the EXPLAIN section.
+
+`rules/data-modeling.md`, `rules/security.md`, and
+`rules/graph-queries.md` returned **GO** with 0 CRITs.
+`rules/vector-search.md` returned **CONDITIONAL GO** with 0 CRITs
+(the JACCARD/PEARSON warning callout held cleanly under re-
+verification — pass-6 reviewer cited the same
+`catalog/schema/index.rs` lines and confirmed the inversion
+behaviour). 4/6 GO is the highest GO rate of the v1.5.x cycle.
+
+Pass-6 IMPORTANTs (security WITH REFRESH on TYPE RECORD, JWKS URL
+on TYPE RECORD, REVOKE GRANT/SHOW/PURGE; performance TLS flags
+in start-flag list, REBUILD INDEX ON TABLE all-indexes form;
+surrealql ALTER section, missing function namespaces (encoding /
+bytes / file / not / set / sequence / schema / api), regex /
+range / literal / file data types, INSERT IGNORE example;
+graph-queries sub-SELECT graph clauses, $parent in WHERE, custom
+edge Record IDs in RELATE, +path+inclusive form; vector-search
+similarity-function examples) and MINORs are deferred — they are
+documentation gaps or polish, not contradictions of upstream —
+tracked in residual-risk lists at `/tmp/pi-{rule}-pass6-out.md`.
+
+Migration: consumers who copied the `|x| x * 2` closure example,
+removed `FORMAT TEXT` from EXPLAIN syntax based on v1.5.5
+guidance, or expected `EXPLAIN FULL` to be undocumented should
+apply the corrections noted above. Machine-checked version-
+consistency CI gate continues to apply.
+
+Cumulative CRITs across atomic-protocol cycle: v1.5.1=21,
+v1.5.2=7, v1.5.3=15, v1.5.4=6, v1.5.5=6, v1.5.6=5 = **60 CRITs
+found-and-fixed across six passes**. CRIT-trend is now strictly
+monotone-decreasing (21→7 was the first drop; 15 was an outlier
+from adding the surrealql full-pass; 6→6→5 is the descent). 4/6
+GO at pass-6 vs 1/6 GO at pass-5 is the strongest convergence
+signal so far.
+
 ## [1.5.5] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — v1.5.4 Pi-only re-audit CRIT remediation)

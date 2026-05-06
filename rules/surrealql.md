@@ -476,6 +476,25 @@ DEFINE INDEX embedding_idx ON TABLE document FIELDS embedding
 -- Overwrite existing index
 DEFINE INDEX OVERWRITE email_idx ON TABLE person COLUMNS email UNIQUE;
 
+-- Idempotent definition — does nothing if the index already exists.
+DEFINE INDEX IF NOT EXISTS email_idx ON TABLE person COLUMNS email UNIQUE;
+
+-- CONCURRENTLY — build the index in the background without blocking
+-- writes. Recommended for large indexes (HNSW, FULLTEXT) in
+-- production. Monitor progress via INFO FOR INDEX (see rules/
+-- performance.md §"Concurrent Index Builds").
+DEFINE INDEX idx_embedding ON TABLE document
+    FIELDS embedding HNSW DIMENSION 1536 DIST COSINE
+    CONCURRENTLY;
+
+-- DEFER — decouple ingestion from indexing; writes complete without
+-- updating the index, and a background worker catches up
+-- asynchronously. Available since v2.5.0. Cannot be combined with
+-- UNIQUE.
+DEFINE INDEX idx_event_user ON TABLE event
+    FIELDS user_id
+    DEFER;
+
 -- Rebuild an index
 REBUILD INDEX email_idx ON TABLE person;
 
@@ -1506,6 +1525,18 @@ time::group(d'2026-02-19T10:30:45Z', 'month') -- d'2026-02-01T00:00:00Z'
 
 -- Rounding
 time::floor(d'2026-02-19T10:30:45Z', 1h)    -- d'2026-02-19T10:00:00Z'
+
+-- Component setters (datetime → datetime; v3.0.2+).
+-- Each function takes a datetime and an integer for the targeted
+-- component and returns a new datetime with that component replaced.
+time::set_year(d'2026-02-19T10:00:00Z', 2030)        -- d'2030-02-19T10:00:00Z'
+time::set_month(d'2026-02-19T10:00:00Z', 12)         -- d'2026-12-19T10:00:00Z'
+time::set_day(d'2026-02-19T10:00:00Z', 1)            -- d'2026-02-01T10:00:00Z'
+time::set_hour(d'2026-02-19T10:00:00Z', 23)          -- d'2026-02-19T23:00:00Z'
+time::set_minute(d'2026-02-19T10:00:00Z', 45)        -- d'2026-02-19T10:45:00Z'
+time::set_second(d'2026-02-19T10:00:00Z', 30)        -- d'2026-02-19T10:00:30Z'
+time::set_nanosecond(d'2026-02-19T10:00:00Z', 500000000)
+                                                      -- d'2026-02-19T10:00:00.500Z'
 time::ceil(d'2026-02-19T10:30:45Z', 1h)     -- d'2026-02-19T11:00:00Z'
 time::round(d'2026-02-19T10:30:45Z', 1h)    -- d'2026-02-19T11:00:00Z'
 
@@ -1946,13 +1977,16 @@ covered by three other features:
   -- 'age_display: "33 years old"' computed on read.
   ```
 
-- **Closures** via the `|args| body` syntax — first-class function
+- **Closures** via the `|$args| body` syntax — first-class function
   values you can store on records, pass as parameters, or invoke
-  on demand.
+  on demand. Closure parameters are `$`-prefixed identifiers (bare
+  identifiers in SurrealQL bind to field references, not local
+  variables) and the closure body uses standard expression syntax
+  with `RETURN` for the result.
 
   ```surql
-  LET $double = |x| x * 2;
-  $double(21);   -- 42
+  LET $double = |$n: number| $n * 2;
+  RETURN $double(21);   -- 42
   ```
 
 - **Embedded JavaScript** via `function() { … }` (see the

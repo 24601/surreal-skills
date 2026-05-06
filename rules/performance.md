@@ -278,9 +278,19 @@ Use `EXPLAIN` to understand how SurrealDB executes a query and whether it uses i
 -- See the query execution plan (clause form)
 SELECT * FROM user WHERE email = 'alice@example.com' EXPLAIN;
 
--- Standalone form (verified upstream): EXPLAIN [ ANALYZE ] [ FORMAT JSON ] @statement
--- Default output is text (no `FORMAT TEXT` keyword exists in v3 — the
--- only explicit format keyword is `FORMAT JSON`).
+-- Clause form supports a FULL sub-modifier that returns extended
+-- output (operator/strategy details, fetch counts). Verified upstream
+-- against `core/src/syn/parser/stmt/parts.rs:120` where
+-- `try_parse_explain` reads an optional FULL token after EXPLAIN.
+SELECT * FROM user WHERE email = 'alice@example.com' EXPLAIN FULL;
+
+-- Standalone form (verified upstream against
+-- `core/src/syn/parser/stmt/mod.rs` — the parser explicitly accepts
+-- both TEXT and JSON keywords):
+--   EXPLAIN [ ANALYZE ] [ FORMAT TEXT | JSON ] @statement
+-- TEXT is the default when no FORMAT clause is present, so
+-- `EXPLAIN FORMAT TEXT` is valid but redundant — write either
+-- `EXPLAIN <stmt>` or `EXPLAIN FORMAT JSON <stmt>` in practice.
 EXPLAIN SELECT * FROM user WHERE email = 'alice@example.com';
 EXPLAIN ANALYZE SELECT * FROM user WHERE email = 'alice@example.com';
 EXPLAIN FORMAT JSON SELECT * FROM user WHERE email = 'alice@example.com';
