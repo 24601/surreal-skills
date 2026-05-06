@@ -1505,10 +1505,16 @@ array::boolean_or([true, false], [false, true]) -- [true, true]
 array::boolean_not([true, false])            -- [false, true]
 array::boolean_xor([true, false], [false, true]) -- [true, true]
 array::combine([1, 2], [3, 4])              -- [[1,3],[1,4],[2,3],[2,4]]
-array::complement([1,2,3,4], [2,4])          -- [1, 3]
+array::complement([1,2,3,4], [2,4])          -- [1, 3]    (relative complement: A \ B)
 array::concat([1, 2], [3, 4])               -- [1, 2, 3, 4]
 array::clump([1,2,3,4,5], 2)                -- [[1,2],[3,4],[5]]
-array::difference([1,2,3], [2,3,4])          -- [1]
+-- array::difference is the SYMMETRIC difference (A △ B) with multiset
+-- pairing: equal elements pair off and are dropped, unmatched elements
+-- from BOTH inputs survive. For unique-element arrays this is exactly
+-- the symmetric difference. (Source: core/src/val/array.rs:310-323.)
+-- For relative complement A \ B use `array::complement` above.
+array::difference([1,2,3], [2,3,4])          -- [1, 4]   (NOT [1] — both unmatched halves)
+array::difference([1,1,2], [1,3])            -- [1, 2, 3]  (multiset pairing)
 array::distinct([1, 2, 2, 3, 3])             -- [1, 2, 3]
 array::find([1, 2, 3], 2)                    -- 2
 array::find_index([1, 2, 3], 2)              -- 1
@@ -1831,14 +1837,31 @@ rand::ulid()                                 -- random ULID
 
 ### Session Functions
 
+Verified against v3.0.5 `core/src/fnc/session.rs`. There are EIGHT
+session functions, not six — `session::ac` (access method name) and
+`session::rd` (record-access record reference) are documented here
+for the first time alongside the existing six.
+
 ```surql
+session::ac()                                -- current access method name (auth)
 session::db()                                -- current database name
 session::id()                                -- current session ID
 session::ip()                                -- client IP address
 session::ns()                                -- current namespace name
 session::origin()                            -- request origin
+session::rd()                                -- record-access record reference
+                                             --   (e.g. user:tobie when signed in
+                                             --    via DEFINE ACCESS ... FOR RECORD)
 session::token()                             -- current auth token claims
 ```
+
+Each function reads from the in-memory `session` value on the
+`FrozenContext` and returns `NONE` if the corresponding field is
+unset. `session::ac` returns the access-method name as set during
+authentication (the `AC` field on `paths::AC`); `session::rd`
+returns the authenticated record (the `RD` field on `paths::RD`).
+Both are particularly useful inside `DEFINE ACCESS ... PERMISSIONS`
+and `DEFINE TABLE ... PERMISSIONS` clauses.
 
 ### Object Functions
 
@@ -1947,6 +1970,41 @@ ORDER BY score DESC;
 
 The `@N@` operator is the match operator for full-text search, where `N` is the index reference number used with `search::score()`, `search::highlight()`, and `search::offsets()`.
 
+```surql
+-- search::analyze(analyzer_name: string, text: string) -> array<string>
+-- Run a defined analyzer over a string and return the resulting
+-- token stream. Useful for previewing tokenization rules without
+-- having to index a document.
+DEFINE ANALYZER blog TOKENIZERS class FILTERS lowercase, snowball(english);
+search::analyze('blog', 'The Quick brown FOXES')
+                                              -- ['quick', 'brown', 'fox']
+
+-- search::rrf(results: array, limit: int, rrf_constant?: int=60) -> array
+-- Reciprocal Rank Fusion. Combines multiple ranked result lists
+-- into a single ranked list using the standard RRF formula
+-- `1 / (k + rank)` where `k` is `rrf_constant` (default 60) and
+-- `rank` is 1-based. Each result list MUST contain objects with
+-- an `id` field; documents are merged by id across lists.
+LET $vec = SELECT id, embedding FROM doc WHERE embedding <|10|> $q;
+LET $ft  = SELECT id, ft_score FROM doc WHERE content @1@ 'surrealdb';
+RETURN search::rrf([$vec, $ft], 10);          -- top 10 fused
+RETURN search::rrf([$vec, $ft], 10, 30);      -- with k=30 (sharper)
+
+-- search::linear(results: array, weights: array<number>, limit: int,
+--                norm: 'minmax' | 'zscore') -> array
+-- Linear-combination fusion with per-list weights and normalization.
+-- `weights.len()` MUST equal `results.len()`. Score extraction
+-- priority per document: `distance` (transformed via 1/(1+d)),
+-- `ft_score`, `score`, then rank-based fallback `1/(1+rank)`.
+RETURN search::linear([$vec, $ft], [2.0, 1.0], 10, 'minmax');
+RETURN search::linear([$vec, $ft], [1.0, 1.0], 10, 'zscore');
+```
+
+`search::rrf` rejects `limit < 1` and `rrf_constant < 0` with
+`InvalidFunctionArguments`. `search::linear` rejects mismatched
+array lengths, non-numeric weights, and any `norm` value other than
+the two listed.
+
 ### Value Functions
 
 ```surql
@@ -1956,6 +2014,498 @@ value::diff({ a: 1, b: 2 }, { a: 1, b: 3 })  -- returns diff
 -- Apply a JSON Merge Patch to a value
 value::patch({ a: 1, b: 2 }, [{ op: 'replace', path: '/b', value: 3 }])
 ```
+
+### Encoding Functions
+
+Verified against v3.0.5 `core/src/fnc/encoding.rs`. The `encoding::*`
+namespace exposes exactly four functions: two for Base64 and two for
+CBOR. Nothing else (no hex / urlencoding / base32 / etc.).
+
+```surql
+-- Base64 (RFC 4648 standard alphabet)
+-- encoding::base64::encode(bytes, padded?: bool=false) -> string
+-- The optional second argument controls padding. Default is NO padding
+-- (`STANDARD_NO_PAD`). Pass `true` to emit standard padded base64.
+encoding::base64::encode(<bytes> 'hello')         -- 'aGVsbG8'      (no padding)
+encoding::base64::encode(<bytes> 'hello', true)   -- 'aGVsbG8='     (padded)
+
+-- encoding::base64::decode(string) -> bytes
+-- Decoding is padding-INSENSITIVE: it accepts both padded and unpadded
+-- input (`DecodePaddingMode::Indifferent`). Returns a `bytes` value.
+encoding::base64::decode('aGVsbG8')               -- <bytes> 'hello'
+encoding::base64::decode('aGVsbG8=')              -- <bytes> 'hello' (also OK)
+
+-- CBOR (RFC 8949) round-trip via SurrealDB's public-value bridge.
+-- encoding::cbor::encode(value) -> bytes
+-- encoding::cbor::decode(bytes) -> value
+-- Useful for binary serialization of arbitrary SurrealQL values
+-- (records, datetimes, durations, decimals all supported via CBOR
+-- tags). Errors on values that cannot be represented as a public
+-- value (e.g. closures).
+encoding::cbor::encode({ a: 1, b: [2, 3] })       -- <bytes> ...
+encoding::cbor::decode(encoding::cbor::encode({ a: 1 }))  -- { a: 1 }
+```
+
+`encoding::base32`, `encoding::base64url`, `encoding::hex`,
+`encoding::url`, `encoding::json`, and any other format are NOT
+registered in v3.0.5. Only `base64` and `cbor` exist.
+
+### Bytes Functions
+
+Verified against v3.0.5 `core/src/fnc/bytes.rs`. The `bytes::*`
+namespace exposes exactly ONE function in v3.0.5 — do NOT assume
+the namespace mirrors `string::*`.
+
+```surql
+-- bytes::len(bytes) -> int
+-- Number of raw bytes in a `bytes` value (NOT the string length —
+-- the input is bytes, not a string).
+bytes::len(<bytes> 'hello')                  -- 5
+bytes::len(encoding::base64::decode('aGVsbG8'))  -- 5
+```
+
+`bytes::concat`, `bytes::slice`, `bytes::at`, `bytes::reverse`, and
+any other transform are NOT registered in v3.0.5. Use `encoding::*`
+for format conversions and `string::*` after decoding for textual
+manipulation.
+
+### Set Functions
+
+Verified against v3.0.5 `core/src/fnc/set.rs` (396 LOC). The `set::*`
+namespace operates on the first-class `Set` value (constructed via
+`<set> [...]` cast or via SET fields in tables) and provides
+mathematical-set semantics that DIFFER from `array::*` in three
+important ways:
+
+1. **`set::difference(A, B)` is the SYMMETRIC difference (A △ B)**,
+   NOT `A \ B`. Use `set::complement(A, B)` for the relative
+   complement (`A \ B`). The `array::*` namespace uses the SAME
+   convention: `array::difference` is also the symmetric difference
+   (with multiset-pairing semantics for duplicates — see the array
+   section above), and `array::complement(A, B)` is the relative
+   complement `A \ B`. So in both namespaces the function named
+   `difference` means **A △ B**, contrary to the common
+   informal-English reading of "difference" as `A \ B`. Source:
+   `core/src/fnc/set.rs:68-76` (set), `core/src/val/array.rs:289-323`
+   (array).
+2. Sets are stored in `BTreeSet<Value>` (Rust standard-library
+   BTree), so iteration / positional access is in **`Value::Ord`
+   sort order**, not insertion order. `at`, `first`, `last`,
+   `slice`, and the closure-based traversal functions all visit
+   elements in this `Value::Ord` order. The ordering is determined
+   by the cross-type `Value` comparator defined upstream (numbers
+   before strings before arrays, etc.), not a SurrealDB-specific
+   custom ordering.
+3. Closure-based methods (`all`, `any`, `filter`, `find`, `fold`,
+   `map`, `reduce`) iterate in sorted order and the closure receives
+   one element at a time (or `(accum, val)` for fold/reduce).
+
+```surql
+-- Construction
+<set> [1, 2, 2, 3]                           -- {1, 2, 3} (deduped on cast)
+
+-- Membership and size
+set::contains(<set>[1, 2, 3], 2)             -- true
+set::len(<set>[1, 2, 3])                     -- 3
+set::is_empty(<set>[])                       -- true
+
+-- Mutating returns (the original set is not modified; result is new)
+set::add(<set>[1, 2], 3)                     -- {1, 2, 3}
+set::add(<set>[1, 2], [3, 4])                -- {1, 2, 3, 4} (array spread-insert)
+set::add(<set>[1, 2], <set>[3, 4])           -- {1, 2, 3, 4} (set spread-insert)
+set::remove(<set>[1, 2, 3], 2)               -- {1, 3}
+set::remove(<set>[1, 2, 3], [1, 2])          -- {3}            (array spread-remove)
+
+-- Set algebra
+set::union(<set>[1, 2], <set>[2, 3])         -- {1, 2, 3}     (A ∪ B)
+set::intersect(<set>[1, 2, 3], <set>[2, 3, 4]) -- {2, 3}      (A ∩ B)
+set::difference(<set>[1, 2, 3], <set>[2, 3, 4]) -- {1, 4}     (A △ B — SYMMETRIC)
+set::complement(<set>[1, 2, 3], <set>[2, 3]) -- {1}           (A \ B — RELATIVE)
+
+-- Element access (BTree order)
+set::first(<set>[3, 1, 2])                   -- 1             (minimum)
+set::last(<set>[3, 1, 2])                    -- 3             (maximum)
+set::at(<set>[1, 2, 3], 0)                   -- 1
+set::at(<set>[1, 2, 3], -1)                  -- 3             (negative = from end)
+set::min(<set>[3, 1, 2])                     -- 1
+set::max(<set>[3, 1, 2])                     -- 3
+
+-- Slicing (positional, BTree order)
+-- set::slice(set, start_or_range?, end?) -> set
+-- Three forms: no args (returns whole set), single int (start..),
+-- start+end (start..end exclusive), or a Range value.
+set::slice(<set>[1, 2, 3, 4, 5])             -- {1, 2, 3, 4, 5}
+set::slice(<set>[1, 2, 3, 4, 5], 1)          -- {2, 3, 4, 5}
+set::slice(<set>[1, 2, 3, 4, 5], 1, 3)       -- {2, 3}        (1..3 exclusive)
+set::slice(<set>[1, 2, 3, 4, 5], -2)         -- {4, 5}        (negative supported)
+
+-- Flattening + serialization
+set::flatten(<set>[<set>[1, 2], <set>[3]])   -- {1, 2, 3}
+set::join(<set>['a', 'b', 'c'], ', ')        -- 'a, b, c'
+
+-- Closure-based traversal (async — closure invoked per element)
+-- These are the seven async ones; they accept either a closure or a
+-- plain value (which is matched for equality in `all`/`any`/`filter`/
+-- `find`).
+set::all(<set>[1, 2, 3], |$x| $x > 0)        -- true
+set::any(<set>[1, 2, 3], |$x| $x > 2)        -- true
+set::filter(<set>[1, 2, 3, 4], |$x| $x % 2 = 0)  -- {2, 4}
+set::find(<set>[1, 2, 3], |$x| $x > 1)       -- 2
+set::map(<set>[1, 2, 3], |$x| $x * 2)        -- {2, 4, 6}
+set::fold(<set>[1, 2, 3], 0, |$acc, $x| $acc + $x)  -- 6
+set::reduce(<set>[1, 2, 3], |$acc, $x| $acc + $x)   -- 6 (uses first elem as init)
+```
+
+NOT exposed under `set::*` in v3.0.5: `set::sort` (sets are already
+ordered), `set::distinct` (sets are already deduplicated),
+`set::reverse`, `set::concat`, `set::sample`, and the symmetric
+`set::is_subset` / `set::is_superset` predicates. Use `array::*`
+casts or boolean checks via `set::intersect` / `set::complement`
+for the missing predicates.
+
+### Sequence Functions
+
+Verified against v3.0.5 `core/src/fnc/sequence.rs`. The `sequence::*`
+namespace exposes exactly ONE function in v3.0.5 — sequences are
+created with `DEFINE SEQUENCE` and read with this single function.
+
+```surql
+-- Create a sequence (DDL, not part of the function namespace)
+DEFINE SEQUENCE invoice_no START 1000 BATCH 100 TIMEOUT 5s;
+
+-- sequence::nextval(name: string) -> int
+-- Returns the next value for the named sequence. Atomic and
+-- monotonically increasing within a sequence. Errors if the
+-- sequence is undefined or the namespace/database is invalid.
+sequence::nextval('invoice_no')              -- 1000
+sequence::nextval('invoice_no')              -- 1001
+```
+
+`sequence::reset`, `sequence::current`, `sequence::peek` are NOT
+registered in v3.0.5. Use `REMOVE SEQUENCE name; DEFINE SEQUENCE
+name START n;` to reset (which renumbers from `n`). There is no
+non-mutating "peek the next value without consuming" function.
+
+### Schema Functions
+
+Verified against v3.0.5 `core/src/fnc/schema.rs`. The `schema::*`
+namespace exposes exactly ONE function in v3.0.5. Schema introspection
+is otherwise done via `INFO FOR DB`, `INFO FOR TABLE name`, and
+`INFO FOR USER name`.
+
+```surql
+-- schema::table::exists(name: string) -> bool
+-- Returns true if a table with the given name is defined in the
+-- current database. Requires Action::View permission on the table
+-- resource (will error under restrictive access).
+schema::table::exists('person')              -- true | false
+
+-- Idiomatic guard before DEFINE
+IF !schema::table::exists('audit_log') THEN
+    DEFINE TABLE audit_log SCHEMAFULL;
+END;
+```
+
+`schema::table::list`, `schema::field::*`, `schema::index::*`,
+`schema::namespace::*`, `schema::database::*`, and any other
+`schema::*` predicates are NOT registered in v3.0.5. Use `INFO FOR
+DB` (returns objects keyed by definition kind) or query the
+`information_schema`-style virtual catalogs through `INFO` for
+broader introspection.
+
+### File Functions (Experimental — `Files` capability required)
+
+Verified against v3.0.5 `core/src/fnc/file.rs` (232 LOC). All 13
+functions in the `file::*` namespace are gated behind the experimental
+`Files` capability. The registry split is:
+- 2 sync inspectors at `core/src/fnc/mod.rs:239-240`
+  (`file::bucket`, `file::key`)
+- 11 async I/O functions at `core/src/fnc/mod.rs:602-612`
+  (`put`, `put_if_not_exists`, `get`, `head`, `delete`, `copy`,
+  `copy_if_not_exists`, `rename`, `rename_if_not_exists`, `exists`,
+  `list`)
+
+Every row carries the `exp(Files)` macro prefix, meaning the
+capability check resolves at function-DISPATCH time (not at
+SurrealQL parse time): if the `Files` capability is disabled, the
+call parses successfully but errors when the dispatcher reaches the
+gated row in `core/src/fnc/mod.rs:114-133`. Start the server with
+`--allow-experimental Files` (or equivalent config) to enable these
+functions. DO NOT rely on them in production until Files moves out
+of experimental.
+
+```surql
+-- File values bind a bucket + key. Construct via DEFINE BUCKET first.
+-- READONLY is a bare flag (no boolean operand) per the parser at
+-- core/src/syn/parser/stmt/define.rs:1378-1380. Omit it for a
+-- writable bucket; include it for read-only.
+DEFINE BUCKET assets BACKEND "memory";
+
+-- Bind a file pointer (does NOT read; resolves bucket+key).
+LET $f = <file> "assets:/avatars/tobie.png";
+
+-- Inspect the binding (these two are sync, capability still required)
+file::bucket($f)                             -- 'assets'
+file::key($f)                                -- '/avatars/tobie.png'
+
+-- Read / write
+file::put($f, <bytes> 'PNG-bytes-here')      -- NONE on success
+-- *_if_not_exists is a NO-OP when the destination key already
+-- exists — it does NOT error. Source: core/src/buc/controller.rs
+-- comments at lines 97-103 ("If the key already exists, the
+-- operation is a no-op").
+file::put_if_not_exists($f, <bytes> '...')   -- NONE (no-op if key exists)
+file::get($f)                                -- <bytes> ... or NONE
+-- head() returns { updated, size, file } when present, NONE otherwise.
+-- Source: core/src/buc/store/mod.rs:35-52 (ObjectMeta -> object value
+-- has fields `updated: datetime`, `size: int`, `file: file`). NO
+-- `etag` field exists in v3.0.5.
+file::head($f)                               -- { updated, size, file } or NONE
+file::exists($f)                             -- true | false
+file::delete($f)                             -- NONE
+file::list('assets', { prefix: '/avatars/' }) -- [{ updated, size, file }, ...]
+
+-- Copy / rename
+-- Destination can be a string (key relative to source bucket) or
+-- another file value (cross-bucket). The *_if_not_exists variants
+-- are NO-OPS when the destination already exists (same convention
+-- as put_if_not_exists; source: core/src/buc/controller.rs:181-216).
+file::copy($f, '/avatars/backup-tobie.png')  -- NONE
+file::copy($f, <file> "archive:/backups/tobie.png")  -- cross-bucket
+file::copy_if_not_exists($f, '/avatars/backup-tobie.png')   -- NONE (no-op)
+file::rename($f, '/avatars/tobie-new.png')   -- NONE (within same bucket)
+file::rename_if_not_exists($f, '/avatars/tobie-new.png')    -- NONE (no-op)
+```
+
+Signature reference (verified against `core/src/fnc/file.rs`):
+
+| Function | Args | Returns |
+|---|---|---|
+| `file::bucket` / `file::key` | `(file)` | string |
+| `file::put` / `file::put_if_not_exists` | `(file, value)` (value coerced via accept_payload) | NONE |
+| `file::get` | `(file)` | bytes \| NONE |
+| `file::head` | `(file)` | `{ updated, size, file }` \| NONE |
+| `file::exists` | `(file)` | bool |
+| `file::delete` | `(file)` | NONE |
+| `file::list` | `(bucket: string, options?: object)` | array<object> |
+| `file::copy` / `file::copy_if_not_exists` | `(src: file, dst: string \| file)` | NONE |
+| `file::rename` / `file::rename_if_not_exists` | `(src: file, target: string)` | NONE |
+
+Notable asymmetries:
+- `file::list` is the ONLY function that takes a STRING bucket name
+  (not a `file` value) AND an options object.
+- `file::copy` / `file::copy_if_not_exists` are the ONLY functions
+  whose destination can be EITHER a string (relative key in the
+  source bucket) OR a `file` value (cross-bucket).
+- `file::rename` / `file::rename_if_not_exists` only accept a STRING
+  target — there is no cross-bucket rename. Use `file::copy` +
+  `file::delete` instead.
+
+`file::move` does NOT exist — use `file::rename` (intra-bucket) or
+`file::copy` followed by `file::delete` (cross-bucket).
+
+### API Functions
+
+Verified against v3.0.5 `core/src/fnc/api/{mod,req,res}.rs`. The
+`api::*` namespace exposes 7 functions, but they split into two
+distinct usage modes:
+
+1. **Callable from regular SurrealQL** — `api::invoke` only.
+2. **Middleware-only** — `api::req::body`, `api::res::body`,
+   `api::res::status`, `api::res::header`, `api::res::headers`,
+   `api::timeout`. These take a `next` closure as one of their
+   arguments and are designed to compose inside a
+   `DEFINE API ... MIDDLEWARE` chain. Calling them outside that
+   context fails with an arity / type error — the implicit `req`
+   and `next` arguments supplied by the middleware runtime are
+   not available, so the call is rejected before any side effect.
+
+```surql
+-- ============================================
+-- 1. Callable: api::invoke
+-- ============================================
+
+-- api::invoke(path: string, req?: object) -> object
+-- Calls a defined API endpoint internally (server-side dispatch,
+-- no HTTP round-trip). Path MUST start with '/'. The optional
+-- request object's input fields (per core/src/api/request.rs:14-23).
+-- All caller-supplied fields are forwarded to the matched route's
+-- handler as the SurrealQL `$request` value (see
+-- core/src/api/invocation.rs:198-220), with TWO exceptions:
+-- - `request_id` is OVERWRITTEN by `api::invoke` with a freshly
+--   generated UUID (core/src/fnc/api/mod.rs:66-68) — passing your
+--   own value has no effect.
+-- - `params` is OVERWRITTEN with the values extracted from path
+--   matching (core/src/fnc/api/mod.rs:92-95).
+-- Caller-supplied `context` IS forwarded into the handler as
+-- `$request.context`; the strip at core/src/fnc/api/mod.rs:101-106
+-- only removes `context` from the RESPONSE object before
+-- `api::invoke` returns, not from the request before the handler
+-- sees it. Schema:
+--   { method:  'get' | 'post' | 'put' | 'patch' | 'delete' | 'trace',
+--             -- NOTE: 'head' is NOT a valid ApiMethod variant in
+--             -- v3.0.5; the enum includes 'trace' instead. Source:
+--             -- core/src/catalog/schema/api.rs:111-126.
+--     headers: { string: string },
+--     body:    <any>,
+--     query:   { string: string },   -- query-string parameters
+--     params:  { string: string },   -- OVERWRITTEN by path matching
+--                                    -- when the route matches; on
+--                                    -- unmatched paths the request
+--                                    -- short-circuits to NotFound so
+--                                    -- caller-supplied params are
+--                                    -- never observable in any
+--                                    -- handler. (fnc/api/mod.rs:92-95)
+--     context: { ... }               -- forwarded as $request.context
+--                                    -- to the matched handler;
+--                                    -- stripped from the RESPONSE
+--                                    -- object before api::invoke
+--                                    -- returns (fnc/api/mod.rs:101-106)
+--   }
+-- (`request_id` is also a struct field but is unconditionally
+-- overwritten with a fresh UUID — do not pass it.)
+-- Defaults: GET, Content-Type + Accept set to native SurrealDB
+-- format if absent. Returns the response object with `context`
+-- stripped. Returns a NotFound-shaped response if no matching
+-- definition.
+
+api::invoke('/users/123');                                  -- GET
+api::invoke('/users/123', { method: 'get' });
+api::invoke('/users', {
+    method: 'post',
+    body: { name: 'Tobie', age: 33 }
+});
+
+-- ============================================
+-- 2. Middleware-only (used inside DEFINE API ... MIDDLEWARE)
+-- ============================================
+
+-- api::req::body(strategy?) — parse the request body in place.
+-- Strategies: 'auto' (default; sniff Content-Type), 'json', 'cbor',
+-- 'flatbuffers', 'plain' (UTF-8 string), 'bytes' (raw, no parse),
+-- 'native' (SurrealDB native).
+DEFINE API "/users"
+    FOR post
+        MIDDLEWARE api::req::body('json')
+        THEN { RETURN { status: 201, body: { name: $request.body.name } }; };
+
+-- api::res::body(strategy?) — serialize the response body.
+-- Same strategy set; 'auto' negotiates from Accept header.
+DEFINE API "/data"
+    FOR get
+        MIDDLEWARE api::res::body('cbor')
+        THEN { RETURN { status: 200, body: { hello: 'world' } }; };
+
+-- api::res::status(code: int) — set status code (must be 100..=599).
+DEFINE API "/not-found"
+    FOR get
+        MIDDLEWARE api::res::status(404)
+        THEN { RETURN { body: { error: 'gone' } }; };
+
+-- api::res::header(name: string, value?: string) — set or remove a
+-- single response header. To REMOVE a header, OMIT the second
+-- argument (one-arg form). The function signature uses
+-- `Optional<String>`, whose `Optional<T>` resolves to `None` ONLY
+-- when the argument is absent (core/src/fnc/args.rs:81-97).
+-- Passing an explicit `NONE` value as the second argument is
+-- rejected as a type error: `NONE` cannot coerce to `String` via
+-- the `String` FromArg path. Use `api::res::headers` (the map form
+-- below) when you need to mix sets and removes in one call — its
+-- value type is `Option<String>`, so a `NONE` map value DOES
+-- remove that header.
+DEFINE API "/cors"
+    FOR get
+        MIDDLEWARE api::res::header('Access-Control-Allow-Origin', '*')
+        THEN { RETURN { status: 200, body: {} }; };
+
+-- Remove a header by omitting the value argument:
+DEFINE API "/strip-server"
+    FOR get
+        MIDDLEWARE api::res::header('Server')   -- one arg = remove
+        THEN { RETURN { status: 200, body: {} }; };
+
+-- api::res::headers(map: { string: string|NONE }) — batch set/remove.
+-- The map's value type is `Option<String>` (core/src/fnc/api/res.rs:184),
+-- so `NONE` here DOES remove the header (different from
+-- `api::res::header`'s second arg semantics). More efficient than
+-- chaining api::res::header for many headers.
+DEFINE API "/secure"
+    FOR get
+        MIDDLEWARE api::res::headers({
+            'X-Frame-Options': 'DENY',
+            'X-Content-Type-Options': 'nosniff',
+            'Server': NONE,                  -- removes the Server header
+        })
+        THEN { RETURN { status: 200, body: {} }; };
+
+-- api::timeout(duration) — abort request processing after duration.
+DEFINE API "/slow"
+    FOR get
+        MIDDLEWARE api::timeout(5s)
+        THEN { RETURN { status: 200, body: 'done' }; };
+```
+
+Argument-shape notes:
+- `api::invoke` is a regular async function — its `req` arg is a
+  PUBLIC `ApiRequest` object converted via `FromPublic`. Enum-style
+  values like `method` derive from `ApiMethod` with
+  `#[surreal(untagged, lowercase)]` (source:
+  `core/src/catalog/schema/api.rs:111-126`); the derive matches the
+  input string against the variant name LOWERCASED, so the input
+  must itself be lowercase. `'GET'` and `'Get'` are NOT accepted —
+  use `'get'`, `'post'`, etc.
+- Direct calls to the middleware functions outside a
+  `DEFINE API ... MIDDLEWARE` chain do not produce undefined
+  behaviour — they fail with an arity / type error when the
+  required implicit `(req, next)` arguments are missing or do not
+  coerce. The middleware functions all take `(req, next, ...args)`
+  and invoke `next.invoke(...)` to continue the chain. Their first
+  visible argument in the SurrealQL call is the strategy / status /
+  header — `req` and `next` are bound implicitly by the
+  `DEFINE API ... MIDDLEWARE` runtime.
+- `api::res::status` validates the code via `StatusCode::from_u16`
+  and rejects any value outside `100..=599` with
+  `ApiError::InvalidStatusCode`.
+
+### Sleep Function
+
+Verified against v3.0.5 `core/src/fnc/sleep.rs`. Registered as the
+TOP-LEVEL function name `"sleep"` in `core/src/fnc/mod.rs:639` —
+NOT under any namespace. Do NOT call it as `session::sleep`,
+`time::sleep`, or `system::sleep`; those names are unregistered and
+will fail with "function not found".
+
+```surql
+-- sleep(dur: duration) -> NONE
+-- Pause execution for the given duration. The actual sleep is
+-- clamped by the surrounding query / transaction timeout — if the
+-- context timeout is shorter than `dur`, sleep returns when the
+-- context timeout elapses, NOT after the full requested duration.
+sleep(100ms)                                 -- pause 100ms, return NONE
+sleep(2s)                                    -- pause 2 seconds
+
+-- Useful for rate-limit testing, deterministic backoff, or
+-- exercising TIMEOUT clauses. The function itself returns `Ok(NONE)`
+-- after the (possibly clamped) wait — see core/src/fnc/sleep.rs:7-19.
+-- The surrounding TIMEOUT clause is what surfaces a timeout error to
+-- the client.
+--
+-- IMPORTANT: `RETURN` does NOT accept a `TIMEOUT` clause — its parser
+-- only consumes the expression and an optional `FETCH`
+-- (core/src/syn/parser/stmt/mod.rs:566-575). Attach `TIMEOUT` to a
+-- statement that actually parses it (`SELECT`, `CREATE`, `UPDATE`,
+-- `DELETE`, `RELATE`, `INSERT`, etc.):
+CREATE timeout_probe SET slept = sleep(10s) TIMEOUT 1s;
+-- After ~1s the surrounding TIMEOUT fires and the client receives a
+-- timeout-shaped error rather than a created `timeout_probe` row.
+-- (Sleep itself does not return an error; the TIMEOUT clause does.)
+-- Source: core/src/syn/parser/stmt/create.rs:8-22 +
+-- core/src/syn/parser/stmt/mod.rs:566-575.
+```
+
+The sleep is implemented via `tokio::time::sleep` (or
+`wasmtimer::tokio::sleep` on wasm builds), so it does NOT block the
+async runtime — other concurrent queries proceed normally.
 
 ---
 
@@ -2299,7 +2849,15 @@ Key fixes and changes in SurrealDB v3.0.5:
 - **`$parent` fixes**: multiple fixes landed for `$parent` resolution in nested and edge-oriented queries
 - **Computed field stability** (#7142, #7202): computed fields now evaluate more consistently in write and query paths
 - **Edge query ordering fixes** (#7193, #7194): `ORDER BY` and related planning on edge-table queries behave correctly again
-- **`encoding::json` restored** (#7197): missing `encoding::json` functions were reintroduced/fixed
+- **`encoding::*` registry verified (#7197)**: The v3.0.5
+  `core/src/fnc/mod.rs` registry (lines 242-245) exposes exactly
+  four `encoding::*` functions: `encoding::base64::{encode,decode}`
+  and `encoding::cbor::{encode,decode}`. There is NO callable
+  `encoding::json::*` function namespace in v3.0.5. Earlier wording
+  in this section that said "encoding::json restored" was a
+  v1.4.x-era doc fabrication. Cross-reference: see `### Encoding
+  Functions` above for the full registered surface. Correction
+  landed in v1.6.1 after a 4-WAY adversarial review pass.
 - **GraphQL literal fields** (#7109): schema generation now supports literal fields in GraphQL mappings
 - **Axum router support for embedders** (#7097): embedding use cases have an official axum router path
 - **Validation input from stdin** (#7235): CLI validation flows now accept stdin input cleanly

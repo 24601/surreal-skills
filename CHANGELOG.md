@@ -3,6 +3,137 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.1] - 2026-05-06 — Function namespace catalog (10 atomic feature commits + release commit, plus rev-2 review-fix commits)
+
+### Added
+
+- **`rules/surrealql.md` Function-namespace catalog (batch 2 of the
+  v1.5.x deferred-IMPORTANT cleanup).** Closes the seven function
+  namespaces flagged as under-documented in the v1.5.x convergence
+  notes plus three previously unrelated extensions, all verified
+  against the v3.0.5 source tree at
+  `/tmp/surrealdb-v3.0.5/surrealdb/core/src/fnc/` rather than against
+  the docs site (which lags v3.0.5).
+  - **`encoding::*` (4 functions)** — base64::{encode,decode} (with
+    optional padding flag and padding-insensitive decoding) and
+    cbor::{encode,decode}. Explicit "no other formats exist"
+    callout to prevent symmetric fabrication of `encoding::hex`,
+    `encoding::base32`, etc.
+  - **`bytes::*` (1 function)** — only `bytes::len`. The v1.5.x
+    deferral list claim of an under-documented bytes namespace was
+    OVERSTATED; the upstream module is 7 LOC. Explicit "do NOT
+    assume it mirrors `string::*`" callout.
+  - **`set::*` (24 functions)** — largest namespace addition.
+    Documents the 17 sync + 7 async / closure-based functions, with
+    three critical semantic notes at the top: `set::difference` is
+    SYMMETRIC (`A △ B`) — NOT the relative complement (use
+    `set::complement` for `A \ B`). The `array::*` namespace uses
+    the SAME convention: `array::difference` is also symmetric
+    difference (with multiset-pairing semantics for duplicates per
+    `core/src/val/array.rs:310-323`), and `array::complement` is
+    `A \ B`. Sets are stored in Rust's `BTreeSet<Value>` and
+    iterated in `Value::Ord` order — `at` / `first` / `last` /
+    `slice` and the closure-based traversals visit elements in
+    that order. Explicit "no `set::sort`, `set::distinct`,
+    `set::reverse`, `set::concat`, `set::sample`, `set::is_subset`,
+    `set::is_superset`" callout. (The original v1.5.x deferral list
+    claim that `set::difference` and `array::difference` use
+    OPPOSITE conventions was wrong; rev-2 review pass corrected the
+    cross-section narrative against `core/src/fnc/set.rs:68-76` +
+    `core/src/val/array.rs:310-323`. Pre-existing
+    `array::difference([1,2,3], [2,3,4])` example was also fixed
+    from `[1]` to `[1, 4]` to match the actual symmetric-difference
+    return value.)
+  - **`sequence::*` (1 function)** — only `sequence::nextval`. The
+    v1.5.x deferral list claim was OVERSTATED. Documents the
+    `REMOVE SEQUENCE; DEFINE SEQUENCE` reset pattern (since no
+    `sequence::reset` / `sequence::current` / `sequence::peek`
+    exists).
+  - **`schema::*` (1 function)** — only `schema::table::exists`.
+    The v1.5.x deferral list claim was OVERSTATED. Notes the
+    `Action::View` IAM requirement and shows the
+    `IF !exists THEN DEFINE` guard idiom.
+  - **`file::*` (13 functions, experimental)** — registry rows
+    split across `core/src/fnc/mod.rs:239-240` (2 sync inspectors:
+    `file::bucket`, `file::key`) and `core/src/fnc/mod.rs:602-612`
+    (11 async I/O functions). Every row carries the `exp(Files)`
+    macro prefix; the capability check resolves at function
+    DISPATCH time (not at SurrealQL parse time, per
+    `core/src/fnc/mod.rs:114-133`). Functions only resolve when the
+    server runs with `--allow-experimental Files`. Documents put /
+    put_if_not_exists / get / head / exists / delete / list / copy
+    / copy_if_not_exists / rename / rename_if_not_exists plus the
+    sync inspectors `bucket` / `key`. The `*_if_not_exists` variants
+    are NO-OPS when the destination key already exists (verified
+    against `core/src/buc/controller.rs:97-216`); they do NOT
+    error. `file::head` returns `{ updated, size, file }` per
+    `core/src/buc/store/mod.rs:35-52` (no `etag` field exists in
+    v3.0.5). Calls out the asymmetric `file::list(bucket: string,
+    options?: object)` signature and the cross-bucket
+    `file::copy(file, file)` form. Explicit "NO `file::move`"
+    callout. The example `DEFINE BUCKET` syntax uses bare
+    `READONLY` (no boolean operand) per
+    `core/src/syn/parser/stmt/define.rs:1378-1380`.
+  - **`api::*` (7 functions, two usage modes)** — split into
+    `api::invoke` (callable from regular SurrealQL, server-side
+    dispatch with no HTTP round-trip) and the six middleware-only
+    functions (`api::req::body`, `api::res::body`,
+    `api::res::status`, `api::res::header`, `api::res::headers`,
+    `api::timeout`) that take an implicit `next` from the
+    `DEFINE API ... MIDDLEWARE` chain and are not free-standing.
+    Body-strategy enumeration: auto / json / cbor / flatbuffers /
+    plain / bytes / native. `api::res::status` validates 100..=599.
+    `api::res::headers` (the MAP form) accepts `NONE` map values to
+    remove a header; `api::res::header` (the single-pair form) does
+    NOT — its second argument is `Optional<String>` so passing an
+    explicit `NONE` is a type error and removal must be done by
+    OMITTING the second argument.
+- **`rules/surrealql.md` top-level `sleep(duration)` function.**
+  Registered as the bare name `"sleep"` at
+  `core/src/fnc/mod.rs:639` — NOT under any namespace. Calls out the
+  CLAMP-by-context-timeout behaviour: e.g.
+  `CREATE timeout_probe SET slept = sleep(10s) TIMEOUT 1s;` errors
+  out via the surrounding `TIMEOUT` clause after ~1s rather than
+  completing the 10-second sleep. Note that `RETURN` itself does
+  NOT parse a `TIMEOUT` clause (per
+  `core/src/syn/parser/stmt/mod.rs:566-575`); attach `TIMEOUT` to
+  a statement that does (`SELECT`, `CREATE`, `UPDATE`, `DELETE`,
+  `RELATE`, `INSERT`). The function is implemented via
+  `tokio::time::sleep`, so it does NOT block the async runtime.
+- **`rules/surrealql.md` extends `### Search Functions` with three
+  previously undocumented entries.** `search::analyze(analyzer,
+  text)` for tokenizer preview; `search::rrf(results, limit,
+  rrf_constant?=60)` for Reciprocal Rank Fusion;
+  `search::linear(results, weights, limit, norm: 'minmax' |
+  'zscore')` for weighted-linear-combination fusion with
+  score-extraction priority `distance → ft_score → score → rank`.
+  Both fusion functions document their argument-validation errors
+  (`InvalidFunctionArguments`) per `core/src/fnc/search.rs`.
+- **`rules/surrealql.md` extends `### Session Functions` from 6 to
+  8.** Adds `session::ac()` (current access-method name set during
+  authentication) and `session::rd()` (record-access record
+  reference, e.g. `user:tobie` when signed in via
+  `DEFINE ACCESS ... FOR RECORD`). Both are particularly useful
+  inside `DEFINE ACCESS ... PERMISSIONS` and
+  `DEFINE TABLE ... PERMISSIONS` clauses.
+
+### Process notes
+
+- **v1.6.0 lesson applied first.** Before drafting docs, every
+  claimed namespace was verified against the v3.0.5 source rather
+  than against the docs site or the v1.5.x deferral list. Three of
+  the seven listed namespaces (`bytes`, `sequence`, `schema`) turned
+  out to be SINGLE-FUNCTION namespaces, not the multi-function
+  namespaces the deferral list implied — the same failure mode as
+  the ALTER target-list fabrication v1.6.0 just fixed (taking a list
+  claim at face value instead of going to the parser/registry). Each
+  section now includes an explicit "what is NOT registered" callout
+  for the most plausible-looking absent functions.
+- **Atomic commits.** Each namespace landed in its own commit
+  citing the registry line numbers and module LOC so future audits
+  (or a 4-WAY adversarial review) can verify each addition
+  independently.
+
 ## [1.6.0] - 2026-05-06 — ALTER target-list fabrication fix
 
 ### Fixed
