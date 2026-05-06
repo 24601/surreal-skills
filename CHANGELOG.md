@@ -3,6 +3,51 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.3] - 2026-05-06 — `rules/security.md` v1.6.2 pass-7 deferred-IMP polish (4 atomic doc commits + release commit)
+
+### Changed
+
+- **`rules/security.md` v1.6.2 pass-7 deferred-IMPORTANT
+  cleanup.** Closes the five documentation-polish items that
+  v1.6.2 pass-7 ratified as deferrable, plus a CHANGELOG
+  housekeeping label. None affect runtime correctness — all
+  source-citation tightening, cross-reference consistency, and
+  example consolidation:
+  - **`auth0_jwt` TYPE JWT example** (JWKS-Backed JWT section)
+    now mentions the NS/DB/AC routing-claim requirement
+    inline, matching the per-example consistency of `account` /
+    `external_idp`. The preamble's ROUTING-CLAIM REQUIREMENT
+    block already covers TYPE JWT (the `fn token` entry point
+    decodes ALL inbound JWTs through `decode_claims_unverified`
+    before dispatching to access-type-specific verifiers), but
+    the per-example note improves discoverability for readers
+    who jump straight to JWKS examples.
+  - **`jwks_inbound`'s DURATION-omission comment** now uses the
+    `:282` / `:457` dual-pointer that `external_jwt_auth` uses
+    (split between the no-id claims arm where AUTHENTICATE
+    runs and the with-id claims arm). Cross-example citation
+    consistency.
+  - **`account` + `jwks_inbound` consolidation.** After
+    rev-7's `account` rewrite, the two examples were
+    functionally identical (TYPE RECORD WITH JWT URL +
+    AUTHENTICATE for `$token.sub`). Removed the redundant
+    `account` example and reworded the surrounding prose to
+    point readers at `jwks_inbound` as the canonical
+    Pattern A.
+  - **`verify.rs:155+` cite tightened to `:158-159`** in the
+    ROUTING-CLAIM REQUIREMENT block. The actual
+    `decode_claims_unverified(token)?` call is on lines
+    158-159; `:155` is the `fn token` signature.
+  - **`Cumulative trajectory after pass-5` table** in the
+    [1.6.2] CHANGELOG entry labeled as historical /
+    superseded by the pass-6 + pass-7 tables below it.
+
+### Process notes
+
+5 atomic doc commits + release commit. Post-v1.6.2-pass-7,
+expect 1-2 4-WAY review revisions for ratification (smaller
+edit surface than v1.6.2's 7-pass cycle).
+
 ## [1.6.2] - 2026-05-06 — `rules/security.md` deferred-IMPORTANT clause closure (4 atomic feature commits + release commit)
 
 ### Added
@@ -531,7 +576,7 @@ check Cursor C1 + Codex I1 surfaced; the convergent
 Cursor+Codex finding overrode Pi's PASS verdict. Pi pass-2 C1
 remains rejected (cross-pass confirmation).
 
-#### Cumulative trajectory after pass-5
+#### Cumulative trajectory after pass-5 (historical — superseded by pass-6 + pass-7 tables below)
 
 | Pass | Cursor | Codex | Gemini | Pi | Real CRITs | Real IMPs | Notes |
 |------|--------|-------|--------|----|------|-----------|-------|
