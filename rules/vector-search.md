@@ -421,21 +421,37 @@ LIMIT 10;
 >   `std_dev_a = 0`). This zero-deviation path is reachable
 >   for **integer** constant operands (e.g. `[1, 1, 1]`, where
 >   `mean()` returns `1` exactly and each `x_i − mean` is
->   exactly `0.0`); for **floating-point** constant operands
->   (e.g. `[0.1, 0.1, 0.1]`), `mean()` accumulates via
->   `try_add` and the rounded mean is
->   `0.10000000000000002`, so each `x_i − mean` is a non-zero
->   ~1e-17 and `std_dev_a` is a tiny positive value — the
->   zero-deviation `NaN` path is NOT taken. The final ratio
->   then depends on the OTHER operand: identical
->   float-constant pairs (e.g. `pearson([0.1, 0.1, 0.1],
->   [0.1, 0.1, 0.1])`) tend toward `≈ 1.0`; one constant
->   paired with one non-constant collapses toward `≈ 0`; one
+>   exactly `0.0`); for **some floating-point** constant
+>   operands the zero-deviation `NaN` path is NOT taken.
+>   This is **literal-dependent**: it depends on whether
+>   the f64 sum-and-divide round-trip recovers the same f64
+>   bit-pattern as the original element. Concretely, for
+>   `[0.1, 0.1, 0.1]`, `mean()` accumulates via `try_add` to
+>   the next f64 above `0.1`
+>   (`0.10000000000000002`), so each `x_i − mean` is a
+>   non-zero ~1e-17 and `std_dev_a` is a tiny positive
+>   value — finite path. But for constants whose 3-element
+>   f64 sum-and-divide DOES round-trip exactly to the same
+>   element bit-pattern — e.g. `[0.3, 0.3, 0.3]`,
+>   `[0.5, 0.5, 0.5]`, `[0.25, 0.25, 0.25]` — every
+>   `x_i − mean` is exactly `0.0`, `deviation()` returns
+>   `0.0`, and the result is back on the `0 / 0 = NaN`
+>   path. Treat the float-constant outcome as
+>   **value-dependent** rather than uniformly finite or
+>   uniformly NaN. When a float constant DOES dodge the
+>   zero-deviation path (e.g. the `0.1` case above), the
+>   final ratio depends on the OTHER operand: identical
+>   non-roundtrip-float-constant pairs
+>   (e.g. `pearson([0.1, 0.1, 0.1], [0.1, 0.1, 0.1])`)
+>   reduce to a `(σ²) / (σ * σ)` ratio that is `≈ 1.0`
+>   modulo a possible 1-ulp `sqrt`-then-multiply rounding;
+>   one such constant paired with one non-constant collapses
+>   toward `≈ 0` (numerator is `O(ε) * Σ(y_i − mean_y)` with
+>   the mean-difference sum being exactly zero); one
 >   **float**-constant paired with one **integer**-constant
 >   operand still hits `NaN` because the integer side has
->   exact zero variance. Treat float-constant inputs as a
->   degenerate-but-finite case for symmetric-float pairings,
->   not a guaranteed-NaN case. **Decimal-typed operands**
+>   exact zero variance regardless of whether the float side
+>   does. **Decimal-typed operands**
 >   (e.g. `[0.1dec, 0.1dec, 0.1dec]`, or fields declared
 >   `array<decimal>`) route through the `Decimal` branches
 >   of `mean()` and `Number::try_add` and can keep the mean
@@ -951,7 +967,7 @@ DEFINE INDEX idx_embedding ON TABLE document
 | CHEBYSHEV | Worst-case dimension difference | No | [0, inf) |
 | HAMMING | Binary features, hash comparison | N/A | [0, dim] |
 | JACCARD ⚠ | Numeric-token similarity (NOT distance — see warning below); pre-dedup inputs with `array::distinct(...)` for textbook set semantics | N/A | `NaN` if both inputs empty; otherwise `[0, |b|]` raw (multiset-asymmetric numerator) / `[0, 1]` after pre-dedup |
-| PEARSON ⚠ | Correlation-based similarity (NOT distance — see warning below) | No | [-1, 1] (similarity) |
+| PEARSON ⚠ | Correlation-based similarity (NOT distance — see warning below) | No | `[-1, 1]` (similarity); `NaN` for zero-variance / NaN-element inputs (see callout) |
 
 Most text embedding models produce normalized vectors, making COSINE the standard choice. If you are unsure, use COSINE.
 
