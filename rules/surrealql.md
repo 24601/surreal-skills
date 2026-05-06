@@ -2349,7 +2349,7 @@ distinct usage modes:
 --     headers: { string: string },
 --     body:    <any>,
 --     query:   { string: string },   -- query-string parameters
---     params:  { string: string }    -- OVERWRITTEN by path matching
+--     params:  { string: string },   -- OVERWRITTEN by path matching
 --                                    -- when the route matches; on
 --                                    -- unmatched paths the request
 --                                    -- short-circuits to NotFound so
