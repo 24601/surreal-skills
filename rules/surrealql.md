@@ -2144,6 +2144,65 @@ DB` (returns objects keyed by definition kind) or query the
 `information_schema`-style virtual catalogs through `INFO` for
 broader introspection.
 
+### File Functions (Experimental — `Files` capability required)
+
+Verified against v3.0.5 `core/src/fnc/file.rs` (232 LOC). All 13
+functions in the `file::*` namespace are gated behind the experimental
+`Files` capability — the registry rows in `core/src/fnc/mod.rs:602-612`
+all carry the `exp(Files)` prefix, meaning they only resolve when the
+server is started with `--allow-experimental Files` (or equivalent
+capability config).
+
+Without the capability, calls fail at parse-time with a "function not
+allowed" error (Capabilities check rejects unknown / disabled
+functions before dispatch). DO NOT rely on these in production until
+Files moves out of experimental.
+
+```surql
+-- File values bind a bucket + key. Construct via DEFINE BUCKET first.
+DEFINE BUCKET assets BACKEND "memory" READONLY false;
+
+-- Bind a file pointer (does NOT read; resolves bucket+key).
+LET $f = <file> "assets:/avatars/tobie.png";
+
+-- Inspect the binding (these two are sync, capability still required)
+file::bucket($f)                             -- 'assets'
+file::key($f)                                -- '/avatars/tobie.png'
+
+-- Read / write
+file::put($f, <bytes> 'PNG-bytes-here')      -- NONE on success
+file::put_if_not_exists($f, <bytes> '...')   -- errors if key exists
+file::get($f)                                -- <bytes> ... or NONE
+file::head($f)                               -- { size, etag, ... } or NONE
+file::exists($f)                             -- true | false
+file::delete($f)                             -- NONE
+file::list('assets', { prefix: '/avatars/' }) -- [{ key, size, ... }, ...]
+
+-- Copy / rename
+-- Destination can be a string (key relative to source bucket) or
+-- another file value (cross-bucket). The *_if_not_exists variants
+-- error when the destination already exists.
+file::copy($f, '/avatars/backup-tobie.png')  -- NONE
+file::copy($f, <file> "archive:/backups/tobie.png")  -- cross-bucket
+file::copy_if_not_exists($f, '/avatars/backup-tobie.png')
+file::rename($f, '/avatars/tobie-new.png')   -- NONE (within same bucket)
+file::rename_if_not_exists($f, '/avatars/tobie-new.png')
+```
+
+Argument shape notes (verified against `file.rs`):
+- `file::list` takes `(bucket: string, options?: object)` — note that
+  `bucket` is a STRING here, NOT a file value, and it's the only
+  function that accepts an options object.
+- `file::copy` and `file::copy_if_not_exists` are the only functions
+  whose second argument can be EITHER a string (relative key in the
+  source bucket) OR a `file` value (target a different bucket).
+- All other read/write/delete/exists/head/put functions take a single
+  `file` value as input and return either `NONE`, a `bool`, raw
+  `<bytes>`, or a metadata object.
+
+`file::move` does NOT exist — use `file::rename` (intra-bucket) or
+`file::copy` followed by `file::delete` (cross-bucket).
+
 ---
 
 ## Subqueries and Expressions
