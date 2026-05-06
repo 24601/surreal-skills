@@ -141,6 +141,39 @@ DEFINE INDEX index_name ON TABLE table_name FIELDS field_name
 > hierarchy). To set a Minkowski distance order, write `DIST MINKOWSKI
 > N`, not `LM N`. To set layer-0 connections, write `M0 N`.
 
+> **`HASHED_VECTOR` storage semantics (verified at v3.0.5).** The
+> bare `HASHED_VECTOR` keyword (no value — see parser
+> `core/src/syn/parser/stmt/define.rs:1151-1154`) flips a bool
+> (`use_hashed_vector`, default `false` at `:1114`) that changes
+> how the **vector → document-IDs** lookup table is keyed. It does
+> NOT quantise vectors, change graph storage, or alter search
+> precision:
+>
+> - **Default (off):** the vec→docs lookup table is keyed by the
+>   full serialised vector via `new_hv_key(&ser_vec)`
+>   (`core/src/idx/mod.rs:115`). Per-entry KV key cost scales
+>   with `dimension * sizeof(TYPE)` (e.g. ~6 KB per entry at
+>   `DIMENSION 1536 TYPE F32`).
+> - **With `HASHED_VECTOR`:** the vec→docs lookup table is keyed
+>   by a constant 32-byte hash via
+>   `new_hh_key(hash: [u8; 32])` (`core/src/idx/mod.rs:119`).
+>   Hash collisions are tolerated by bucketing distinct vectors
+>   under the same key with exact-match scan inside the bucket
+>   (`ElementHashedDocs` / `get_element_docs(&ser_vec)`,
+>   `core/src/idx/trees/hnsw/docs.rs:281-440`).
+>
+> Enable on large indexes where the vec→docs lookup table is the
+> memory bottleneck — the per-entry KV key shrinks from
+> `dimension * sizeof(TYPE)` bytes to a constant 32 bytes,
+> independent of dimension. The tradeoff is an extra
+> in-bucket scan when distinct vectors collide on the hash; for a
+> good hash and reasonably distinct vectors this is negligible.
+> The HNSW graph storage itself (graph edges, ef-construction
+> state, the vectors used at search time) is unchanged. The
+> keyword takes no argument: write
+> `HNSW DIMENSION 1536 DIST COSINE HASHED_VECTOR`, not
+> `HASHED_VECTOR true`.
+
 #### Common Index Configurations
 
 ```surrealql
@@ -295,7 +328,70 @@ SELECT
     vector::distance::hamming(binary_features, $query_features) AS distance
 FROM item
 ORDER BY distance ASC;
+
+-- Minkowski distance (generalised Lp norm; takes order as 3rd arg)
+-- p=1 is equivalent to Manhattan; p=2 is equivalent to Euclidean;
+-- as p grows, the metric weights larger-component differences more heavily,
+-- with the limiting case (p -> infinity) approaching Chebyshev.
+SELECT
+    id, title,
+    vector::distance::minkowski(embedding, $query_vector, 3) AS distance
+FROM document
+ORDER BY distance ASC
+LIMIT 10;
+
+-- Jaccard similarity (set-based; appropriate for discrete-token vectors)
+LET $query_tags = ['ai', 'database', 'rust'];
+
+SELECT
+    id, name,
+    vector::similarity::jaccard(tags, $query_tags) AS similarity
+FROM article
+ORDER BY similarity DESC
+LIMIT 10;
+
+-- Pearson correlation similarity (range [-1, 1]; mean-shift tolerant)
+SELECT
+    id, name,
+    vector::similarity::pearson(rating_vector, $query_ratings) AS similarity
+FROM user_profile
+ORDER BY similarity DESC
+LIMIT 10;
 ```
+
+> **`vector::similarity::jaccard()` and `vector::similarity::pearson()`
+> — appropriate use (verified at v3.0.5).** These two standalone
+> functions return **similarities** (larger = more similar),
+> unlike every `vector::distance::*` function above (smaller =
+> closer). Source: `core/src/fnc/vector.rs:130-136` →
+> `core/src/fnc/util/math/vector.rs:120-126` (jaccard) and
+> `:132-147` (pearson).
+>
+> - `vector::similarity::jaccard(a, b)` computes
+>   `|intersect| / |union|` treating array elements as set
+>   members (deduped via `HashSet<&Number>`). Range `[0, 1]`.
+>   Suitable for **discrete-token vectors** — tag arrays, sparse
+>   feature-id lists, hash-bucket indicators — where elements are
+>   meant to be compared as set membership. NOT suitable for
+>   dense floating-point embeddings: every element of a typical
+>   embedding is effectively unique under set equality, so the
+>   ratio degenerates and the metric is no longer meaningful.
+> - `vector::similarity::pearson(a, b)` computes the Pearson
+>   correlation coefficient
+>   (`covar / (std_dev_a * std_dev_b)`). Range `[-1, 1]`.
+>   Suitable for **mean-shift-tolerant similarity** — for
+>   example, user-rating vectors (where one user rates
+>   consistently higher than another but ranks items in the
+>   same relative order) or time-series correlation.
+>
+> Both functions are also available as `DIST` values when defining
+> an HNSW index, but **prefer the standalone scalar functions
+> (this section) over `DIST JACCARD` / `DIST PEARSON` on an HNSW
+> index** — see the inversion warning at the bottom of this rule.
+> The standalone calls return raw similarity scores and let your
+> own `ORDER BY` clause decide ranking direction; they do not
+> participate in HNSW priority-list ordering, so they are not
+> affected by the inversion bug.
 
 ### Combining KNN Index Search with Computed Similarity
 
