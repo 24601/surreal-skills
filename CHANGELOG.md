@@ -3,6 +3,68 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.0] - 2026-05-06 — ALTER target-list fabrication fix
+
+### Fixed
+
+- **`rules/surrealql.md` ALTER section: phantom 10-target claim
+  removed.** v1.5.7 through v1.5.10 introduced and carried forward
+  the claim that v3 supports `ALTER` across **seventeen** targets
+  (`SYSTEM`, `NAMESPACE`, `DATABASE`, `TABLE`, `EVENT`, `INDEX`,
+  `FIELD`, `PARAM`, `SEQUENCE`, `BUCKET`, `ANALYZER`, `FUNCTION`,
+  `USER`, `ACCESS`, `CONFIG`, `API`, `MODULE`) and softened the
+  underdocumentation by saying the "remaining ten" follow the same
+  general clause shape. Both halves of that claim are wrong:
+  v3.0.5's parser dispatch (`core/src/syn/parser/stmt/alter.rs`
+  lines 17-26) accepts exactly seven keywords (`SYSTEM`, `NAMESPACE`,
+  `DATABASE`, `TABLE`, `INDEX`, `FIELD`, `SEQUENCE`) and rejects
+  every other token with `unexpected!(self, next, "a alter
+  statement keyword")`. The seven `core/src/sql/statements/alter/`
+  module files (`database.rs`, `field.rs`, `index.rs`, `namespace.rs`,
+  `sequence.rs`, `system.rs`, `table.rs`) confirm this — there are
+  no `event.rs`, `param.rs`, `bucket.rs`, etc. ALTER variants in
+  v3.0.5. The corrected section now states the seven-target reality
+  explicitly, calls out the ten unsupported keywords as parse
+  errors, and instructs readers to use `REMOVE` + `DEFINE` for the
+  unsupported objects.
+
+- **Wrong line reference in the same section.** Header text claimed
+  the dispatch lived at `alter.rs` lines 26-44; actual location is
+  lines 17-26. Corrected.
+
+- **`notes/v1.5.x-convergence.md` deferral list: same fabrication
+  removed.** The v1.6.x deferral catalog inherited the phantom
+  10-target claim and listed it as "10 undocumented ALTER targets"
+  to be added later. Replaced with a corrective note explaining
+  the v3.0.5 reality and recording the verification blind spot
+  (Pi/Codex passes audited clause shapes inside each ALTER
+  subsection but did not audit the intro paragraph's target list).
+
+### Verification blind spot — lesson
+
+Across ten Pi+DeepSeek-V4-Pro:xhigh adversarial passes the
+fabricated 17-target list survived because the auditors verified
+the *clause shape* of each documented ALTER variant (`ALTER TABLE …
+COMPACT;` parses, `ALTER FIELD … DEFAULT …` parses, etc.) but did
+not verify that the *intro paragraph's target list itself* matched
+the parser dispatch. v1.5.8's pass-8 surgery caught two phantom
+clauses (`ALTER INDEX … COMPACT`, `ALTER SEQUENCE … RESTART`) but
+the surrounding "seventeen targets" claim slipped through. Future
+audits should treat list-of-features paragraphs as their own
+verification target, not just the example blocks below them.
+
+### Repo housekeeping
+
+- Closed issue #3 (v1.4.1 deferral tracker) per its own closure
+  criterion (v1.5.x stable shipped at v1.5.10).
+- Closed two stale Cursor draft PRs (#1, #2) — both touched
+  `AGENTS.md` for Cursor Cloud onboarding, both 5+ weeks unmoved
+  in draft state. If Cursor Cloud onboarding is wanted, a fresh
+  focused PR against current `main` is cleaner than reviving
+  either branch.
+- Opened milestone v1.6.0 to track the remaining (corrected)
+  deferral catalog from `notes/v1.5.x-convergence.md`.
+
 ## [1.5.10] - 2026-05-05 — v1.5.x stable
 
 ### v1.5.x cycle declared stable
