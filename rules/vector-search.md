@@ -446,8 +446,12 @@ LIMIT 10;
 >   reduce to a `(σ²) / (σ * σ)` ratio that is `≈ 1.0`
 >   modulo a possible 1-ulp `sqrt`-then-multiply rounding;
 >   one such constant paired with one non-constant collapses
->   toward `≈ 0` (numerator is `O(ε) * Σ(y_i − mean_y)` with
->   the mean-difference sum being exactly zero); one
+>   toward `≈ 0` — algebraically `Σ(y_i − mean_y) = 0`, but
+>   in f64 the rounded residual need not be exactly zero
+>   (e.g. `[0.1, 0.2, 0.3]` has mean `0.20000000000000004`
+>   and a residual sum of ~`-1.11e-16`), so the numerator is
+>   `O(ε) ×` that rounded residual — not literally `0` but
+>   bounded by ~`ε² × |y|`; one
 >   **float**-constant paired with one **integer**-constant
 >   operand still hits `NaN` because the integer side has
 >   exact zero variance regardless of whether the float side
@@ -987,3 +991,18 @@ Most text embedding models produce normalized vectors, making COSINE the standar
 > instead, or pick a true distance metric (`COSINE`, `EUCLIDEAN`,
 > `MANHATTAN`, `CHEBYSHEV`, `HAMMING`) for indexed nearest-
 > neighbour search.
+>
+> **Pearson zero-denominator path divergence (v3.0.5).** The
+> standalone `vector::similarity::pearson()` and the
+> catalog/brute-force `Distance::compute` path return `NaN`
+> when the denominator is zero (per the callout above). The
+> HNSW-internal Pearson implementation at
+> `core/src/idx/trees/vector.rs:413-440` instead returns
+> `0.0` when `denominator == 0.0` (line 437) — an explicit
+> short-circuit that does NOT match the standalone path's
+> NaN behaviour. This divergence does NOT make `DIST PEARSON`
+> safe for HNSW; the inversion bug above is the dominant
+> reason to avoid it. The note here is so that readers
+> debugging HNSW vs brute-force scoring understand why
+> zero-variance inputs produce different outputs depending
+> on which evaluation path runs.
