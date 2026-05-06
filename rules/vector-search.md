@@ -998,8 +998,9 @@ Most text embedding models produce normalized vectors, making COSINE the standar
 > when the denominator is zero (per the callout above). The
 > HNSW-internal Pearson implementation at
 > `core/src/idx/trees/vector.rs:413-440` instead returns
-> `0.0` when `denominator == 0.0` (line 437) — an explicit
-> short-circuit that does NOT match the standalone path's
+> `0.0` when `denominator == 0.0` (the explicit
+> `if denominator == 0.0 { return 0.0; }` short-circuit at
+> `:435-437`) — that does NOT match the standalone path's
 > NaN behaviour. This divergence does NOT make `DIST PEARSON`
 > safe for HNSW; the inversion bug above is the dominant
 > reason to avoid it. The note here is so that readers
