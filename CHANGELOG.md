@@ -71,8 +71,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
     `core/src/sql/statements/define/user.rs:43`) expiry; both
     accepted in either order, comma-separated; either alone
     valid; `NONE` opts out of expiry on the corresponding axis
-    (test fixture `stmt.rs:402` exercises `DURATION FOR TOKEN
-    NONE`). Application path verified at
+    (the v3.0.5 test suite contains a commented-out
+    `DEFINE USER … DURATION FOR TOKEN NONE` block at
+    `stmt.rs:398-407`, so direct DEFINE USER provenance is
+    indirect; active `DEFINE ACCESS DURATION FOR TOKEN NONE`
+    fixtures at `stmt.rs:627 / :1256 / :1264 / :1272` exercise
+    the same parser path). Application path verified at
     `core/src/iam/signin.rs:481 / :502` and
     `core/src/iam/verify.rs:106`. Includes a combined `PASSHASH +
     ROLES + DURATION + COMMENT` example showing the full v3
@@ -160,9 +164,118 @@ REJECTED findings (with rationale):
   parser path. Both REJECTs match the v1.6.1-pass-1 pattern of
   Gemini producing wrong-direction CRITs without source access.
 
-#### Rev-2 outstanding
+#### Rev-3 disposition (4-WAY adversarial pass-2)
 
-Pass-2 4-WAY dispatch pending after this commit lands.
+Pass-2 verdicts: Cursor CONDITIONAL GO (0 CRITs / 2 IMPs / 2
+minors), Codex CONDITIONAL GO (0 CRITs / 2 IMPs / 2 minors),
+Gemini GO (0 CRITs / 0 IMPs / 1 minor), Pi NO-GO (1 CRIT / 2
+IMPs / 2 minors — but Pi's CRIT was source-checked and rejected;
+see below).
+
+Five atomic rev-3 commits closed every accepted finding:
+
+- **R1** — JWT-Based Authentication: issuer-default rubric. Codex
+  pass-2 I2 caught that the prior rev-2 'WITH ISSUER KEY omitted
+  defaults to HS512 with random key' prose was incomplete. Source
+  chain (define.rs:1696-1708 + :1716-1722 +
+  sql/access_type.rs:181-191): inline ALGORITHM verifier sets
+  iss.alg = <verifier-alg> at line 1697 BEFORE the WITH ISSUER
+  block runs (so bare WITH ISSUER KEY inherits the verifier alg
+  for asymmetric pairs); symmetric inline verifiers also auto-pop
+  iss.key (line 1707); URL/JWKS verifiers do NOT touch iss.alg
+  (URL arm at 1716-1722 has no iss.alg = ... line) so iss.alg
+  stays at JwtAccessIssue::default() = Hs512, REQUIRING explicit
+  WITH ISSUER ALGORITHM <alg> for asymmetric minting; missing
+  WITH ISSUER + missing symmetric auto-pop = AccessMethodMismatch
+  at signin.rs:275-278. Replaced the single-line stale comment
+  with a four-bullet rubric mapping every verifier shape to its
+  resulting iss.alg / iss.key / mint behaviour. Pi pass-2 I4
+  (signin_bearer fallthrough at :739) and Gemini pass-2 M1
+  (WITH ISSUER ALGORITHM prose tighten) folded into the same
+  commit since they touch the same prose region.
+- **R2** — JWKS section. Codex pass-2 I1: rev-2's 'no fixture
+  covers TYPE RECORD WITH JWT URL' was scoped to dedicated parser
+  fixtures; runtime verifier exercises the shape via
+  `#[cfg(feature = "jwks")]` test at verify.rs:1495-1497
+  (definition :1560-1564, end-to-end :1607-1623). Narrowed.
+  Pi pass-2 I3: hybrid TYPE RECORD WITH JWT URL + WITH ISSUER
+  inline-key still hits the JWKS feature gate on the verification
+  half; added 'gate applies even to hybrid setups' paragraph.
+  Pi pass-2 M3: hybrid_record DURATION FOR TOKEN 10s was
+  unrealistic; bumped to 15m / 12h.
+- **R3** — refresh-token shape. Codex pass-2 M1 + Cursor pass-2
+  M2: rev-2 omitted the literal 'surreal-refresh-' prefix on the
+  refresh-token value. Source: expr/statements/access.rs:121-126
+  + :133-134 + signin.rs:1042-1056 + :1582-1584. Doc now cites
+  the prefix explicitly in prose + JS-SDK example, and warns
+  against stripping or splitting client-side.
+- **R4** — citation tightening. Codex pass-2 M2: stmt.rs:758 was
+  wrong (close-bracket of prior no-duration case); :558 is the
+  inline-key TYPE JWT DURATION FOR TOKEN fixture. Fixed. Cursor
+  pass-2 I2: verify.rs PASSHASH PHC parse span tightened from
+  945-952 to :947-948 specifically inside verify_pass. Pi pass-2
+  M2: stmt.rs:402 commented-out block scope clarified to
+  DEFINE USER specifically, with explicit pointers at active
+  DEFINE ACCESS DURATION FOR TOKEN NONE fixtures at :627 / :1256
+  / :1264 / :1272. Cursor pass-2 M1: stmt.rs:2620 / :2621
+  disambiguated (harness vs SQL string).
+- **R5** — release/disposition commit (this one). Cursor pass-2
+  I1: this CHANGELOG entry's 'DEFINE USER DURATION' bullet
+  itself still cited stmt.rs:402 as a positive 'exercises'
+  fixture; updated to match the rev-2/rev-3 corrected narrative
+  (commented-out for DEFINE USER + active DEFINE ACCESS
+  fixtures).
+
+REJECTED finding (Pi pass-2 C1):
+
+- **Pi pass-2 C1** ('iss.alg defaults to Hs512 when WITH ISSUER
+  ALGORITHM omitted; external_auth example produces a broken
+  HS512-claiming token over RSA verifier'). REJECT — Pi missed
+  define.rs:1697 inside the verifier ALGORITHM arm, which sets
+  `iss.alg = alg` (the verifier alg) BEFORE the WITH ISSUER
+  block runs at :1726+. The algorithm-mismatch check at
+  :1739-1747 that Pi cited only governs WITH ISSUER ALGORITHM
+  <X> overrides; it does not gate the initial inheritance from
+  the verifier. For the external_auth example
+  (`WITH JWT ALGORITHM RS256 KEY '<pub>' WITH ISSUER KEY '<priv>'`),
+  iss.alg resolves to RS256 from the verifier line 1697, then
+  WITH ISSUER's KEY arm sets iss.key = '<priv>'. iss.alg STAYS
+  at RS256. The minted token correctly claims RS256 + signs with
+  the RSA private key.
+
+  Pi's claim WOULD be correct for `WITH JWT URL '<jwks>' WITH
+  ISSUER KEY '<priv>'` (the URL arm at :1716-1722 has no
+  `iss.alg = ...` line), in which case iss.alg stays at
+  Hs512 default. This case is now explicitly documented in
+  rev-3 R1's issuer-defaults rubric and was previously implicit.
+  Pi caught a real semantic gap there but mis-attributed the
+  bug to the wrong example.
+
+  R1's issuer-defaults rubric absorbs Pi's underlying concern
+  by enumerating exactly when explicit WITH ISSUER ALGORITHM is
+  required. The external_auth example is correct as-shipped;
+  the hybrid_record example already uses explicit
+  WITH ISSUER ALGORITHM PS256 (correct).
+
+  Convergent reviewer signal supports the REJECT: Cursor pass-2
+  ('No contradiction found: TYPE RECORD WITH JWT … WITH ISSUER …
+  still documents minting via signin.rs:275-318'), Codex pass-2
+  residual-risk ('TYPE JWT verification-only is correct'), and
+  Gemini pass-2 GO all cleared the JWT section without flagging
+  the alleged bug. Three reviewers reading the same source
+  reached the opposite conclusion from Pi.
+
+  This is the v1.5.x-pass-3 Pi-misreads-call-path pattern
+  recurring (Pi-pass-3 wrongly thought db.transaction API
+  didn't exist; here Pi wrongly thought iss.alg defaulted to
+  Hs512 in the verifier-set case). Pattern memory:
+  `feedback_pi_unique_crit_verify_against_source.md` (this
+  pattern is also covered in the v1.5.x convergence notes
+  "fix-drift" section).
+
+#### Rev-3 outstanding
+
+Pass-3 4-WAY dispatch pending after this commit lands.
 
 This pass extends the v1.6.0 / v1.6.1 verification escalator —
 every claim grounded in a parser-source line range plus a parser
