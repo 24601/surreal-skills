@@ -2334,9 +2334,18 @@ distinct usage modes:
 --     headers: { string: string },
 --     body:    <any>,
 --     query:   { string: string },   -- query-string parameters
---     params:  { string: string }    -- IGNORED on input; api::invoke
---                                    -- overwrites this from path
---                                    -- matching (fnc/api/mod.rs:92-95).
+--     params:  { string: string }    -- Caller-provided values are
+--                                    -- OVERWRITTEN when the path
+--                                    -- matches a defined route:
+--                                    -- api::invoke replaces
+--                                    -- req.params with the values
+--                                    -- extracted from path matching
+--                                    -- (fnc/api/mod.rs:92-95). On an
+--                                    -- unmatched path the request
+--                                    -- short-circuits to a NotFound
+--                                    -- response so caller-provided
+--                                    -- params are not observable
+--                                    -- inside any handler.
 --   }
 -- Defaults: GET, Content-Type + Accept set to native SurrealDB
 -- format if absent. Returns the response object with `context`

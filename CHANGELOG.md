@@ -26,11 +26,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
   - **`set::*` (24 functions)** — largest namespace addition.
     Documents the 17 sync + 7 async / closure-based functions, with
     three critical semantic notes at the top: `set::difference` is
-    SYMMETRIC (`A △ B`) — opposite to common reading and different
-    from `array::difference`; sets have BTree ordering for
-    positional access; closures iterate in sorted order. Explicit
-    "no `set::sort`, `set::distinct`, `set::reverse`, `set::concat`,
-    `set::sample`, `set::is_subset`, `set::is_superset`" callout.
+    SYMMETRIC (`A △ B`) — NOT the relative complement (use
+    `set::complement` for `A \ B`). The `array::*` namespace uses
+    the SAME convention: `array::difference` is also symmetric
+    difference (with multiset-pairing semantics for duplicates per
+    `core/src/val/array.rs:310-323`), and `array::complement` is
+    `A \ B`. Sets are stored in Rust's `BTreeSet<Value>` and
+    iterated in `Value::Ord` order — `at` / `first` / `last` /
+    `slice` and the closure-based traversals visit elements in
+    that order. Explicit "no `set::sort`, `set::distinct`,
+    `set::reverse`, `set::concat`, `set::sample`, `set::is_subset`,
+    `set::is_superset`" callout. (The original v1.5.x deferral list
+    claim that `set::difference` and `array::difference` use
+    OPPOSITE conventions was wrong; rev-2 review pass corrected the
+    cross-section narrative against `core/src/fnc/set.rs:68-76` +
+    `core/src/val/array.rs:310-323`. Pre-existing
+    `array::difference([1,2,3], [2,3,4])` example was also fixed
+    from `[1]` to `[1, 4]` to match the actual symmetric-difference
+    return value.)
   - **`sequence::*` (1 function)** — only `sequence::nextval`. The
     v1.5.x deferral list claim was OVERSTATED. Documents the
     `REMOVE SEQUENCE; DEFINE SEQUENCE` reset pattern (since no
@@ -40,16 +53,27 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
     The v1.5.x deferral list claim was OVERSTATED. Notes the
     `Action::View` IAM requirement and shows the
     `IF !exists THEN DEFINE` guard idiom.
-  - **`file::*` (13 functions, experimental)** — every registry
-    row in `core/src/fnc/mod.rs:602-612` carries the `exp(Files)`
-    prefix; functions only resolve when the server runs with
-    `--allow-experimental Files`. Documents put / put_if_not_exists
-    / get / head / exists / delete / list / copy / copy_if_not_exists
-    / rename / rename_if_not_exists plus the sync inspectors
-    `bucket` / `key`. Calls out the asymmetric `file::list(bucket:
-    string, options?: object)` signature and the cross-bucket
+  - **`file::*` (13 functions, experimental)** — registry rows
+    split across `core/src/fnc/mod.rs:239-240` (2 sync inspectors:
+    `file::bucket`, `file::key`) and `core/src/fnc/mod.rs:602-612`
+    (11 async I/O functions). Every row carries the `exp(Files)`
+    macro prefix; the capability check resolves at function
+    DISPATCH time (not at SurrealQL parse time, per
+    `core/src/fnc/mod.rs:114-133`). Functions only resolve when the
+    server runs with `--allow-experimental Files`. Documents put /
+    put_if_not_exists / get / head / exists / delete / list / copy
+    / copy_if_not_exists / rename / rename_if_not_exists plus the
+    sync inspectors `bucket` / `key`. The `*_if_not_exists` variants
+    are NO-OPS when the destination key already exists (verified
+    against `core/src/buc/controller.rs:97-216`); they do NOT
+    error. `file::head` returns `{ updated, size, file }` per
+    `core/src/buc/store/mod.rs:35-52` (no `etag` field exists in
+    v3.0.5). Calls out the asymmetric `file::list(bucket: string,
+    options?: object)` signature and the cross-bucket
     `file::copy(file, file)` form. Explicit "NO `file::move`"
-    callout.
+    callout. The example `DEFINE BUCKET` syntax uses bare
+    `READONLY` (no boolean operand) per
+    `core/src/syn/parser/stmt/define.rs:1378-1380`.
   - **`api::*` (7 functions, two usage modes)** — split into
     `api::invoke` (callable from regular SurrealQL, server-side
     dispatch with no HTTP round-trip) and the six middleware-only
