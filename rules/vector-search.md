@@ -370,30 +370,52 @@ LIMIT 10;
 > `core/src/fnc/util/math/vector.rs:120-126` (jaccard) and
 > `:132-147` (pearson).
 >
-> - `vector::similarity::jaccard(a, b)` computes
->   `|intersect| / |union|` treating array elements as set
->   members (deduped via `HashSet<&Number>`). The function
->   dispatches as `(Vec<Number>, Vec<Number>)`
->   (`core/src/fnc/vector.rs:130`) — **numeric arrays only**;
->   string-token arrays fail runtime coercion in
+> - `vector::similarity::jaccard(a, b)` dispatches as
+>   `(Vec<Number>, Vec<Number>)` at
+>   `core/src/fnc/vector.rs:130` — **numeric arrays only**;
+>   string-token arrays fail runtime coercion via
 >   `core/src/val/value/convert/coerce.rs`. Map your tokens to
->   stable numeric IDs first. Range `[0, 1]` when the union is
->   non-empty; both inputs empty yields `NaN` (`0 / 0` at
->   `core/src/fnc/util/math/vector.rs:120-125`). Suitable for
->   **numeric discrete-token vectors** — stable tag IDs, sparse
->   feature-id lists, hash-bucket indicators — where elements
->   are meant to be compared as set membership. NOT suitable for
->   dense floating-point embeddings: every element of a typical
+>   stable numeric IDs first. **Implementation quirk (v3.0.5):**
+>   the function does NOT compute textbook set Jaccard
+>   `|A ∩ B| / |A ∪ B|`. Per
+>   `core/src/fnc/util/math/vector.rs:120-126` it builds a
+>   `union: HashSet<&Number>` from the first argument, then
+>   counts every element of the second argument whose
+>   `union.insert(n)` returns `false` (i.e. was already in the
+>   running union — either originally from `self` or from an
+>   earlier iteration of `other`). The denominator is the final
+>   `union.len()` (deduped). The numerator is therefore
+>   **multiset-weighted on the second argument**: intra-array
+>   duplicates in `other` are double-counted. Concrete divergence:
+>   `vector::similarity::jaccard([1], [1, 1])` returns `2.0`,
+>   not `1.0`. Pre-deduplicate both inputs (`array::distinct(...)`)
+>   for textbook set-Jaccard semantics; otherwise the score is
+>   **`[0, |other|]`-bounded**, not `[0, 1]`-bounded. Both inputs
+>   empty yields `NaN` (`0 / 0`). Fixture coverage
+>   (`core/tests/function.rs:3470-3484`) only exercises distinct
+>   element vectors, where the multiset and set forms agree.
+>   Suitable for **deduped numeric discrete-token vectors** —
+>   stable tag IDs, sparse feature-id lists, hash-bucket
+>   indicators — when callers ensure both inputs are
+>   `array::distinct`-cleaned. NOT suitable for dense
+>   floating-point embeddings: every element of a typical
 >   embedding is effectively unique under set equality, so the
 >   ratio degenerates and the metric is no longer meaningful.
 > - `vector::similarity::pearson(a, b)` computes the Pearson
 >   correlation coefficient
 >   (`covar / (std_dev_a * std_dev_b)`). Range `[-1, 1]` for
->   finite, non-zero-variance inputs; constant vectors (zero
->   variance in either operand) make the denominator zero and
->   the result `NaN` / `Infinity`, and any `NaN` element in
->   either input propagates to a `NaN` result (see fixture
->   `core/tests/function.rs:3490-3495`). Suitable for
+>   finite, non-zero-variance inputs. **Edge cases:** if either
+>   operand is a constant vector (zero variance), the
+>   denominator is zero AND the numerator is simultaneously
+>   zero — for a constant `a`, every term
+>   `(a_i − mean(a)) * (b_i − mean(b))` is zero, so `covar = 0`
+>   and the result is `0 / 0 = NaN` (Infinity is mathematically
+>   impossible here). Any `NaN` element in either input
+>   propagates to a `NaN` result via NaN-poisoned mean and
+>   covariance arithmetic (fixture
+>   `core/tests/function.rs:3489-3495` asserts `"NaN"` as the
+>   second expected result for the NaN-element test). Suitable
+>   for
 >   **mean-shift-tolerant similarity** — for example,
 >   user-rating vectors (where one user rates consistently
 >   higher than another but ranks items in the same relative
