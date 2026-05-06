@@ -336,12 +336,15 @@ Key semantics:
   `core/src/expr/statements/access.rs:181+`, which constructs
   the literal key in `new_grant_bearer` at `:121-126`
   (`format!("{prefix}-{id}-{secret}")`); the `Base::Db`
-  enforcement guard for record-subject grants inside
-  `create_grant` is at `:237-242` (rejecting Base::Ns / Root
-  for record subjects, even though parser-level
-  `ACCESS … ON NAMESPACE GRANT FOR RECORD` is accepted). Signin
-  validates four dash-separated parts (prefix-type / `refresh` /
-  id / secret) inside `validate_grant_bearer` at
+  enforcement guard for record-subject grants is at
+  `:231-234` (`ensure!(matches!(base, Base::Db),
+  Error::DbEmpty);` inside the `Subject::Record(_)` match arm,
+  rejecting Base::Ns / Root even though parser-level `ACCESS …
+  ON NAMESPACE GRANT FOR RECORD` is accepted). The bearer-
+  presence check + `new_grant_bearer` invocation that follows
+  the guard sits at `:237-242`. Signin validates four
+  dash-separated parts (prefix-type / `refresh` / id / secret)
+  inside `validate_grant_bearer` at
   `core/src/iam/signin.rs:1042-1056`. The integration test at
   `signin.rs:1582-1584` asserts the `surreal-refresh-…` regex
   on the returned plaintext — that reference is a test, not a
