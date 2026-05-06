@@ -3,6 +3,194 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.5] - 2026-05-06 — `rules/vector-search.md` deferred-IMPORTANT closure (HASHED_VECTOR semantics + minkowski/jaccard/pearson similarity-fn examples) — 9-pass 4-WAY ratification
+
+### Added
+
+- **`rules/vector-search.md` deferred-IMPORTANT cleanup (batch
+  5 of the v1.5.x convergence cycle).** Closes the three
+  vector-search.md items in the v1.5.x deferred-IMPORTANT
+  backlog:
+  - **HASHED_VECTOR storage semantics block.** Pre-existing
+    parameter table mentioned `HASHED_VECTOR` as
+    "memory-optimised" without documenting what flips at
+    runtime. Added an explainer block (matching the LM/M0/
+    MINKOWSKI clarification style) documenting the v3.0.5
+    behaviour: the bare keyword (no value, default `false`
+    at parser `core/src/syn/parser/stmt/define.rs:1114`,
+    flipped at `:1151-1153`) changes how the
+    **vector → document-IDs** lookup table is keyed (full
+    serialised vector via `new_hv_key(&ser_vec)` at
+    `core/src/idx/mod.rs:115` versus a constant 32-byte
+    hash via `new_hh_key(hash: [u8; 32])` at
+    `core/src/idx/mod.rs:119`). Hash collisions handled by
+    bucketing (`ElementHashedDocs` with exact-match scan,
+    `core/src/idx/trees/hnsw/docs.rs:281-440`). The HNSW
+    graph storage itself is unchanged.
+  - **MINKOWSKI in similarity-functions section.**
+    Pre-existing section showed cosine/euclidean/manhattan/
+    chebyshev/hamming examples but omitted the
+    `vector::distance::minkowski(a, b, order)` 3-arg form
+    (defined at `core/src/fnc/vector.rs:113-115`,
+    implemented at
+    `core/src/fnc/util/math/vector.rs:160-175` — the Lp
+    norm `(Σ|a_i − b_i|^p)^(1/p)`). Added an example with a
+    note on the limiting cases (p=1 ≡ Manhattan, p=2 ≡
+    Euclidean, p → infinity approaches Chebyshev).
+  - **`vector::similarity::jaccard()` /
+    `vector::similarity::pearson()` examples + appropriateness
+    callout.** Pre-existing JACCARD/PEARSON HNSW inversion
+    warning (v1.5.x) covered the indexed-KNN footgun but
+    left the standalone scalar functions undocumented. Added
+    examples + a callout that documents the actual v3.0.5
+    semantics:
+    - **`vector::similarity::jaccard()`** dispatches as
+      `(Vec<Number>, Vec<Number>)` (`core/src/fnc/vector.rs:130`)
+      — numeric arrays only; string-token arrays fail
+      runtime coercion. Implementation at
+      `core/src/fnc/util/math/vector.rs:120-126` is
+      multiset-asymmetric on the second argument (counts
+      duplicates in `other`, dedupes the union). Concrete
+      divergence: `vector::similarity::jaccard([1], [1, 1])`
+      returns `2.0`, not `1.0`. Pre-deduplicate inputs with
+      `array::distinct(...)` for textbook set-Jaccard
+      semantics. Range `[0, 1]` after dedup; raw range
+      `[0, |b|]`; `NaN` if both inputs empty.
+    - **`vector::similarity::pearson()`** computes the
+      population Pearson correlation coefficient. Range
+      `[-1, 1]` for finite, non-zero-variance inputs.
+      Edge cases documented end-to-end at the IEEE-754 f64
+      arithmetic level: integer constants (`[1, 1, 1]`)
+      hit the `0 / 0 = NaN` path; float constants are
+      literal-dependent (`[0.3, 0.3, 0.3]`,
+      `[0.5, 0.5, 0.5]`, `[0.25, 0.25, 0.25]` round-trip
+      exactly through f64 sum-and-divide and hit the NaN
+      path; `[0.1, 0.1, 0.1]` does not round-trip and
+      produces a finite ratio dependent on the other
+      operand); `Decimal`-typed operands route through
+      exact-arithmetic branches and hit the NaN path. f64
+      underflow can also drive denominator to `0.0` while
+      covariance remains non-zero, producing `±Infinity`
+      (e.g.
+      `pearson([0.0, 1e-308], [0.0, 1e154]) = +Infinity`).
+    - **HNSW pearson divergence note.** The HNSW-internal
+      Pearson at
+      `core/src/idx/trees/vector.rs:413-440` short-circuits
+      to `0.0` when `denominator == 0.0` (the explicit
+      `if denominator == 0.0 { return 0.0; }` at
+      `:435-437`), unlike the standalone path which can
+      return `NaN` or `±Infinity`. Documented in a
+      sub-callout under the inversion warning.
+
+### Changed
+
+- Updated PEARSON / JACCARD distance-function table cells
+  (the existing v1.5.x guide table) to reflect the
+  documented edge-case behaviour:
+  - JACCARD: `NaN if both inputs empty; otherwise [0, |b|]
+    raw (multiset-asymmetric numerator) / [0, 1] after
+    pre-dedup`.
+  - PEARSON: `finite results in [-1, 1]; non-finite (NaN /
+    ±Infinity) possible for zero-denominator or
+    NaN-element inputs (see callout)`.
+
+### Convergence
+
+This patch was reviewed across **9 passes of 4-WAY
+adversarial review** (Cursor Composer 2 + Codex
+`gpt-5.5` xhigh + Gemini 3.1 Pro + Pi+DeepSeek-V4-Pro:xhigh)
+on a single rule patch. Final verdict: **4/4 GO with 0
+CRITs, 0 IMPs, 0 MINORs at pass-9** (HEAD `0b26c27`).
+
+CRIT trajectory across the cycle:
+| Pass | Verdicts | CRITs | Notes |
+|------|----------|-------|-------|
+| 1 | rev-1 | 1 | Codex: string-array Jaccard fails runtime arg coercion |
+| 2 | rev-2 | 1 | Cursor unique: jaccard impl multiset-asymmetric — `[0, 1]` range claim wrong; 3-way IMP CONVERGENT (pearson Infinity impossible — true for constant-operand sub-case only) |
+| 3 | rev-3 | 1 | Codex unique: pearson constant-vector NaN claim missed f64 mean-rounding for FLOAT constants like `[0.1]` |
+| 4 | rev-4 | 0 | 2 CONVERGENT IMPs (pearson "tiny finite" wording; JACCARD table both-empty NaN carve-out) |
+| 5 | rev-5 | 1 | Codex unique: float-constant overgeneralization — `[0.3]`/`[0.5]`/`[0.25]` round-trip exactly and DO hit NaN path |
+| 6 | rev-6 | 0 | Cursor unique CRIT REJECTED via empirical Python f64 trace — Cursor's `[0.3, 0.3, 0.3]` non-roundtrip claim was a hand-arithmetic error; Codex pass-5 verified correct. Codex 2 unique IMPs ACCEPT (exact-zero overclaim + HNSW pearson short-circuit divergence) |
+| 7 | rev-7 | 1 | Codex unique: f64 **underflow** edge — earlier "Infinity impossible" claim was correct only for constant-operand case; underflow case can drive `std_dev = 0` with non-zero covariance, producing `±Infinity` |
+| 8 | rev-8 | 2 | Codex: earlier prose still implied "std_dev=0 → covar=0 → NaN" universally without underflow exception; HNSW divergence callout said "NaN behaviour" not "non-finite"; PEARSON table cell missed `±Inf` |
+| 9 | rev-9 | **0** | **CONVERGENCE TARGET REACHED — 4/4 GO with 0 CRITs / 0 IMPs / 0 MINORs across all 4 reviewers** |
+
+**Total: ~8 CRITs found-and-fixed across 9 passes.**
+
+Pi pass-2 / pass-3 / pass-5 / pass-7 produced wrong CRITs
+or wrong MINORs from misreading multi-arm match-arm line
+ranges or misreading f64 accumulation order
+(`feedback_pi_unique_crit_verify_against_source.md`
+applies symmetrically to all reviewers). Cursor pass-6
+also produced a wrong unique CRIT from IEEE-754 hand-trace
+arithmetic. Both rejection patterns required empirical
+re-verification (parser-source line check; Python f64
+struct trace for the f64 round-trip claim) before
+patching.
+
+### Notable findings
+
+- **Walk-examples-end-to-end doctrine surfaced again.**
+  Codex pass-1 caught the string-array Jaccard runtime
+  coercion failure exactly the way Pi pass-3 caught the
+  v1.6.2 `$token` in SIGNIN bug. Parse-clean ≠ runtime-
+  clean for SurrealQL. Doctrine update folded into the
+  existing memory file.
+- **f64 IEEE-754 minutiae caused 5 of 9 passes' worth of
+  edge-case escalation.** The pearson edge-case prose
+  alone went through revs 4-9 to converge: integer
+  constants → NaN; float constants → literal-dependent
+  (some round-trip exactly, others don't); Decimal
+  operands → exact, NaN; underflow → ±Infinity. The lesson
+  is that documenting f64 edge cases for a similarity
+  function requires walking the actual sum-and-divide
+  pipeline (NOT intermediate-step shortcuts) and naming
+  the regimes explicitly with concrete examples.
+- **HNSW pearson short-circuit divergence (separate from
+  the inversion bug).** Surfaced by Codex pass-6 as a
+  RESIDUAL RISK noted by Pi pass-5; escalated to IMP at
+  pass-7. The standalone path returns `NaN`/`±Infinity`
+  for zero-denominator inputs; the HNSW path returns
+  `0.0` (`if denominator == 0.0 { return 0.0; }` at
+  `core/src/idx/trees/vector.rs:435-437`). Documented in
+  a sub-callout under the existing inversion warning.
+
+### Deferred to v1.6.6
+
+Pass-9 produced 0 deferrable items. Pass-1 / pass-2 /
+pass-3 / pass-5 cosmetic MINORs that survived earlier rev
+disposition lists (define.rs:1154 → 1153 cite
+tightening, I64 missing from Supported Data Types comment
+block, minkowski source-line cite, jaccard fixture span
+blank-line drift, `|b|` vs `|other|` symbol consistency
+between table and callout) all remain available as a
+v1.6.6 ride-along if a future polish pass wants them.
+
+Plus the broader v1.5.x deferred-IMPORTANT backlog (now
+**vector-search.md complete**):
+
+- `surrealql.md`: data-type variants (regex, range,
+  literal, file); `array<T,N>` cardinality; INSERT IGNORE
+  example; DEFINE API; DEFINE CONFIG; INFO FOR
+  INDEX/USER variants
+- `performance.md`: TLS flags in start-flag list;
+  SURREAL_HNSW_CACHE_SIZE env-var verification; REBUILD
+  INDEX ON TABLE all-indexes form; SCHEMAFULL inference
+  rationale
+- `graph-queries.md`: sub-SELECT graph clauses; `$parent`
+  in WHERE; custom edge Record IDs in RELATE;
+  +path+inclusive form
+
+### Memory artefacts
+
+No new doctrine files written this cycle; existing
+`feedback_walk_examples_end_to_end.md` and
+`feedback_pi_unique_crit_verify_against_source.md`
+applied symmetrically to Pi (multi-pass match-arm
+misreads + f64 accumulation-order error) AND Cursor
+(IEEE-754 hand-trace error in pass-6). Pattern
+generalises beyond Pi.
+
 ## [1.6.4] - 2026-05-06 — `rules/data-modeling.md` deferred-IMPORTANT clause closure + v1.6.3 ride-along security.md cite tightening (3 atomic feature commits + release commit)
 
 ### Added
