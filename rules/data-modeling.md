@@ -942,10 +942,16 @@ DEFINE TABLE ephemeral_log DROP;
 -- Records vanish after being processed by events
 
 -- Approach 3: Event-driven cleanup
+-- Note: DELETE in SurrealQL v3.0.5 has no LIMIT clause (verified
+-- against `surrealdb/core/src/sql/statements/delete.rs` — the
+-- DeleteStatement struct has no `limit` field). Cleanup runs as a
+-- single bulk DELETE per event fire; if you need bounded-batch
+-- cleanup, prefer a scheduled task (e.g. cron + surreal sql) over
+-- an event-driven hook so you can chunk work explicitly.
 DEFINE EVENT cleanup ON TABLE sensor_reading
     WHEN $event = "CREATE"
     THEN {
-        DELETE sensor_reading WHERE recorded_at < time::now() - 30d LIMIT 100;
+        DELETE sensor_reading WHERE recorded_at < time::now() - 30d;
     };
 ```
 

@@ -95,7 +95,7 @@ DEFINE INDEX index_name ON TABLE table_name FIELDS field_name
     [EFC construction_ef]
     [M max_connections]
     [M0 max_connections_layer0]
-    [LM minkowski_order]
+    [LM level_multiplier]
     [EXTEND_CANDIDATES]
     [KEEP_PRUNED_CONNECTIONS];
 ```
@@ -108,19 +108,36 @@ DEFINE INDEX index_name ON TABLE table_name FIELDS field_name
 | EFC | ef_construction: neighbors explored during build | 150 | Higher = better recall, slower build |
 | M | Max connections per node (upper layers) | 12 | Higher = better recall, more memory |
 | M0 | Max connections at layer 0 (the densest layer) | `2*M` | Usually leave as default |
-| LM | Minkowski distance order (only meaningful with `DIST MINKOWSKI`) | -- | Leave unset unless you've chosen MINKOWSKI distance |
+| LM | HNSW level multiplier (`ml`); controls layer-assignment probability | `1 / ln(M)` (~0.402 at M=12) | Leave at default unless you've profiled the layer distribution |
 | EXTEND_CANDIDATES | Extend candidate list during construction | Off | Enable for higher recall |
 | KEEP_PRUNED_CONNECTIONS | Keep pruned connections | Off | Enable for higher recall |
 
-> **HNSW parameter precision (verified at v3.0.5).** `M0` and `LM` are
-> two **different** clauses on the parser side. `M0 <n>` sets the
-> maximum number of bidirectional connections at layer 0 (the densest
-> graph layer); `LM <n>` sets the Minkowski distance order used when
-> `DIST MINKOWSKI` is in effect, with no defined meaning for any other
-> distance metric. Pre-v1.5.1 versions of this rule conflated the two
-> under `LM` and omitted `M0` entirely -- if you copied an `HNSW ... LM`
-> snippet from those revisions intending to set layer-0 connections,
-> rename the clause to `M0` before re-applying.
+> **HNSW parameter precision (verified at v3.0.5 — see
+> `surrealdb/core/src/sql/statements/define/index.rs` and the
+> `HnswParams` struct).** `M0` and `LM` are two **different** clauses
+> on the parser side, with no relationship to each other or to the
+> distance metric:
+>
+> - `M0 <n>` sets the maximum number of bidirectional connections at
+>   layer 0 (the densest graph layer). Default `2*M`.
+> - `LM <n>` sets the **HNSW level multiplier** (`ml` in the original
+>   paper), used in the formula `l ← ⌊−ln(unif(0..1)) · ml⌋` to assign
+>   each new point an insertion level. Default `1 / ln(M)` (≈0.402 at
+>   `M=12`). Increasing `LM` makes the hierarchy flatter (more points
+>   at higher layers); decreasing it makes the hierarchy taller.
+>
+> The Minkowski distance order is **not** controlled by `LM`. It is
+> specified inline in the `DIST` clause: `DIST MINKOWSKI 3`. The
+> upstream parser source (`Distance::Minkowski(distance)`) reads the
+> order as the next token after the `MINKOWSKI` keyword.
+>
+> Pre-v1.5.3 revisions of this rule (and the v1.5.1 patch) labelled
+> `LM` as "Minkowski distance order" — that label was wrong. If you
+> copied an `HNSW ... LM N` snippet from those revisions thinking you
+> were setting Minkowski order, you were silently setting the level
+> multiplier instead (often dramatically flattening the HNSW
+> hierarchy). To set a Minkowski distance order, write `DIST MINKOWSKI
+> N`, not `LM N`. To set layer-0 connections, write `M0 N`.
 
 #### Common Index Configurations
 

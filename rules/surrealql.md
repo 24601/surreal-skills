@@ -487,7 +487,12 @@ REBUILD INDEX ON TABLE person;
 
 **HNSW parameters**:
 - `DIMENSION` -- Number of dimensions in the vector (required)
-- `DIST` -- Distance metric (default: `COSINE`)
+- `DIST` -- Distance metric (default: `EUCLIDEAN` — see
+  `surrealdb/core/src/sql/statements/define/index.rs`, where the
+  parser initialises `let mut distance = Distance::Euclidean;` and
+  `Distance` derives `#[default]` on `Euclidean`. For text
+  embeddings normalised to unit length, override to `DIST COSINE`
+  explicitly.)
 - `TYPE` -- Element type: `F32`, `F64`, `I16`, `I32`, `I64` (default: `F32`)
 - `EFC` -- Size of dynamic candidate list during construction (default: 150)
 - `M` -- Max number of connections per node per layer (default: 12)
@@ -531,7 +536,30 @@ DEFINE ACCESS OVERWRITE account ON DATABASE TYPE RECORD
 DEFINE ACCESS IF NOT EXISTS account ON DATABASE TYPE RECORD
     SIGNUP ( CREATE user SET email = $email, pass = crypto::argon2::generate($pass) )
     SIGNIN ( SELECT * FROM user WHERE email = $email AND crypto::argon2::compare(pass, $pass) );
+
+-- Bearer-token access (API keys, service-to-service tokens, refresh
+-- tokens). TYPE BEARER issues opaque tokens via the ACCESS ... GRANT
+-- statement and binds each token to either a USER (system user) or
+-- a RECORD (e.g. one record per integration partner).
+DEFINE ACCESS service_tokens ON DATABASE TYPE BEARER FOR USER
+    DURATION FOR GRANT 30d, FOR TOKEN 1h, FOR SESSION 12h;
+
+DEFINE ACCESS partner_tokens ON DATABASE TYPE BEARER FOR RECORD
+    AUTHENTICATE {
+        IF $auth.id THEN RETURN $auth ELSE THROW "no auth record" END
+    }
+    DURATION FOR GRANT 90d, FOR TOKEN 1h, FOR SESSION 24h;
+
+-- Issue a bearer token under the access method (note the unquoted
+-- user identifier — `FOR USER` takes an identifier, not a string).
+ACCESS service_tokens GRANT FOR USER ci_runner;
 ```
+
+`TYPE BEARER` accepts `DURATION FOR GRANT` (how long the issued
+token remains usable), `DURATION FOR TOKEN`, and `DURATION FOR
+SESSION`. It accepts `FOR USER` to bind the token to a system user
+or `FOR RECORD` to bind it to a specific record (the latter requires
+an `AUTHENTICATE` clause to validate the record on each use).
 
 ### DEFINE ANALYZER
 
@@ -1261,6 +1289,7 @@ Explicit type conversion using angle bracket syntax.
 | `AND` / `&&` | Logical AND |
 | `OR` / `\|\|` | Logical OR |
 | `NOT` / `!` | Logical NOT |
+| `!!` | Truthiness coercion (double-not) |
 
 ### Containment Operators
 
@@ -1286,8 +1315,21 @@ Explicit type conversion using angle bracket syntax.
 
 ### Pattern Matching
 
+Fuzzy matching uses the `~`, `!~`, `?~`, and `*~` operators documented
+in the [Comparison Operators](#comparison-operators) table above.
+Full-text search uses the `@@` / `@N@` `MATCHES` operators documented
+in the [Search Functions](#search-functions) section. KNN vector
+search uses the `<|K|>` / `<|K,DIST|>` / `<|K,EF|>` operators
+documented in the [Vector Functions](#vector-functions) and `DEFINE
+INDEX HNSW` sections. There is no separate "LIKE" operator in v3 —
+that pre-v2 keyword was removed.
+
+### Geometry Operators
+
 | Operator | Description | Example |
 |----------|-------------|---------|
+| `OUTSIDE` | Geometry containment check (left is outside right) | `point OUTSIDE polygon` |
+| `INTERSECTS` | Geometry intersection check | `polygon_a INTERSECTS polygon_b` |
 
 ### Other Operators
 
@@ -1718,6 +1760,7 @@ vector::dot([1, 2, 3], [4, 5, 6])           -- 32
 vector::magnitude([3, 4])                    -- 5.0
 vector::normalize([3, 4])                    -- [0.6, 0.8]
 vector::project([3, 4], [1, 0])             -- projection vector
+vector::scale([1, 2, 3], 2.0)               -- [2, 4, 6] (scalar multiply)
 
 -- Distance functions (lower = closer; positive metrics)
 -- Verified against v3.0.5 vector function registry: cosine, jaccard,
@@ -1728,6 +1771,9 @@ vector::distance::euclidean([1, 2], [4, 6])      -- 5.0
 vector::distance::hamming([1, 0, 1], [1, 1, 0])  -- 2
 vector::distance::manhattan([1, 2], [4, 6])      -- 7
 vector::distance::minkowski([1, 2], [4, 6], 3)   -- minkowski with p=3
+vector::distance::knn([1, 2], [3, 4], 5)         -- KNN distance
+vector::distance::mahalanobis([1, 2], [3, 4], [[1, 0], [0, 1]])
+                                                 -- Mahalanobis distance (with covariance matrix)
 
 -- Similarity functions (higher = more similar)
 -- For cosine / jaccard / pearson, the upstream function lives ONLY
@@ -1737,6 +1783,7 @@ vector::distance::minkowski([1, 2], [4, 6], 3)   -- minkowski with p=3
 vector::similarity::cosine([1, 2], [3, 4])       -- cosine similarity
 vector::similarity::jaccard([1, 2, 3], [2, 3, 4]) -- jaccard similarity
 vector::similarity::pearson([1, 2, 3], [4, 5, 6]) -- pearson similarity
+vector::similarity::spearman([1, 2, 3], [4, 5, 6]) -- spearman rank correlation
 ```
 
 ### Search Functions

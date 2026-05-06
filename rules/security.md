@@ -241,7 +241,7 @@ DEFINE ACCESS partner_tokens ON DATABASE TYPE BEARER FOR RECORD
     DURATION FOR GRANT 90d, FOR TOKEN 1h, FOR SESSION 24h;
 
 -- Issue a token under the access method:
-ACCESS service_tokens GRANT FOR USER 'ci_runner';
+ACCESS service_tokens GRANT FOR USER ci_runner;
 ```
 
 `TYPE BEARER` accepts `DURATION FOR GRANT`, `DURATION FOR TOKEN`,

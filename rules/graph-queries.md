@@ -11,8 +11,10 @@ The `RELATE` statement creates graph edges (relationships) between records. Each
 ### Basic Syntax
 
 ```surrealql
--- General form
-RELATE @from->@edge->@to [SET | CONTENT | MERGE ...];
+-- General form (verified against v3.0.5 RELATE grammar — see the
+-- precision comment under "Setting Properties on Edges" below).
+-- RELATE only accepts CONTENT or SET; there is NO MERGE clause.
+RELATE @from->@edge->@to [CONTENT @value | SET @field = @value ...];
 
 -- Create a simple relationship
 RELATE person:alice->knows->person:bob;
@@ -89,6 +91,52 @@ RELATE person:aristotle->wrote->article:metaphysics SET word_count = 50000;
 RELATE article:foo->wrote->article:bar;
 -- Error: Expected a record<person>, but found record<article>
 ```
+
+### `TYPE RELATION`, `FROM`/`TO`, and `ENFORCED`
+
+The `SCHEMAFULL + record<…> in/out` pattern above works, but v3 also
+provides a dedicated relation-table form on `DEFINE TABLE`. `TYPE
+RELATION` declares that a table is an edge table (vs. `TYPE NORMAL`
+for record tables); the `FROM` / `TO` clauses (alias `IN` / `OUT`)
+constrain which record types may appear at each end; `ENFORCED`
+upgrades the constraint from "rejected at RELATE time" to "rejected
+both at RELATE time and on any direct CREATE/UPDATE that would put
+an invalid edge in the table."
+
+```surrealql
+-- Equivalent to the SCHEMAFULL + DEFINE FIELD in/out pattern, but
+-- with the relation contract declared on DEFINE TABLE itself.
+DEFINE TABLE wrote TYPE RELATION FROM person TO article SCHEMAFULL;
+DEFINE FIELD written_at ON TABLE wrote TYPE datetime DEFAULT time::now();
+DEFINE FIELD word_count ON TABLE wrote TYPE int;
+
+-- Multi-type endpoints — accept several record types on either side
+-- using `|`. Useful for polymorphic edges (e.g. comments on either
+-- posts or articles).
+DEFINE TABLE commented_on TYPE RELATION FROM person TO post|article;
+
+-- ENFORCED — also reject INSERT/UPDATE statements that would write
+-- an invalid `in`/`out` directly (not just RELATE).
+DEFINE TABLE wrote TYPE RELATION FROM person TO article ENFORCED;
+
+-- IN/OUT are accepted as aliases for FROM/TO; pick one form and stay
+-- consistent within a codebase.
+DEFINE TABLE follows TYPE RELATION IN person OUT person;
+```
+
+When to choose which form:
+
+- **`TYPE RELATION FROM … TO …`** — preferred for new code. The
+  relation contract lives on the table definition where readers
+  expect it; tooling (and `INFO FOR TABLE`) reports the table as a
+  relation; less boilerplate than `DEFINE FIELD in TYPE record<…>`
+  twice.
+- **`SCHEMAFULL` + `DEFINE FIELD in/out TYPE record<…>`** — still
+  valid; useful when migrating older code or when you need
+  per-field control beyond what `TYPE RELATION` exposes.
+- **`ENFORCED`** — add when the application path is mixed (some
+  callers RELATE, others CREATE/UPDATE the edge record directly)
+  and you want the type contract honored on every write.
 
 ### Bidirectional Edges
 

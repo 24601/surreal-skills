@@ -182,14 +182,89 @@ DEFINE INDEX idx_embedding_hr ON TABLE document
 ### Index Rebuild Strategies
 
 ```surrealql
--- Remove and recreate an index to rebuild it
+-- v3.0.5 has a first-class REBUILD INDEX statement that preserves
+-- the full index definition (UNIQUE / FULLTEXT ANALYZER / BM25 /
+-- HIGHLIGHTS / HNSW DIMENSION / EFC / M / DEFER / CONCURRENTLY).
+-- Prefer this over the manual REMOVE + DEFINE pattern, which loses
+-- the original definition and is error-prone for complex indexes.
+--
+-- Grammar (verified upstream): REBUILD INDEX [IF EXISTS] <name>
+--                              ON [TABLE] <table> [CONCURRENTLY]
+REBUILD INDEX idx_email ON TABLE user;
+
+-- Concurrent rebuild — runs in the background without blocking
+-- writes. Recommended for large indexes (HNSW, FULLTEXT) in
+-- production. Monitor progress via INFO FOR INDEX (see below).
+REBUILD INDEX idx_embedding ON TABLE document CONCURRENTLY;
+
+-- Idempotent rebuild — does nothing if the index does not exist.
+REBUILD INDEX IF EXISTS idx_optional ON TABLE user;
+
+-- The legacy REMOVE + DEFINE pattern still works but you must
+-- restate every clause of the original index definition. Use only
+-- when changing the index shape (columns, type), not for rebuilds.
 REMOVE INDEX idx_email ON TABLE user;
 DEFINE INDEX idx_email ON TABLE user COLUMNS email;
 
 -- Check current indexes on a table
 INFO FOR TABLE user;
--- Returns index definitions and metadata
+-- Returns fields, indexes, events, lives, and tables on the table.
+
+-- Inspect a specific index — returns build progress for
+-- CONCURRENTLY-built indexes (initial / pending / updated / status).
+INFO FOR INDEX idx_embedding ON TABLE document;
+-- Example output during a concurrent rebuild:
+--   { building: { initial: 8143, pending: 19, status: "indexing", updated: 80 } }
 ```
+
+### Concurrent Index Builds (`CONCURRENTLY`)
+
+`DEFINE INDEX` and `REBUILD INDEX` accept a `CONCURRENTLY` clause that
+builds the index in the background without blocking concurrent writes.
+Large indexes (HNSW vector indexes, FULLTEXT search indexes over big
+corpora) can take minutes to build; the synchronous form holds a
+write lock for the duration, while `CONCURRENTLY` lets the application
+keep serving traffic.
+
+```surrealql
+-- Build a new HNSW vector index without blocking writes.
+DEFINE INDEX idx_embedding ON TABLE document
+    FIELDS embedding HNSW DIMENSION 1536 DIST COSINE
+    CONCURRENTLY;
+
+-- Watch the build progress (see INFO FOR INDEX above).
+INFO FOR INDEX idx_embedding ON TABLE document;
+```
+
+Until the build finishes, the index is present but not yet usable for
+query acceleration; queries fall back to a full scan. `INFO FOR INDEX`
+reports `status: "indexing"` while building and `status: "ready"`
+once complete.
+
+### Deferred Indexing (`DEFER`)
+
+`DEFINE INDEX ... DEFER` decouples ingestion from index maintenance:
+writes complete without updating the index, and a background worker
+catches up asynchronously. This eliminates write-write conflicts on
+high-throughput parallel ingestion paths and is the preferred pattern
+when eventual consistency of the index is acceptable.
+
+```surrealql
+-- Defer index maintenance — writes return immediately; the index
+-- catches up asynchronously. Available since v2.5.0.
+DEFINE INDEX idx_event_user ON TABLE event
+    FIELDS user_id
+    DEFER;
+```
+
+Caveats:
+
+- `UNIQUE` and `DEFER` cannot be combined — uniqueness must be
+  enforced at write time, which `DEFER` precludes.
+- During the catch-up window, queries that rely on the index may
+  return stale results. Use `INFO FOR INDEX` to monitor lag.
+- Pair with `CONCURRENTLY` on the initial build to avoid a write
+  stall when the index is first created.
 
 ---
 
@@ -512,7 +587,7 @@ UPDATE user SET verified = true WHERE created_at < d'2025-01-01' AND verified = 
 
 ```bash
 # Import from SurrealQL file
-surreal import --conn http://localhost:8000 --user root --pass root --ns test --db test data.surql
+surreal import --endpoint http://localhost:8000 --user root --pass root --ns test --db test data.surql
 
 # Import from JSON/JSONL
 # Prepare a .surql file with INSERT statements for best performance

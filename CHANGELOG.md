@@ -3,6 +3,162 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.3] - 2026-05-05
+
+### Fixed (atomic-protocol patch — v1.5.2 Pi-only re-audit CRIT remediation, including foundational `rules/surrealql.md`)
+
+A third Pi+DeepSeek-V4-Pro:xhigh adversarial pass — this time over the
+same five rules patched in v1.5.2 **plus** a first dedicated full-file
+pass on the foundational language reference `rules/surrealql.md` —
+returned **5 NO-GO + 1 CONDITIONAL GO** with **15 CRITs** total. The
+empirical fix-patch-drift pattern noted in `~/CLAUDE.md` continued to
+play out (each pass introduces 1-2 new bugs from the prior fix
+surgery), and the dedicated `rules/surrealql.md` pass surfaced six
+additional latent hallucinations that two earlier rounds of cross-fix
+patches did not exhaust. v1.5.3 patches every CRIT.
+
+The single most consequential finding: the v1.5.1 "fix" of the HNSW
+`LM` parameter — labelling it as "Minkowski distance order" — was
+itself wrong. v3.0.5 source proves `LM` is the HNSW **level
+multiplier** (`ml` in the original Malkov & Yashunin paper), used in
+the formula `l ← ⌊−ln(unif(0..1)) · ml⌋` to assign each new point an
+insertion level. Default `1 / ln(M)` (≈0.402 at `M=12`). The Minkowski
+distance order is specified inline in `DIST MINKOWSKI <order>`, **not**
+via `LM`. Anyone who copied an `HNSW … LM N` snippet from v1.5.1 or
+v1.5.2 thinking they were configuring Minkowski order was silently
+setting the level multiplier instead, often dramatically flattening
+the HNSW hierarchy. v1.5.3 corrects the parameter table row, the
+default value, and the precision callout, and adds an explicit warning
+about the v1.5.1/v1.5.2 mislabelling.
+
+- **`rules/data-modeling.md`** (1 CRIT) — Line 948 §"Time-Series Data
+  Pattern" used `DELETE sensor_reading WHERE recorded_at < time::now()
+  - 30d LIMIT 100;`. v3.0.5 SurrealQL has no `LIMIT` clause on
+  `DELETE` (verified against `surrealdb/core/src/sql/statements/
+  delete.rs` — `DeleteStatement` has no `limit` field). Removed the
+  invalid clause and added a precision comment recommending a
+  scheduled task for bounded-batch cleanup.
+
+- **`rules/graph-queries.md`** (2 CRITs) — (1) Line 15 §"Basic Syntax"
+  RELATE template still read `[SET | CONTENT | MERGE ...]`,
+  contradicting the v1.5.2 §"Setting Properties on Edges" precision
+  comment ("there is no MERGE clause on RELATE"). The v1.5.2 patch
+  fixed the example block but left the syntax head stale. Now reads
+  `[CONTENT @value | SET @field = @value ...]` consistently.
+  (2) Missing entire §"`TYPE RELATION`, `FROM`/`TO`, and `ENFORCED`"
+  subsection — the file documented only the SCHEMAFULL + typed
+  `record<…> in/out` pattern, omitting `DEFINE TABLE … TYPE RELATION
+  FROM person TO article`, the `IN`/`OUT` aliases, the `|`
+  multi-type endpoint syntax, and the `ENFORCED` keyword. New
+  subsection added with upstream-verified examples.
+
+- **`rules/surrealql.md`** (6 CRITs — first dedicated Pi pass on the
+  foundational language reference):
+  - **CRIT-1: Empty `### Pattern Matching` table.** v1.4.4 correctly
+    removed `LIKE` / `NOT LIKE` (which don't exist in v3.0.5) but
+    left an empty header-only table behind. Replaced with a
+    cross-reference paragraph pointing readers at the comparison
+    operators (`~`, `!~`, `?~`, `*~`), full-text search operators
+    (`@@` / `@N@`), and KNN operators (`<|K|>` / `<|K,DIST|>` /
+    `<|K,EF|>`).
+  - **CRIT-2: Missing `!!` operator.** v3.0.5 lists `!!` as a
+    distinct unary truthiness-coercion operator. Added to the
+    Logical Operators table.
+  - **CRIT-3: Missing `OUTSIDE` and `INTERSECTS` geometry
+    operators.** Both are documented v3.0.5 operators used in
+    geospatial queries; neither appeared in the operators tables.
+    Added a new `### Geometry Operators` table.
+  - **CRIT-4: Four missing vector functions.** v3.0.5 source
+    (`surrealdb/core/src/fnc/script/modules/surrealdb/functions/
+    vector.rs` and friends) registers `vector::scale`,
+    `vector::distance::knn`, `vector::distance::mahalanobis`, and
+    `vector::similarity::spearman` — none of which appeared in the
+    Vector Functions section. All four added with usage examples.
+  - **CRIT-5: Missing `DEFINE ACCESS BEARER` section.** The file
+    covered RECORD and JWT access but not BEARER, the v3 mechanism
+    for API key / refresh token authentication. Added a BEARER
+    subsection covering `FOR USER` vs `FOR RECORD`, the
+    `AUTHENTICATE` clause, `DURATION FOR GRANT`/`TOKEN`/`SESSION`,
+    and the `ACCESS … GRANT` token-issuance statement (with the
+    user identifier correctly unquoted — see security.md fix below).
+  - **CRIT-6 (cross-fix from `rules/vector-search.md`): `DIST`
+    default was wrong.** The DEFINE INDEX section claimed `DIST`
+    defaulted to `COSINE`. Upstream parser (`define/index.rs`)
+    initialises `let mut distance = Distance::Euclidean;` and
+    `Distance` derives `#[default]` on `Euclidean`. Corrected to
+    `EUCLIDEAN`, with a precision note pointing at the source line
+    and recommending an explicit `DIST COSINE` override for
+    normalised text embeddings.
+
+- **`rules/vector-search.md`** (2 CRITs):
+  - **CRIT-1: `LM` rewrite.** As described above — `LM` is the HNSW
+    level multiplier, not "Minkowski distance order." The parameter
+    table row, default value (`1 / ln(M)`), syntax-block placeholder,
+    and the precision callout are all corrected. The callout now
+    includes an explicit warning that v1.5.1 and v1.5.2 mislabelled
+    `LM` and that anyone who copied an `HNSW … LM N` snippet
+    intending to set Minkowski order should write `DIST MINKOWSKI N`
+    instead.
+  - **CRIT-2 (cross-file into `rules/surrealql.md`)** — counted
+    under surrealql.md CRIT-6 above (DIST default = EUCLIDEAN).
+
+- **`rules/performance.md`** (4 CRITs):
+  - **CRIT-1: `surreal import --conn` flag does not exist.** v3.0.5
+    CLI uses `--endpoint` (with short alias `-e`); no `--conn` flag
+    is registered anywhere in the v3.0.5 server source. Verified
+    against `server/src/cli/import.rs` and the `cli_integration.rs`
+    test corpus. §"Bulk Import" example corrected.
+  - **CRIT-2: `REBUILD INDEX` statement missing.** v3.0.5 has a
+    first-class `REBUILD INDEX [IF EXISTS] <name> ON <table>
+    [CONCURRENTLY]` statement that preserves the full original
+    index definition (UNIQUE / FULLTEXT ANALYZER / BM25 / HIGHLIGHTS
+    / HNSW DIMENSION / EFC / M / DEFER / CONCURRENTLY). The file
+    previously recommended only the legacy `REMOVE INDEX` +
+    `DEFINE INDEX` pattern, which loses the original definition.
+    §"Index Rebuild Strategies" rewritten to lead with `REBUILD
+    INDEX` and demote the manual pattern to a "use only when
+    changing the index shape" note. Adds an `INFO FOR INDEX`
+    example for build-progress monitoring.
+  - **CRIT-3: `CONCURRENTLY` clause undocumented.** Both `DEFINE
+    INDEX` and `REBUILD INDEX` accept `CONCURRENTLY` for
+    non-blocking background builds — directly relevant to large
+    HNSW / FULLTEXT index lifecycle in production. New §"Concurrent
+    Index Builds (`CONCURRENTLY`)" subsection added.
+  - **CRIT-4: `DEFER` clause undocumented.** `DEFINE INDEX … DEFER`
+    (since v2.5.0) decouples ingestion from index maintenance;
+    eliminates write-write conflicts on high-throughput parallel
+    ingestion. New §"Deferred Indexing (`DEFER`)" subsection added,
+    with the `UNIQUE`+`DEFER` mutex caveat documented.
+
+- **`rules/security.md`** (1 CRIT) — Line 244 §"Bearer Access /
+  GRANT Statement" example used `ACCESS service_tokens GRANT FOR
+  USER 'ci_runner';` with the user identifier quoted. v3 `GRANT FOR
+  USER @name` takes an identifier, not a string literal — the quoted
+  form would fail to reference the `DEFINE USER` name correctly.
+  Removed the quotes.
+
+Pass-3 IMPORTANTs (RECORD `WITH REFRESH` / `AUTHENTICATE` clauses,
+JWKS URL on RECORD-with-JWT, capabilities flags surface, `regex` /
+`range` / `number` / `literal` data types, `ALTER` statement
+coverage, `DEFINE SCOPE` / `TOKEN` / `API` / `CONFIG`, full session
+variable surface, additional function namespaces (`bytes::*`,
+`encoding::*`, `file::*`, `not::*`, `sequence::*`, `set::*`,
+`api::*`), `RELATE … RETURN` clause, `RELATE ONLY`, edge deletion,
+FETCH-on-graph-paths, full sub-SELECT graph-clause syntax) and
+MINORs are deferred — they are documentation gaps or polish, not
+contradictions of upstream — and tracked in the residual-risk lists
+of the per-rule re-audit reports at
+`/tmp/pi-{rule}-pass3-out.md`.
+
+Migration: consumers who copied any of the corrected examples — the
+`DELETE … LIMIT` clause, the `RELATE … MERGE` pattern, the empty
+Pattern Matching table, the missing operators, `LM N` intending
+Minkowski order, the `--conn` flag, the legacy `REMOVE`+`DEFINE`
+rebuild pattern, the `DIST COSINE` default assumption, or the
+quoted `GRANT FOR USER 'name'` form — need to apply the corrections
+noted above. Machine-checked version-consistency CI gate continues
+to apply.
+
 ## [1.5.2] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — v1.5.1 Pi-only re-audit CRIT remediation)
