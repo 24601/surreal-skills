@@ -2316,7 +2316,9 @@ distinct usage modes:
    `api::timeout`. These take a `next` closure as one of their
    arguments and are designed to compose inside a
    `DEFINE API ... MIDDLEWARE` chain. Calling them outside that
-   context gives undefined results.
+   context fails with an arity / type error — the implicit `req`
+   and `next` arguments supplied by the middleware runtime are
+   not available, so the call is rejected before any side effect.
 
 ```surql
 -- ============================================
@@ -2326,7 +2328,13 @@ distinct usage modes:
 -- api::invoke(path: string, req?: object) -> object
 -- Calls a defined API endpoint internally (server-side dispatch,
 -- no HTTP round-trip). Path MUST start with '/'. The optional
--- request object's fields (per core/src/api/request.rs:14-23):
+-- request object's USER-MEANINGFUL input fields (per
+-- core/src/api/request.rs:14-23 — the full struct also has
+-- `context: PublicObject` and `request_id: String`, but `context` is
+-- internal middleware state stripped from the response by
+-- core/src/fnc/api/mod.rs:106 and `request_id` is overwritten by
+-- api::invoke at fnc/api/mod.rs:66-68 with a fresh UUID; do not
+-- bother passing them):
 --   { method:  'get' | 'post' | 'put' | 'patch' | 'delete' | 'trace',
 --             -- NOTE: 'head' is NOT a valid ApiMethod variant in
 --             -- v3.0.5; the enum includes 'trace' instead. Source:
@@ -2391,7 +2399,8 @@ DEFINE API "/not-found"
 -- `Optional<String>` whose Optional<T> resolves to None ONLY when
 -- the argument is absent (core/src/fnc/args.rs:81-97); passing an
 -- explicit `NONE` value will be coerced via the String FromArg path
--- and does NOT reliably remove the header. Use `api::res::headers`
+-- is rejected as a type error (NONE cannot coerce to String). Use
+-- `api::res::headers`
 -- (the map form below) when you need to mix sets and removes in
 -- one call.
 DEFINE API "/cors"
@@ -2428,11 +2437,19 @@ DEFINE API "/slow"
 
 Argument-shape notes:
 - `api::invoke` is a regular async function — its `req` arg is a
-  PUBLIC `ApiRequest` object converted via `FromPublic`, so
-  enum-style values like `method` are case-insensitive lowercase
-  strings.
-- The middleware functions all take `(req, next, ...args)` and
-  invoke `next.invoke(...)` to continue the chain. Their first
+  PUBLIC `ApiRequest` object converted via `FromPublic`. Enum-style
+  values like `method` derive from `ApiMethod` with
+  `#[surreal(untagged, lowercase)]` (source:
+  `core/src/catalog/schema/api.rs:111-126`); the derive matches the
+  input string against the variant name LOWERCASED, so the input
+  must itself be lowercase. `'GET'` and `'Get'` are NOT accepted —
+  use `'get'`, `'post'`, etc.
+- Direct calls to the middleware functions outside a
+  `DEFINE API ... MIDDLEWARE` chain do not produce undefined
+  behaviour — they fail with an arity / type error when the
+  required implicit `(req, next)` arguments are missing or do not
+  coerce. The middleware functions all take `(req, next, ...args)`
+  and invoke `next.invoke(...)` to continue the chain. Their first
   visible argument in the SurrealQL call is the strategy / status /
   header — `req` and `next` are bound implicitly by the
   `DEFINE API ... MIDDLEWARE` runtime.
@@ -2461,14 +2478,19 @@ sleep(2s)                                    -- pause 2 seconds
 -- exercising TIMEOUT clauses. The function itself returns `Ok(NONE)`
 -- after the (possibly clamped) wait — see core/src/fnc/sleep.rs:7-19.
 -- The surrounding TIMEOUT clause is what surfaces a timeout error to
--- the client; the relationship between the clamped sleep and the
--- TIMEOUT error is observed empirically here, not formally
--- specified, so prefer keeping individual sleep durations short
--- inside TIMEOUT blocks during tests.
-RETURN (BEGIN; sleep(10s); RETURN 'done'; COMMIT) TIMEOUT 1s;
+-- the client.
+--
+-- IMPORTANT: `RETURN` does NOT accept a `TIMEOUT` clause — its parser
+-- only consumes the expression and an optional `FETCH`
+-- (core/src/syn/parser/stmt/mod.rs:566-575). Attach `TIMEOUT` to a
+-- statement that actually parses it (`SELECT`, `CREATE`, `UPDATE`,
+-- `DELETE`, `RELATE`, `INSERT`, etc.):
+CREATE timeout_probe SET slept = sleep(10s) TIMEOUT 1s;
 -- After ~1s the surrounding TIMEOUT fires and the client receives a
--- timeout-shaped error rather than the inner 'done' value. (Sleep
--- itself does not return an error.)
+-- timeout-shaped error rather than a created `timeout_probe` row.
+-- (Sleep itself does not return an error; the TIMEOUT clause does.)
+-- Source: core/src/syn/parser/stmt/create.rs:8-22 +
+-- core/src/syn/parser/stmt/mod.rs:566-575.
 ```
 
 The sleep is implemented via `tokio::time::sleep` (or
@@ -2820,15 +2842,16 @@ Key fixes and changes in SurrealDB v3.0.5:
 - **`encoding` patch note (#7197)**: PR #7197 landed in the v3.0.5
   cycle but the v3.0.5 `core/src/fnc/mod.rs` registry (lines 242-245)
   exposes only `encoding::base64::{encode,decode}` and
-  `encoding::cbor::{encode,decode}`. There is NO `encoding::json::*`
-  function in v3.0.5 — earlier wording in this section that said
-  "encoding::json restored" was a v1.4.x-era doc fabrication (the
-  upstream PR title likely referenced JSON encoding inside the CBOR
-  bridge or analyzer paths, not a callable function namespace).
-  Cross-reference: see `### Encoding Functions` above for the full
-  registered surface and the explicit "what is NOT registered"
-  callout. Discovered by Codex during v1.6.1 4-WAY adversarial
-  review.
+  `encoding::cbor::{encode,decode}`. There is NO callable
+  `encoding::json::*` function namespace in v3.0.5 — earlier wording
+  in this section that said "encoding::json restored" was a
+  v1.4.x-era doc fabrication. The actual surface change captured in
+  PR #7197 lies elsewhere in the v3.0.5 surface (consult the upstream
+  PR for specifics); whatever it touched, it did not add a callable
+  `encoding::json::*` function. Cross-reference: see `### Encoding
+  Functions` above for the full registered surface and the explicit
+  "what is NOT registered" callout. Discovered by Codex during the
+  v1.6.1 4-WAY adversarial review.
 - **GraphQL literal fields** (#7109): schema generation now supports literal fields in GraphQL mappings
 - **Axum router support for embedders** (#7097): embedding use cases have an official axum router path
 - **Validation input from stdin** (#7235): CLI validation flows now accept stdin input cleanly
