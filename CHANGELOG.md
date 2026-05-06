@@ -80,16 +80,89 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Process notes
 
-Five clauses landed across four atomic feature commits (one for
-each of `WITH REFRESH`, `WITH JWT URL`, `ACCESS subcommands`, and
-the combined `PASSHASH + DURATION` subsection — the latter two
-clauses naturally compose on the same statement and share a
-verification path, so they ship as one atomic edit per the
-v1.6.0 / v1.6.1 atomic-protocol pattern). 4-WAY adversarial
-review still pending at draft time; will iterate per the same
-cadence as v1.6.0 / v1.6.1 (4-7 review revisions expected;
-Codex deepest, Pi second-deepest, Cursor packaging, Gemini
-sanity baseline).
+Five clauses landed across four atomic feature commits in rev-1
+(one for each of `WITH REFRESH`, `WITH JWT URL`, `ACCESS
+subcommands`, and the combined `PASSHASH + DURATION` subsection
+— the latter two clauses naturally compose on the same statement
+and share a verification path, so they ship as one atomic edit
+per the v1.6.0 / v1.6.1 atomic-protocol pattern).
+
+#### Rev-2 disposition (4-WAY adversarial pass-1)
+
+Pass-1 verdicts: Cursor NO-GO (2 CRITs / 5 IMPs / 3 minors),
+Codex NO-GO (1 CRIT / 4 IMPs / 2 minors), Gemini NO-GO (3 CRITs /
+2 IMPs), Pi CONDITIONAL GO (0 CRITs / 2 IMPs / 3 minors). Five
+atomic rev-2 commits closed every accepted finding:
+
+- **R1** — TYPE JWT issuance correction. Cursor C2 (CRIT, source-
+  cited at signin.rs:449/:550/:686 — pure TYPE JWT has no signin
+  branch) and Cursor I3 (token_duration unused on JWT
+  authenticate path) both pre-existing v1.5.x latent bugs.
+  Reframed the JWT FOR TOKEN/WITH ISSUER callout as
+  "verification-only" with explicit pointers at the
+  `at.jwt.issue` consumers (only signin.rs:275-318 inside the
+  Record branch + signin_bearer at :737). Replaced the fictional
+  `hybrid_jwt` mint example with the correct
+  `hybrid_record TYPE RECORD WITH JWT URL + WITH ISSUER` pattern.
+  Fixed the `parser/tests/stmt.rs` typo (Cursor I2).
+- **R2** — JWKS Cargo feature gate (CONVERGENT CRIT, Cursor C1 +
+  Codex C1). Parser accepts `URL` unconditionally, but every
+  runtime arm at `verify.rs:228-240/:340-352/:412-424/:573-585/:725-737`
+  is `#[cfg(feature = "jwks")]`. Default `surrealdb-server`
+  features at `server/Cargo.toml:19-30` lack `jwks`. Added a
+  callout citing every gated arm + the Cargo wiring + a `cargo
+  build --features jwks` recipe. Also removed the unsupported
+  "allow redirect targets" wording (Codex M2 — `jwks.rs:268-313`
+  only checks the original URL host) and added a "test-fixture
+  gap for `TYPE RECORD WITH JWT URL`" acknowledgement (Pi I1).
+- **R3** — refresh-rotation citation + token-shape fix. Convergent
+  IMP (Cursor I1 + Codex I2): the prior single-range
+  `signin.rs:279-355` citation conflated dispatch (279-295) +
+  initial issuance (352-364) with rotation (893-917 inside
+  `signin_bearer`'s `BearerAccessType::Refresh` arm). Split the
+  citation. Codex I2 unique catch on token shape: runtime returns
+  the full bearer key (id + secret), not just the grant id;
+  fixed JS-SDK example and added a "persist verbatim, do not
+  split" note.
+- **R4** — ACCESS section narrowings. Codex M1: PURGE grace is
+  strict greater-than (`> stmt.grace.secs()`), not "at least";
+  tightened to "older than". CONVERGENT IMP (Codex I1 + Cursor
+  I4): GRANT FOR RECORD is database-only at runtime
+  (`expr/statements/access.rs:226-234, :353-355`); replaced the
+  blanket "ON NAMESPACE / ON ROOT also accepted" paragraph with
+  an explicit base-scoping rubric that distinguishes
+  parse-acceptance from runtime-acceptance. Cursor I5: ON is
+  optional on every ACCESS subcommand; rubric flags this so
+  examples-with-explicit-ON are not read as required syntax.
+- **R5** — PASSHASH validation timing + DURATION fixture
+  cleanup. 3-WAY CONVERGENT (Codex I4 + Gemini C2 + Pi M1):
+  PASSHASH validation runs at signin (`verify.rs:945-952` —
+  `PasswordHash::new(hash)`), not at define
+  (`define.rs:353-358` stores verbatim). Added "store as-is,
+  validate-on-use" callout. Codex I3: prior `stmt.rs:402` test-
+  fixture citation pointed at a commented-out block; replaced
+  with an explicit "public-test provenance is indirect"
+  acknowledgement.
+
+REJECTED findings (with rationale):
+
+- **Gemini C1** (ACCESS ON ROOT invalid). REJECT — `parse_base()`
+  at `parts.rs:445` accepts `Base::Root` and `parse_define_access`
+  has no Root restriction for `TYPE BEARER FOR USER` /
+  `TYPE JWT`. Convergent rebuttal: Cursor I5 confirms `parse_access`
+  reads any base.
+- **Gemini C3** (URL on TYPE RECORD WITH JWT invalid). REJECT —
+  `parse_jwt()` at `define.rs:1716-1722` is the same function
+  invoked from both `t!("JWT")` (line 454, standalone) and the
+  `WITH JWT` arm of TYPE RECORD (line 484); URL works in both
+  call sites. Convergent rebuttal: Codex residual-risk #2
+  confirms support is structurally real; Pi I1 acknowledges the
+  parser path. Both REJECTs match the v1.6.1-pass-1 pattern of
+  Gemini producing wrong-direction CRITs without source access.
+
+#### Rev-2 outstanding
+
+Pass-2 4-WAY dispatch pending after this commit lands.
 
 This pass extends the v1.6.0 / v1.6.1 verification escalator —
 every claim grounded in a parser-source line range plus a parser
