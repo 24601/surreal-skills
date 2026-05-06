@@ -2211,19 +2211,29 @@ broader introspection.
 
 Verified against v3.0.5 `core/src/fnc/file.rs` (232 LOC). All 13
 functions in the `file::*` namespace are gated behind the experimental
-`Files` capability — the registry rows in `core/src/fnc/mod.rs:602-612`
-all carry the `exp(Files)` prefix, meaning they only resolve when the
-server is started with `--allow-experimental Files` (or equivalent
-capability config).
+`Files` capability. The registry split is:
+- 2 sync inspectors at `core/src/fnc/mod.rs:239-240`
+  (`file::bucket`, `file::key`)
+- 11 async I/O functions at `core/src/fnc/mod.rs:602-612`
+  (`put`, `put_if_not_exists`, `get`, `head`, `delete`, `copy`,
+  `copy_if_not_exists`, `rename`, `rename_if_not_exists`, `exists`,
+  `list`)
 
-Without the capability, calls fail at parse-time with a "function not
-allowed" error (Capabilities check rejects unknown / disabled
-functions before dispatch). DO NOT rely on these in production until
-Files moves out of experimental.
+Every row carries the `exp(Files)` macro prefix, meaning the
+capability check resolves at function-DISPATCH time (not at
+SurrealQL parse time): if the `Files` capability is disabled, the
+call parses successfully but errors when the dispatcher reaches the
+gated row in `core/src/fnc/mod.rs:114-133`. Start the server with
+`--allow-experimental Files` (or equivalent config) to enable these
+functions. DO NOT rely on them in production until Files moves out
+of experimental.
 
 ```surql
 -- File values bind a bucket + key. Construct via DEFINE BUCKET first.
-DEFINE BUCKET assets BACKEND "memory" READONLY false;
+-- READONLY is a bare flag (no boolean operand) per the parser at
+-- core/src/syn/parser/stmt/define.rs:1378-1380. Omit it for a
+-- writable bucket; include it for read-only.
+DEFINE BUCKET assets BACKEND "memory";
 
 -- Bind a file pointer (does NOT read; resolves bucket+key).
 LET $f = <file> "assets:/avatars/tobie.png";
@@ -2234,34 +2244,56 @@ file::key($f)                                -- '/avatars/tobie.png'
 
 -- Read / write
 file::put($f, <bytes> 'PNG-bytes-here')      -- NONE on success
-file::put_if_not_exists($f, <bytes> '...')   -- errors if key exists
+-- *_if_not_exists is a NO-OP when the destination key already
+-- exists — it does NOT error. Source: core/src/buc/controller.rs
+-- comments at lines 97-103 ("If the key already exists, the
+-- operation is a no-op").
+file::put_if_not_exists($f, <bytes> '...')   -- NONE (no-op if key exists)
 file::get($f)                                -- <bytes> ... or NONE
-file::head($f)                               -- { size, etag, ... } or NONE
+-- head() returns { updated, size, file } when present, NONE otherwise.
+-- Source: core/src/buc/store/mod.rs:35-52 (ObjectMeta -> object value
+-- has fields `updated: datetime`, `size: int`, `file: file`). NO
+-- `etag` field exists in v3.0.5.
+file::head($f)                               -- { updated, size, file } or NONE
 file::exists($f)                             -- true | false
 file::delete($f)                             -- NONE
-file::list('assets', { prefix: '/avatars/' }) -- [{ key, size, ... }, ...]
+file::list('assets', { prefix: '/avatars/' }) -- [{ updated, size, file }, ...]
 
 -- Copy / rename
 -- Destination can be a string (key relative to source bucket) or
 -- another file value (cross-bucket). The *_if_not_exists variants
--- error when the destination already exists.
+-- are NO-OPS when the destination already exists (same convention
+-- as put_if_not_exists; source: core/src/buc/controller.rs:181-216).
 file::copy($f, '/avatars/backup-tobie.png')  -- NONE
 file::copy($f, <file> "archive:/backups/tobie.png")  -- cross-bucket
-file::copy_if_not_exists($f, '/avatars/backup-tobie.png')
+file::copy_if_not_exists($f, '/avatars/backup-tobie.png')   -- NONE (no-op)
 file::rename($f, '/avatars/tobie-new.png')   -- NONE (within same bucket)
-file::rename_if_not_exists($f, '/avatars/tobie-new.png')
+file::rename_if_not_exists($f, '/avatars/tobie-new.png')    -- NONE (no-op)
 ```
 
-Argument shape notes (verified against `file.rs`):
-- `file::list` takes `(bucket: string, options?: object)` — note that
-  `bucket` is a STRING here, NOT a file value, and it's the only
-  function that accepts an options object.
-- `file::copy` and `file::copy_if_not_exists` are the only functions
-  whose second argument can be EITHER a string (relative key in the
-  source bucket) OR a `file` value (target a different bucket).
-- All other read/write/delete/exists/head/put functions take a single
-  `file` value as input and return either `NONE`, a `bool`, raw
-  `<bytes>`, or a metadata object.
+Signature reference (verified against `core/src/fnc/file.rs`):
+
+| Function | Args | Returns |
+|---|---|---|
+| `file::bucket` / `file::key` | `(file)` | string |
+| `file::put` / `file::put_if_not_exists` | `(file, value)` (value coerced via accept_payload) | NONE |
+| `file::get` | `(file)` | bytes \| NONE |
+| `file::head` | `(file)` | `{ updated, size, file }` \| NONE |
+| `file::exists` | `(file)` | bool |
+| `file::delete` | `(file)` | NONE |
+| `file::list` | `(bucket: string, options?: object)` | array<object> |
+| `file::copy` / `file::copy_if_not_exists` | `(src: file, dst: string \| file)` | NONE |
+| `file::rename` / `file::rename_if_not_exists` | `(src: file, target: string)` | NONE |
+
+Notable asymmetries:
+- `file::list` is the ONLY function that takes a STRING bucket name
+  (not a `file` value) AND an options object.
+- `file::copy` / `file::copy_if_not_exists` are the ONLY functions
+  whose destination can be EITHER a string (relative key in the
+  source bucket) OR a `file` value (cross-bucket).
+- `file::rename` / `file::rename_if_not_exists` only accept a STRING
+  target — there is no cross-bucket rename. Use `file::copy` +
+  `file::delete` instead.
 
 `file::move` does NOT exist — use `file::rename` (intra-bucket) or
 `file::copy` followed by `file::delete` (cross-bucket).
