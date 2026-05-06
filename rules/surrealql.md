@@ -2396,13 +2396,14 @@ DEFINE API "/not-found"
 -- api::res::header(name: string, value?: string) — set or remove a
 -- single response header. To REMOVE a header, OMIT the second
 -- argument (one-arg form). The function signature uses
--- `Optional<String>` whose Optional<T> resolves to None ONLY when
--- the argument is absent (core/src/fnc/args.rs:81-97); passing an
--- explicit `NONE` value will be coerced via the String FromArg path
--- is rejected as a type error (NONE cannot coerce to String). Use
--- `api::res::headers`
--- (the map form below) when you need to mix sets and removes in
--- one call.
+-- `Optional<String>`, whose `Optional<T>` resolves to `None` ONLY
+-- when the argument is absent (core/src/fnc/args.rs:81-97).
+-- Passing an explicit `NONE` value as the second argument is
+-- rejected as a type error: `NONE` cannot coerce to `String` via
+-- the `String` FromArg path. Use `api::res::headers` (the map form
+-- below) when you need to mix sets and removes in one call — its
+-- value type is `Option<String>`, so a `NONE` map value DOES
+-- remove that header.
 DEFINE API "/cors"
     FOR get
         MIDDLEWARE api::res::header('Access-Control-Allow-Origin', '*')
@@ -2839,19 +2840,15 @@ Key fixes and changes in SurrealDB v3.0.5:
 - **`$parent` fixes**: multiple fixes landed for `$parent` resolution in nested and edge-oriented queries
 - **Computed field stability** (#7142, #7202): computed fields now evaluate more consistently in write and query paths
 - **Edge query ordering fixes** (#7193, #7194): `ORDER BY` and related planning on edge-table queries behave correctly again
-- **`encoding` patch note (#7197)**: PR #7197 landed in the v3.0.5
-  cycle but the v3.0.5 `core/src/fnc/mod.rs` registry (lines 242-245)
-  exposes only `encoding::base64::{encode,decode}` and
-  `encoding::cbor::{encode,decode}`. There is NO callable
-  `encoding::json::*` function namespace in v3.0.5 — earlier wording
+- **`encoding::*` registry verified (#7197)**: The v3.0.5
+  `core/src/fnc/mod.rs` registry (lines 242-245) exposes exactly
+  four `encoding::*` functions: `encoding::base64::{encode,decode}`
+  and `encoding::cbor::{encode,decode}`. There is NO callable
+  `encoding::json::*` function namespace in v3.0.5. Earlier wording
   in this section that said "encoding::json restored" was a
-  v1.4.x-era doc fabrication. The actual surface change captured in
-  PR #7197 lies elsewhere in the v3.0.5 surface (consult the upstream
-  PR for specifics); whatever it touched, it did not add a callable
-  `encoding::json::*` function. Cross-reference: see `### Encoding
-  Functions` above for the full registered surface and the explicit
-  "what is NOT registered" callout. Discovered by Codex during the
-  v1.6.1 4-WAY adversarial review.
+  v1.4.x-era doc fabrication. Cross-reference: see `### Encoding
+  Functions` above for the full registered surface. Correction
+  landed in v1.6.1 after a 4-WAY adversarial review pass.
 - **GraphQL literal fields** (#7109): schema generation now supports literal fields in GraphQL mappings
 - **Axum router support for embedders** (#7097): embedding use cases have an official axum router path
 - **Validation input from stdin** (#7235): CLI validation flows now accept stdin input cleanly

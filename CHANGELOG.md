@@ -82,14 +82,24 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
     `api::timeout`) that take an implicit `next` from the
     `DEFINE API ... MIDDLEWARE` chain and are not free-standing.
     Body-strategy enumeration: auto / json / cbor / flatbuffers /
-    plain / bytes / native. `api::res::status` validates 100..=599;
-    `api::res::headers` accepts `NONE` to remove a header.
+    plain / bytes / native. `api::res::status` validates 100..=599.
+    `api::res::headers` (the MAP form) accepts `NONE` map values to
+    remove a header; `api::res::header` (the single-pair form) does
+    NOT — its second argument is `Optional<String>` so passing an
+    explicit `NONE` is a type error and removal must be done by
+    OMITTING the second argument.
 - **`rules/surrealql.md` top-level `sleep(duration)` function.**
   Registered as the bare name `"sleep"` at
   `core/src/fnc/mod.rs:639` — NOT under any namespace. Calls out the
-  CLAMP-by-context-timeout behaviour (a 10s sleep inside a `TIMEOUT
-  1s` block returns the timeout error after ~1s) and the
-  non-blocking `tokio::time::sleep` implementation.
+  CLAMP-by-context-timeout behaviour: e.g.
+  `CREATE timeout_probe SET slept = sleep(10s) TIMEOUT 1s;` errors
+  out via the surrounding `TIMEOUT` clause after ~1s rather than
+  completing the 10-second sleep. Note that `RETURN` itself does
+  NOT parse a `TIMEOUT` clause (per
+  `core/src/syn/parser/stmt/mod.rs:566-575`); attach `TIMEOUT` to
+  a statement that does (`SELECT`, `CREATE`, `UPDATE`, `DELETE`,
+  `RELATE`, `INSERT`). The function is implemented via
+  `tokio::time::sleep`, so it does NOT block the async runtime.
 - **`rules/surrealql.md` extends `### Search Functions` with three
   previously undocumented entries.** `search::analyze(analyzer,
   text)` for tokenizer preview; `search::rrf(results, limit,
