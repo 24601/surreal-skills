@@ -3,6 +3,143 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.10] - 2026-05-05 — v1.5.x stable
+
+### v1.5.x cycle declared stable
+
+A tenth Pi+DeepSeek-V4-Pro:xhigh adversarial pass over the same six
+rules audited in pass-9 returned **2 GO + 4 CONDITIONAL GO + 0
+NO-GO** with **0 CRITs** total — the convergence target. Per
+`~/CLAUDE.md` "CONDITIONAL GO w/ no CRIT = ship if maintainer accepts
+IMPs as deferred", v1.5.x is declared stable.
+
+v1.5.10 closes a single convergent IMPORTANT bug surfaced by both
+the data-modeling.md and graph-queries.md pass-10 reports:
+**`INTERSECT` is not a valid SurrealQL v3 expression operator.**
+v3 array set-operations are function calls (`array::intersect()`,
+`array::union()`, `array::complement()`), not infix keywords. Two
+example queries used `INTERSECT` as if it were an infix operator:
+
+- `rules/data-modeling.md` line 440 (Social Network Pattern §"Mutual
+  follows"): `SELECT ->follows->user INTERSECT <-follows<-user AS
+  mutual …` → corrected to `SELECT array::intersect(->follows->user,
+  <-follows<-user) AS mutual …`.
+- `rules/graph-queries.md` line 572 (Recommendation Engine):
+  `count(->likes->product INTERSECT $my_likes) AS overlap` →
+  corrected to `count(array::intersect(->likes->product,
+  $my_likes)) AS overlap`.
+
+A repo-wide grep confirms no other `INTERSECT` / `EXCEPT` infix
+usages remain (`INTERSECTS` is a separate, upstream-valid geometry
+operator and is unaffected).
+
+### v1.5.x convergence trajectory
+
+```
+Pass:    1   2    3   4   5   6   7   8   9  10
+CRITs:  21   7   15   6   6   5   1   2   5   0
+```
+
+**Total: 70 CRITs found-and-fixed across ten passes.** Cycle ran
+2026-05-05 in a single ~7-hour wall-clock pass with 6 parallel Pi
+processes per pass.
+
+Pass-3 was the high-water mark (15 CRITs) because it added
+`rules/surrealql.md` as a sixth target — the foundational language
+reference's first dedicated full-file Pi pass. Post-pass-3, the
+trend is monotone-decreasing-with-noise; pass-9's uptick reflected
+v1.5.8 ALTER surgery fix-drift (2 phantom-clause CRITs) plus 2
+cross-rule incomplete-fix CRITs surfaced by the pass-9 cross-file
+gap analysis. Pass-10 confirmed the v1.5.9 corrections held + the
+cycle has exhausted the high-confidence correctness surface.
+
+The single most consequential correction was the v1.5.3 HNSW LM
+parameter rewrite — the v1.5.1 fix had labelled LM as "Minkowski
+distance order" based on docs-only inspection; pass-3 verified
+against parser source that LM is the HNSW level multiplier (`ml`
+in the original paper) used in `l ← ⌊−ln(unif(0..1)) · ml⌋`, with
+default `1 / ln(M)` (~0.402 at M=12). Pre-v1.5.3 consumers who
+copied an `HNSW … LM N` snippet thinking they were configuring
+Minkowski order were silently flattening the HNSW hierarchy. The
+rule's HNSW parameter table now carries an explicit warning about
+the v1.5.1/v1.5.2 mislabelling.
+
+Other notable findings preserved as warnings:
+- **`DIST JACCARD` / `DIST PEARSON` semantically inverted** in
+  v3.0.5 catalog (`Distance::compute` calls similarity functions
+  for these two values; HNSW `KnnPriorityList` uses ascending order
+  → ranks LEAST-similar first). v1.5.5 added an explicit warning
+  callout in `rules/vector-search.md` recommending standalone
+  `vector::similarity::*` calls or a true distance metric for
+  indexed nearest-neighbour search.
+- **`<future> { … }` syntax does NOT exist in v3.0.5** despite
+  appearing in upstream docs (no `Future` variant in `Value` /
+  `Kind` enums; no `FUTURE` lexer keyword). v1.5.5 replaced the
+  Futures section with §"Deferred Computation: Computed Fields,
+  Closures, JS Functions" pointing at `DEFINE FIELD … VALUE`,
+  `|$args| body` closures, and embedded JavaScript.
+- **`DEFINE INDEX … DEFER` does NOT parse in v3.0.5** despite
+  being in upstream docs (`DefineIndexStatement` has no `defer`
+  field; parser doesn't read DEFER). v1.5.7 removed the DEFER
+  example from `rules/surrealql.md` and rewrote the
+  `rules/performance.md` DEFER subsection as a "do not use"
+  deprecation block citing the parser source.
+- **`UPDATE … LIMIT` does NOT parse in v3.0.5** (`UpdateStatement`
+  struct has no `limit` field). v1.5.9 replaced the chunking
+  pattern with a `SELECT VALUE id … LIMIT N` then `UPDATE $batch
+  SET …` two-step (same fix shape as the v1.5.3 `DELETE … LIMIT`
+  correction).
+- **`TYPE JWT` accepts both `DURATION FOR TOKEN` and `DURATION FOR
+  SESSION`** — the pre-v1.5.8 callout claiming `FOR TOKEN` was
+  rejected was based on docs alone and contradicted parser tests.
+  Semantics depend on issuer-key presence; symmetric algorithms
+  (HS256/HS384/HS512) auto-populate the issuer.
+- **`DEFINE NAMESPACE … STRICT` does NOT exist** despite v1.5.4
+  briefly documenting it as the replacement for the deprecated
+  `--strict` CLI flag. v3 only accepts `STRICT` on `DEFINE
+  DATABASE`. Per-namespace coverage requires defining each database
+  within the namespace as STRICT.
+
+### Per-rule pass-10 verdicts
+
+| File | Verdict | CRITs (pass-10) | Cumulative CRITs |
+|---|---|---|---|
+| `rules/data-modeling.md` | CONDITIONAL GO (INTERSECT IMP fixed in v1.5.10) | 0 | 4 |
+| `rules/security.md` | GO | 0 | 8 |
+| `rules/vector-search.md` | CONDITIONAL GO | 0 | 5 |
+| `rules/performance.md` | GO | 0 | 18 |
+| `rules/graph-queries.md` | CONDITIONAL GO (INTERSECT IMP fixed in v1.5.10) | 0 | 10 |
+| `rules/surrealql.md` | CONDITIONAL GO | 0 | 35+ |
+
+### Deferred to v1.6.x
+
+Approximately 30 IMPORTANT-classified items remain as documentation-
+completeness gaps — none contradict upstream v3.0.5. Tracked in the
+per-rule pass-10 reports at `/tmp/pi-{rule}-pass10-out.md` and
+summarised in `notes/v1.5.x-convergence.md`. Highlights:
+- security.md: WITH REFRESH on TYPE RECORD; JWKS URL on TYPE
+  RECORD; ACCESS REVOKE/SHOW/PURGE; DEFINE USER PASSHASH.
+- surrealql.md: 10 undocumented ALTER targets; function namespaces
+  (encoding::*, bytes::*, file::*, set::*, sequence::*, schema::*,
+  api::*); data types (regex, range, literal, file); INSERT IGNORE
+  example; DEFINE API; DEFINE CONFIG; INFO FOR INDEX/USER.
+- performance.md: TLS flags in start-flag list;
+  SURREAL_HNSW_CACHE_SIZE env-var verification; REBUILD INDEX ON
+  TABLE all-indexes form.
+- graph-queries.md: sub-SELECT graph clauses with ORDER/LIMIT/
+  START/GROUP BY; `$parent` in WHERE; custom edge Record IDs in
+  RELATE; +path+inclusive form.
+- vector-search.md: HASHED_VECTOR semantics verification; MINKOWSKI
+  in similarity-functions section.
+- data-modeling.md: illustrative-edge consistency.
+
+Migration: consumers who copied `INTERSECT` as an infix operator
+should replace with `array::intersect()`. Machine-checked version-
+consistency CI gate continues to apply.
+
+See `notes/v1.5.x-convergence.md` for the full per-pass trajectory
+table, fix-drift pattern analysis, and deferred-IMP catalog.
+
 ## [1.5.9] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — v1.5.8 Pi-only re-audit CRIT remediation)

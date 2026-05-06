@@ -569,7 +569,7 @@ LIMIT 20;
 LET $my_likes = SELECT VALUE ->likes->product FROM ONLY user:alice;
 LET $similar_users = SELECT
     id,
-    count(->likes->product INTERSECT $my_likes) AS overlap
+    count(array::intersect(->likes->product, $my_likes)) AS overlap
 FROM user
 WHERE id != user:alice
 ORDER BY overlap DESC

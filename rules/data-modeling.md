@@ -437,7 +437,7 @@ LIMIT 20;
 -- Then `->follows->user->wrote->post.*` becomes a valid traversal.
 
 -- Mutual follows
-SELECT ->follows->user INTERSECT <-follows<-user AS mutual FROM user:alice;
+SELECT array::intersect(->follows->user, <-follows<-user) AS mutual FROM user:alice;
 
 -- Followers count
 SELECT count(<-follows<-user) AS follower_count FROM user:alice;
