@@ -2328,13 +2328,20 @@ distinct usage modes:
 -- api::invoke(path: string, req?: object) -> object
 -- Calls a defined API endpoint internally (server-side dispatch,
 -- no HTTP round-trip). Path MUST start with '/'. The optional
--- request object's USER-MEANINGFUL input fields (per
--- core/src/api/request.rs:14-23 — the full struct also has
--- `context: PublicObject` and `request_id: String`, but `context` is
--- internal middleware state stripped from the response by
--- core/src/fnc/api/mod.rs:106 and `request_id` is overwritten by
--- api::invoke at fnc/api/mod.rs:66-68 with a fresh UUID; do not
--- bother passing them):
+-- request object's input fields (per core/src/api/request.rs:14-23).
+-- All caller-supplied fields are forwarded to the matched route's
+-- handler as the SurrealQL `$request` value (see
+-- core/src/api/invocation.rs:198-220), with TWO exceptions:
+-- - `request_id` is OVERWRITTEN by `api::invoke` with a freshly
+--   generated UUID (core/src/fnc/api/mod.rs:66-68) — passing your
+--   own value has no effect.
+-- - `params` is OVERWRITTEN with the values extracted from path
+--   matching (core/src/fnc/api/mod.rs:92-95).
+-- Caller-supplied `context` IS forwarded into the handler as
+-- `$request.context`; the strip at core/src/fnc/api/mod.rs:101-106
+-- only removes `context` from the RESPONSE object before
+-- `api::invoke` returns, not from the request before the handler
+-- sees it. Schema:
 --   { method:  'get' | 'post' | 'put' | 'patch' | 'delete' | 'trace',
 --             -- NOTE: 'head' is NOT a valid ApiMethod variant in
 --             -- v3.0.5; the enum includes 'trace' instead. Source:
@@ -2342,19 +2349,21 @@ distinct usage modes:
 --     headers: { string: string },
 --     body:    <any>,
 --     query:   { string: string },   -- query-string parameters
---     params:  { string: string }    -- Caller-provided values are
---                                    -- OVERWRITTEN when the path
---                                    -- matches a defined route:
---                                    -- api::invoke replaces
---                                    -- req.params with the values
---                                    -- extracted from path matching
---                                    -- (fnc/api/mod.rs:92-95). On an
---                                    -- unmatched path the request
---                                    -- short-circuits to a NotFound
---                                    -- response so caller-provided
---                                    -- params are not observable
---                                    -- inside any handler.
+--     params:  { string: string }    -- OVERWRITTEN by path matching
+--                                    -- when the route matches; on
+--                                    -- unmatched paths the request
+--                                    -- short-circuits to NotFound so
+--                                    -- caller-supplied params are
+--                                    -- never observable in any
+--                                    -- handler. (fnc/api/mod.rs:92-95)
+--     context: { ... }               -- forwarded as $request.context
+--                                    -- to the matched handler;
+--                                    -- stripped from the RESPONSE
+--                                    -- object before api::invoke
+--                                    -- returns (fnc/api/mod.rs:101-106)
 --   }
+-- (`request_id` is also a struct field but is unconditionally
+-- overwritten with a fresh UUID — do not pass it.)
 -- Defaults: GET, Content-Type + Accept set to native SurrealDB
 -- format if absent. Returns the response object with `context`
 -- stripped. Returns a NotFound-shaped response if no matching
