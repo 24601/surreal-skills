@@ -141,6 +141,39 @@ DEFINE INDEX index_name ON TABLE table_name FIELDS field_name
 > hierarchy). To set a Minkowski distance order, write `DIST MINKOWSKI
 > N`, not `LM N`. To set layer-0 connections, write `M0 N`.
 
+> **`HASHED_VECTOR` storage semantics (verified at v3.0.5).** The
+> bare `HASHED_VECTOR` keyword (no value — see parser
+> `core/src/syn/parser/stmt/define.rs:1151-1154`) flips a bool
+> (`use_hashed_vector`, default `false` at `:1114`) that changes
+> how the **vector → document-IDs** lookup table is keyed. It does
+> NOT quantise vectors, change graph storage, or alter search
+> precision:
+>
+> - **Default (off):** the vec→docs lookup table is keyed by the
+>   full serialised vector via `new_hv_key(&ser_vec)`
+>   (`core/src/idx/mod.rs:115`). Per-entry KV key cost scales
+>   with `dimension * sizeof(TYPE)` (e.g. ~6 KB per entry at
+>   `DIMENSION 1536 TYPE F32`).
+> - **With `HASHED_VECTOR`:** the vec→docs lookup table is keyed
+>   by a constant 32-byte hash via
+>   `new_hh_key(hash: [u8; 32])` (`core/src/idx/mod.rs:119`).
+>   Hash collisions are tolerated by bucketing distinct vectors
+>   under the same key with exact-match scan inside the bucket
+>   (`ElementHashedDocs` / `get_element_docs(&ser_vec)`,
+>   `core/src/idx/trees/hnsw/docs.rs:281-440`).
+>
+> Enable on large indexes where the vec→docs lookup table is the
+> memory bottleneck — the per-entry KV key shrinks from
+> `dimension * sizeof(TYPE)` bytes to a constant 32 bytes,
+> independent of dimension. The tradeoff is an extra
+> in-bucket scan when distinct vectors collide on the hash; for a
+> good hash and reasonably distinct vectors this is negligible.
+> The HNSW graph storage itself (graph edges, ef-construction
+> state, the vectors used at search time) is unchanged. The
+> keyword takes no argument: write
+> `HNSW DIMENSION 1536 DIST COSINE HASHED_VECTOR`, not
+> `HASHED_VECTOR true`.
+
 #### Common Index Configurations
 
 ```surrealql
@@ -295,7 +328,164 @@ SELECT
     vector::distance::hamming(binary_features, $query_features) AS distance
 FROM item
 ORDER BY distance ASC;
+
+-- Minkowski distance (generalised Lp norm; takes order as 3rd arg)
+-- p=1 is equivalent to Manhattan; p=2 is equivalent to Euclidean;
+-- as p grows, the metric weights larger-component differences more heavily,
+-- with the limiting case (p -> infinity) approaching Chebyshev.
+SELECT
+    id, title,
+    vector::distance::minkowski(embedding, $query_vector, 3) AS distance
+FROM document
+ORDER BY distance ASC
+LIMIT 10;
+
+-- Jaccard similarity over numeric token IDs (set semantics after dedup)
+-- Note: vector::similarity::jaccard dispatches as (Vec<Number>, Vec<Number>)
+-- per core/src/fnc/vector.rs:130. String tag arrays will fail runtime
+-- coercion; map your tokens to stable numeric IDs first.
+-- Wrap both arguments in array::distinct(...) to neutralise the v3.0.5
+-- multiset-asymmetric numerator (see callout below) and keep scores in [0, 1].
+LET $query_tag_ids = array::distinct([101, 205, 309]);
+
+SELECT
+    id, name,
+    vector::similarity::jaccard(
+        array::distinct(tag_ids),
+        $query_tag_ids
+    ) AS similarity
+FROM article
+ORDER BY similarity DESC
+LIMIT 10;
+
+-- Pearson correlation similarity (range [-1, 1]; mean-shift tolerant)
+SELECT
+    id, name,
+    vector::similarity::pearson(rating_vector, $query_ratings) AS similarity
+FROM user_profile
+ORDER BY similarity DESC
+LIMIT 10;
 ```
+
+> **`vector::similarity::jaccard()` and `vector::similarity::pearson()`
+> — appropriate use (verified at v3.0.5).** These two standalone
+> functions return **similarities** (larger = more similar),
+> unlike every `vector::distance::*` function above (smaller =
+> closer). Source: `core/src/fnc/vector.rs:130-136` →
+> `core/src/fnc/util/math/vector.rs:120-126` (jaccard) and
+> `:132-147` (pearson).
+>
+> - `vector::similarity::jaccard(a, b)` dispatches as
+>   `(Vec<Number>, Vec<Number>)` at
+>   `core/src/fnc/vector.rs:130` — **numeric arrays only**;
+>   string-token arrays fail runtime coercion via
+>   `core/src/val/value/convert/coerce.rs`. Map your tokens to
+>   stable numeric IDs first. **Implementation quirk (v3.0.5):**
+>   the function does NOT compute textbook set Jaccard
+>   `|A ∩ B| / |A ∪ B|`. Per
+>   `core/src/fnc/util/math/vector.rs:120-126` it builds a
+>   `union: HashSet<&Number>` from the first argument, then
+>   counts every element of the second argument whose
+>   `union.insert(n)` returns `false` (i.e. was already in the
+>   running union — either originally from `a` or from an
+>   earlier iteration of `b`). The denominator is the final
+>   `union.len()` (deduped). The numerator is therefore
+>   **multiset-weighted on the second argument (`b`)**: intra-array
+>   duplicates in `b` are double-counted. Concrete divergence:
+>   `vector::similarity::jaccard([1], [1, 1])` returns `2.0`,
+>   not `1.0`. Pre-deduplicate both inputs (`array::distinct(...)`)
+>   for textbook set-Jaccard semantics; otherwise the score is
+>   **`[0, |b|]`-bounded**, not `[0, 1]`-bounded. Both inputs
+>   empty yields `NaN` (`0 / 0`). Fixture coverage
+>   (`core/tests/function.rs:3470-3484`) only exercises distinct
+>   element vectors, where the multiset and set forms agree.
+>   Suitable for **deduped numeric discrete-token vectors** —
+>   stable tag IDs, sparse feature-id lists, hash-bucket
+>   indicators — when callers ensure both inputs are
+>   `array::distinct`-cleaned. NOT suitable for dense
+>   floating-point embeddings: every element of a typical
+>   embedding is effectively unique under set equality, so the
+>   ratio degenerates and the metric is no longer meaningful.
+> - `vector::similarity::pearson(a, b)` computes the Pearson
+>   correlation coefficient
+>   (`covar / (std_dev_a * std_dev_b)`). Range `[-1, 1]` for
+>   finite, non-zero-variance inputs. **Edge cases:** for
+>   exact constant operands whose `mean()` round-trip
+>   recovers the same value, every centered term
+>   `(a_i − mean(a)) * (b_i − mean(b))` is exactly `0.0`,
+>   so covariance is also `0.0` and the result is
+>   `0 / 0 = NaN`. This constant-operand sub-case cannot
+>   produce `Infinity` (the simultaneous collapse forces a
+>   `0 / 0` form). A separate f64 underflow regime — where
+>   centered squared terms underflow to `0` while pairwise
+>   products do not — can still drive `std_dev` to `0.0`
+>   with non-zero covariance, producing `±Infinity` instead
+>   of `NaN`; see the **Pearson zero-denominator path
+>   divergence** callout below for the worked example. This zero-deviation path is reachable
+>   for **integer** constant operands (e.g. `[1, 1, 1]`, where
+>   `mean()` returns `1` exactly and each `x_i − mean` is
+>   exactly `0.0`); for **some floating-point** constant
+>   operands the zero-deviation `NaN` path is NOT taken.
+>   This is **literal-dependent**: it depends on whether
+>   the f64 sum-and-divide round-trip recovers the same f64
+>   bit-pattern as the original element. Concretely, for
+>   `[0.1, 0.1, 0.1]`, `mean()` accumulates via `try_add` to
+>   the next f64 above `0.1`
+>   (`0.10000000000000002`), so each `x_i − mean` is a
+>   non-zero ~1e-17 and `std_dev_a` is a tiny positive
+>   value — finite path. But for constants whose 3-element
+>   f64 sum-and-divide DOES round-trip exactly to the same
+>   element bit-pattern — e.g. `[0.3, 0.3, 0.3]`,
+>   `[0.5, 0.5, 0.5]`, `[0.25, 0.25, 0.25]` — every
+>   `x_i − mean` is exactly `0.0`, `deviation()` returns
+>   `0.0`, and the result is back on the `0 / 0 = NaN`
+>   path. Treat the float-constant outcome as
+>   **value-dependent** rather than uniformly finite or
+>   uniformly NaN. When a float constant DOES dodge the
+>   zero-deviation path (e.g. the `0.1` case above), the
+>   final ratio depends on the OTHER operand: identical
+>   non-roundtrip-float-constant pairs
+>   (e.g. `pearson([0.1, 0.1, 0.1], [0.1, 0.1, 0.1])`)
+>   reduce to a `(σ²) / (σ * σ)` ratio that is `≈ 1.0`
+>   modulo a possible 1-ulp `sqrt`-then-multiply rounding;
+>   one such constant paired with one non-constant collapses
+>   toward `≈ 0` — algebraically `Σ(b_i − mean(b)) = 0`, but
+>   in f64 the rounded residual need not be exactly zero
+>   (e.g. `b = [0.1, 0.2, 0.3]` has `mean(b) =
+>   0.20000000000000004` and a residual sum of ~`-1.11e-16`),
+>   so the numerator is `O(ε × |a|) ×` that rounded residual
+>   — not literally `0` but bounded by ~`ε² × |a| × |b|`.
+>   The final ratio after dividing by the tiny `std_dev(a)`
+>   resolves to roughly `ε`-scale (Codex pass-3 trace example
+>   `pearson([0.1, 0.1, 0.1], [0.1, 0.2, 0.3])` returns
+>   `~4.53e-16`); one
+>   **float**-constant paired with one **integer**-constant
+>   operand still hits `NaN` because the integer side has
+>   exact zero variance regardless of whether the float side
+>   does. **Decimal-typed operands**
+>   (e.g. `[0.1dec, 0.1dec, 0.1dec]`, or fields declared
+>   `array<decimal>`) route through the `Decimal` branches
+>   of `mean()` and `Number::try_add` and can keep the mean
+>   exact — that puts them back on the integer-style
+>   zero-deviation `NaN` path. Any `NaN` element
+>   in either input propagates to a `NaN` result via
+>   NaN-poisoned mean and covariance arithmetic (fixture
+>   `core/tests/function.rs:3489-3495` asserts `"NaN"` as the
+>   second expected result for the NaN-element test). Suitable
+>   for
+>   **mean-shift-tolerant similarity** — for example,
+>   user-rating vectors (where one user rates consistently
+>   higher than another but ranks items in the same relative
+>   order) or time-series correlation.
+>
+> Both functions are also available as `DIST` values when defining
+> an HNSW index, but **prefer the standalone scalar functions
+> (this section) over `DIST JACCARD` / `DIST PEARSON` on an HNSW
+> index** — see the inversion warning at the bottom of this rule.
+> The standalone calls return raw similarity scores and let your
+> own `ORDER BY` clause decide ranking direction; they do not
+> participate in HNSW priority-list ordering, so they are not
+> affected by the inversion bug.
 
 ### Combining KNN Index Search with Computed Similarity
 
@@ -787,8 +977,8 @@ DEFINE INDEX idx_embedding ON TABLE document
 | MINKOWSKI | Generalised distance (Lp norm); set order via `DIST MINKOWSKI <p>` | No | [0, inf) |
 | CHEBYSHEV | Worst-case dimension difference | No | [0, inf) |
 | HAMMING | Binary features, hash comparison | N/A | [0, dim] |
-| JACCARD ⚠ | Set similarity (NOT distance — see warning below) | N/A | [0, 1] (similarity) |
-| PEARSON ⚠ | Correlation-based similarity (NOT distance — see warning below) | No | [-1, 1] (similarity) |
+| JACCARD ⚠ | Numeric-token similarity (NOT distance — see warning below); pre-dedup inputs with `array::distinct(...)` for textbook set semantics | N/A | `NaN` if both inputs empty; otherwise `[0, |b|]` raw (multiset-asymmetric numerator) / `[0, 1]` after pre-dedup |
+| PEARSON ⚠ | Correlation-based similarity (NOT distance — see warning below) | No | finite results in `[-1, 1]`; non-finite (`NaN` / `±Infinity`) possible for zero-denominator or NaN-element inputs (see callout) |
 
 Most text embedding models produce normalized vectors, making COSINE the standard choice. If you are unsure, use COSINE.
 
@@ -808,3 +998,34 @@ Most text embedding models produce normalized vectors, making COSINE the standar
 > instead, or pick a true distance metric (`COSINE`, `EUCLIDEAN`,
 > `MANHATTAN`, `CHEBYSHEV`, `HAMMING`) for indexed nearest-
 > neighbour search.
+>
+> **Pearson zero-denominator path divergence (v3.0.5).** The
+> standalone `vector::similarity::pearson()` and the
+> catalog/brute-force `Distance::compute` path return `NaN`
+> for exact zero-variance constant operands (the
+> `0 / 0` case described in the callout above). They can
+> ALSO return `±Infinity` when f64 **underflow** drives the
+> denominator to `0.0` while covariance remains non-zero —
+> e.g. `pearson([0.0, 1e-308], [0.0, 1e154])` centers to
+> `dx_i ∈ {-5e-309, +5e-309}` and `dy_i ∈ {-5e153, +5e153}`;
+> the squared centered terms `(5e-309)² ≈ 2.5e-617` underflow
+> to `0.0`, so `std_dev_a = 0.0`. Pairwise products
+> `dx_i * dy_i` stay at magnitude `2.5e-155` (well above the
+> f64 minimum normal `~2.2e-308`), so covariance is non-zero
+> at `~2.5e-155` and the final ratio is `+Infinity`
+> (sign-dependent on the operand pairing). Treat any non-finite result (`NaN`,
+> `+Inf`, `-Inf`) as a degenerate input regardless of which
+> route produced it. The HNSW-internal Pearson implementation
+> at
+> `core/src/idx/trees/vector.rs:413-440` instead returns
+> `0.0` when `denominator == 0.0` (the explicit
+> `if denominator == 0.0 { return 0.0; }` short-circuit at
+> `:435-437`) — that does NOT match the standalone path's
+> non-finite behaviour (`NaN` for the `0 / 0`
+> zero-variance case; `±Infinity` for the underflow-driven
+> zero-denominator case). This divergence does NOT make
+> `DIST PEARSON` safe for HNSW; the inversion bug above is
+> the dominant reason to avoid it. The note here is so that
+> readers debugging HNSW vs brute-force scoring understand
+> why zero-denominator inputs produce different outputs
+> depending on which evaluation path runs.
