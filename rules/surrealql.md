@@ -2117,6 +2117,33 @@ registered in v3.0.5. Use `REMOVE SEQUENCE name; DEFINE SEQUENCE
 name START n;` to reset (which renumbers from `n`). There is no
 non-mutating "peek the next value without consuming" function.
 
+### Schema Functions
+
+Verified against v3.0.5 `core/src/fnc/schema.rs`. The `schema::*`
+namespace exposes exactly ONE function in v3.0.5. Schema introspection
+is otherwise done via `INFO FOR DB`, `INFO FOR TABLE name`, and
+`INFO FOR USER name`.
+
+```surql
+-- schema::table::exists(name: string) -> bool
+-- Returns true if a table with the given name is defined in the
+-- current database. Requires Action::View permission on the table
+-- resource (will error under restrictive access).
+schema::table::exists('person')              -- true | false
+
+-- Idiomatic guard before DEFINE
+IF !schema::table::exists('audit_log') THEN
+    DEFINE TABLE audit_log SCHEMAFULL;
+END;
+```
+
+`schema::table::list`, `schema::field::*`, `schema::index::*`,
+`schema::namespace::*`, `schema::database::*`, and any other
+`schema::*` predicates are NOT registered in v3.0.5. Use `INFO FOR
+DB` (returns objects keyed by definition kind) or query the
+`information_schema`-style virtual catalogs through `INFO` for
+broader introspection.
+
 ---
 
 ## Subqueries and Expressions
