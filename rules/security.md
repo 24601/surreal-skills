@@ -548,9 +548,13 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- `core/src/iam/verify.rs:288-297` + `core/src/iam/token.rs:248-275`).
 -- Inbound JWTs MUST carry `ns`, `db`, and `ac` claims for
 -- SurrealDB to route them to an access method. The `token`
--- entry point at `verify.rs:155+` decodes the JWT WITHOUT
--- verifying it first to extract those routing claims, then
--- matches the database-access arm at `:288-297`:
+-- entry point `fn token` at `verify.rs:155` calls
+-- `decode_claims_unverified(token)?` at `:159` (with a
+-- describing comment at `:158`) to decode
+-- the JWT WITHOUT verifying it first (the actual signature
+-- verification runs later, inside the access-method-specific
+-- branch); the resulting `token_data.claims` is then matched
+-- against the database-access arm at `:288-297`:
 --     Claims { ns: Some(ns), db: Some(db), ac: Some(ac), .. }
 -- Tokens missing any of those three fall through to
 -- `_ => Err(InvalidAuth)` at `verify.rs:824-825`. The serde
@@ -806,29 +810,23 @@ Operational notes:
 ```surrealql
 -- Validate JWTs issued by an external IdP (e.g. Auth0). No
 -- inline KEY: SurrealDB fetches the JWK Set at request time and
--- caches it for SURREAL_JWKS_CACHE_EXPIRATION_SECONDS.
+-- caches it for SURREAL_JWKS_CACHE_EXPIRATION_SECONDS. Inbound
+-- JWTs MUST carry NS/DB/AC routing claims (or aliases per
+-- token.rs:248-275) — see the ROUTING-CLAIM REQUIREMENT block
+-- in JWT-Based Authentication above; this applies to TYPE JWT
+-- the same way it applies to TYPE RECORD WITH JWT.
 DEFINE ACCESS auth0_jwt ON DATABASE TYPE JWT
     URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
     DURATION FOR SESSION 12h;
 
--- Same pattern, but as the JWT side of a TYPE RECORD access:
--- third-party JWTs sign in record users. AUTHENTICATE is
--- required because inbound IdP JWTs typically don't carry the
--- SurrealDB `id` claim (verify.rs:401-462 + :464); the example
--- below maps the IdP's `sub` to a local user record. NS/DB/AC
--- routing claims must be present per the requirement
--- documented in the JWT-Based Authentication section above.
-DEFINE ACCESS account ON DATABASE TYPE RECORD
-    WITH JWT
-        URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
-    AUTHENTICATE (
-        SELECT id FROM user WHERE external_id = $token.sub
-    )
-    DURATION FOR SESSION 12h;
--- DURATION FOR TOKEN omitted: on the authenticate path for
--- AccessType::Record without SurrealDB-side minting, the IdP's
--- `exp` claim governs token lifetime; verify.rs reads only
--- de.session_duration here (verify.rs:457).
+-- The TYPE RECORD WITH JWT URL shape — third-party JWTs sign
+-- in record users via AUTHENTICATE — is shown below as
+-- Pattern A (`jwks_inbound`). AUTHENTICATE is required because
+-- inbound IdP JWTs typically don't carry the SurrealDB `id`
+-- claim (verify.rs:401-462 + :464). The two patterns
+-- (`jwks_inbound` + `credential_mint`) below cover the full
+-- combinatorial space of JWKS-backed verification + optional
+-- SurrealDB-side minting.
 
 -- TYPE JWT + WITH ISSUER is parser-accepted but currently has no
 -- signin entry point that mints tokens — see the "TYPE JWT is a
@@ -849,17 +847,23 @@ DEFINE ACCESS account ON DATABASE TYPE RECORD
 -- never mints tokens itself.
 DEFINE ACCESS jwks_inbound ON DATABASE TYPE RECORD
     -- Same clause-order constraint as external_jwt_auth above.
+    -- NS/DB/AC routing claims must be present on the inbound
+    -- JWT — see the ROUTING-CLAIM REQUIREMENT block in
+    -- JWT-Based Authentication above.
     WITH JWT
         URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
     AUTHENTICATE (
         SELECT id FROM user WHERE external_id = $token.sub
     )
     DURATION FOR SESSION 12h;
--- DURATION FOR TOKEN is omitted: on the authenticate path for
--- AccessType::Record without SurrealDB-side minting, the IdP's
--- own `exp` claim governs token lifetime; verify.rs reads
--- `de.session_duration` for session expiry but does not consume
--- `de.token_duration` here.
+-- DURATION FOR TOKEN is omitted: on the AccessType::Record
+-- authenticate path without SurrealDB-side minting, the IdP's
+-- own `exp` claim governs token lifetime. `DURATION FOR
+-- SESSION` IS applied at `verify.rs:457` (no-id claims arm,
+-- where AUTHENTICATE runs — the typical IdP-`sub` path) or
+-- `:282` (with-id claims arm, when the inbound JWT happens
+-- to carry SurrealDB's own `id` claim). `de.token_duration`
+-- is not consumed in either arm.
 
 -- Pattern B — SurrealDB-side credential mint, round-trippable.
 -- Use INLINE KEY (not URL) on the verifier so SurrealDB-minted
