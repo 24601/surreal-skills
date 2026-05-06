@@ -764,15 +764,39 @@ ORDER BY similarity DESC;
 The `MTREE` index keyword that earlier rule revisions documented
 does not exist in the current SurrealDB v3 grammar (only `HNSW` is
 defined). For exact-kNN lookups without an index, use the
-brute-force operator:
+brute-force `<|k,dist|>` operator (`NearestNeighbor::K` variant
+at `core/src/sql/operator.rs:393`). The distance metric on the
+operator MUST match the score function used in `SELECT` /
+`ORDER BY` — mixing them (e.g. brute-force filter by Euclidean
+distance, then ranking by cosine similarity) returns the closest
+results by Euclidean and re-orders them by an unrelated cosine
+score, which is almost never what you want.
 
 ```surql
+-- Cosine: smaller = more similar in this operator (`<|k,COSINE|>`
+-- reduces to a distance, not a similarity), so use
+-- `vector::similarity::cosine(...)` for the projected score and
+-- ORDER BY similarity DESC to surface the most-similar first.
 SELECT id, title,
     vector::similarity::cosine(embedding, $query_embedding) AS similarity
 FROM document
-WHERE embedding <|10,EUCLIDEAN|> $query_embedding
+WHERE embedding <|10,COSINE|> $query_embedding
 ORDER BY similarity DESC;
+
+-- Euclidean: smaller distance = closer; project the matching
+-- distance function and ORDER BY ASCENDING.
+SELECT id, title,
+    vector::distance::euclidean(embedding, $query_embedding) AS distance
+FROM document
+WHERE embedding <|10,EUCLIDEAN|> $query_embedding
+ORDER BY distance ASC;
 ```
+
+The `<|k,…|>` brute-force form has two siblings — `<|k|>`
+(`NearestNeighbor::KTree`, requires a defined index) and
+`<|k,ef|>` (`NearestNeighbor::Approximate`, HNSW with explicit
+`ef` parameter). Keep the score-vs-filter metric paired in all
+three forms.
 
 ### RAG (Retrieval-Augmented Generation) Pattern
 
