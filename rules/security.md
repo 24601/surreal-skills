@@ -494,12 +494,20 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- NO runtime signin path that consumes it — see the
 -- "verification-only" callout above.
 DEFINE ACCESS external_auth ON DATABASE TYPE RECORD
-    SIGNIN (
-        -- Map a JWT subject claim to a user record. Without a
-        -- SIGNIN clause, SurrealDB validates the JWT but does not
-        -- bind it to a record — `$auth.id` stays unset and only
-        -- `$token` is available in PERMISSIONS.
-        SELECT * FROM user WHERE external_id = $token.sub
+    -- Map a JWT subject claim to a user record. `$token` holds the
+    -- decoded JWT claims and is available inside AUTHENTICATE
+    -- (NOT inside SIGNIN — SIGNIN runs against signin variables
+    -- like `$id`/`$email`/`$pass` and does not see `$token`;
+    -- `sess.tk` is populated at `core/src/iam/signin.rs:340-345`
+    -- before AUTHENTICATE runs but after SIGNIN evaluates).
+    -- Without an AUTHENTICATE clause, SurrealDB validates the JWT
+    -- via the verifier but does not bind it to a record —
+    -- `$auth.id` stays unset, only `$token` claims are available
+    -- in PERMISSIONS. The canonical pattern (test fixture at
+    -- `core/src/iam/verify.rs:2034`) wires AUTHENTICATE for
+    -- `$token`-driven record lookup.
+    AUTHENTICATE (
+        SELECT id FROM user WHERE external_id = $token.sub
     )
     WITH JWT
         ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
@@ -544,7 +552,8 @@ and the nested `WITH JWT` clause inside `TYPE RECORD` (the same
 > in `core/src/iam/verify.rs` (lines 228-240, 340-352, 412-424,
 > 573-585, 725-737). Without the feature, the JWKS arm is
 > replaced by a `_ => bail!(Error::AccessMethodMismatch)`
-> branch and the access definition stops authenticating.
+> branch and the verification path no longer authenticates
+> incoming JWTs.
 >
 > The `jwks` feature is **NOT** in the default
 > `surrealdb-server` feature set (`server/Cargo.toml:19-30` —
@@ -561,16 +570,34 @@ and the nested `WITH JWT` clause inside `TYPE RECORD` (the same
 > against the release notes that JWKS is enabled before relying
 > on `URL '<jwks-uri>'` for production verification.
 >
-> **The gate applies even to hybrid setups.** A `TYPE RECORD WITH
-> JWT URL '<jwks>' WITH ISSUER ALGORITHM <alg> KEY '<priv>'`
-> definition keeps inline-key issuance (the `WITH ISSUER` half
-> doesn't itself need `reqwest`), but the verification half still
-> goes through the same `JwtAccessVerify::Jwks` arms that are
-> `#[cfg(feature = "jwks")]`. Without `--features jwks`, the
-> access method **stops authenticating entirely** even though
-> the issuance side technically still has its key — incoming
-> tokens hit the `_ => bail!(AccessMethodMismatch)` branch on
-> the verification path before the issuer ever runs.
+> **The gate scopes to incoming-JWT verification, not all
+> signin paths.** For a `TYPE RECORD WITH JWT URL '<jwks>'
+> WITH ISSUER ALGORITHM <alg> KEY '<priv>'` definition that has
+> a `SIGNIN`/`SIGNUP` clause, credential-based signin still
+> works (it goes through `db_access` at
+> `core/src/iam/signin.rs:245-410`, which never invokes the
+> JWKS verifier arms). Only **incoming third-party JWTs** —
+> tokens presented to the `authenticate` path that route
+> through `verify.rs` — fail when the feature is off.
+>
+> **JWKS round-trip limitation.** Tokens that SurrealDB *mints*
+> from this hybrid (after a successful signin) cannot
+> subsequently re-authenticate through the same access
+> method's JWKS verifier. SurrealDB encodes minted JWTs with
+> bare `Header::new(...)` at
+> `core/src/iam/signin.rs:369 / :938` and
+> `core/src/iam/signup.rs:268`, which omits the `kid` claim;
+> the JWKS verifier requires `token_data.header.kid` to look
+> up the verification key (`verify.rs:230-237` etc., bailing
+> with "Missing token header 'kid'" otherwise). The hybrid
+> pattern is therefore appropriate for **one-way** validation
+> of third-party-issued JWTs (which carry their own `kid`),
+> not for round-tripping SurrealDB-issued tokens. If you need
+> SurrealDB-issued tokens to be re-validatable, use
+> `TYPE RECORD WITH JWT ALGORITHM <alg> KEY '<pub>' WITH ISSUER
+> ALGORITHM <alg> KEY '<priv>'` (inline KEY on the verifier
+> side, NOT URL) so verification is keyed by the static public
+> key rather than a JWKS lookup.
 
 Verified against:
 
@@ -613,11 +640,25 @@ Operational notes:
   capabilities check (do not assume capability enforcement
   applies to redirect chains — keep your IdP under a stable
   hostname, or run JWKS through a proxy you control).
-- `WITH ISSUER` is **not** a JWKS-issuance hybrid for `TYPE
-  JWT` — see the verification-only callout at the top of
-  "JWT-Based Authentication" above. Use `TYPE RECORD WITH JWT
-  URL … WITH ISSUER KEY …` if you need both JWKS validation and
-  SurrealDB-side token minting.
+- `WITH ISSUER` on a pure `TYPE JWT` is **not** a runtime
+  issuance hybrid — see the verification-only callout at the
+  top of "JWT-Based Authentication" above. For setups that
+  need both JWKS-backed validation of third-party tokens AND
+  SurrealDB-minted credential signin tokens, use `TYPE RECORD
+  WITH JWT URL '<jwks>' WITH ISSUER ALGORITHM <alg> KEY
+  '<priv>'`. The `ALGORITHM` token in `WITH ISSUER` is
+  REQUIRED because the URL/JWKS verifier branch at
+  `core/src/syn/parser/stmt/define.rs:1716-1722` does NOT set
+  `iss.alg` (the inline-key branch at `:1697` does); without
+  explicit `ALGORITHM <alg>` the issuer side falls back to
+  `JwtAccessIssue::default()` (Hs512 from
+  `sql/access_type.rs:181-191`) and treats your asymmetric
+  private key as an HMAC secret at `iam/issue.rs:10-28`.
+  Note: even with the correct `ALGORITHM`, the round-trip
+  limitation in the JWKS callout above still applies —
+  SurrealDB-minted tokens cannot be re-validated against the
+  same access method's JWKS endpoint because they ship without
+  a `kid` header.
 
 ```surrealql
 -- Validate JWTs issued by an external IdP (e.g. Auth0). No
@@ -637,16 +678,42 @@ DEFINE ACCESS account ON DATABASE TYPE RECORD
 -- TYPE JWT + WITH ISSUER is parser-accepted but currently has no
 -- signin entry point that mints tokens — see the "TYPE JWT is a
 -- verification-only access method" callout above. To both verify
--- via JWKS and mint SurrealDB-side tokens, wrap the JWT verifier
--- in a TYPE RECORD access method. SurrealDB then mints a
--- record-bound JWT after SIGNIN/SIGNUP at
--- `core/src/iam/signin.rs:275-318`.
+-- third-party JWTs via JWKS and mint SurrealDB-side tokens after
+-- credential signin, wrap the JWT verifier in a TYPE RECORD
+-- access method. SurrealDB mints a record-bound JWT after
+-- SIGNIN/SIGNUP at `core/src/iam/signin.rs:275-318`. NOTE: the
+-- minted token CANNOT be re-validated through this access
+-- method's JWKS verifier — SurrealDB ships it without a `kid`
+-- header (signin.rs:369), so `verify.rs:230-237` bails with
+-- "Missing token header 'kid'" on round-trip. JWKS here is
+-- ONE-WAY for inbound third-party tokens.
+--
+-- AUTHENTICATE (not SIGNIN) is the clause that can read
+-- $token.* claims — sess.tk is populated at
+-- core/src/iam/signin.rs:340-345 between SIGNIN evaluation and
+-- AUTHENTICATE execution. SIGNIN runs first against signin
+-- variables ($email, $pass, $id, ...) without $token; if you
+-- need to map a JWT claim to a record, use AUTHENTICATE.
 DEFINE ACCESS hybrid_record ON DATABASE TYPE RECORD
     SIGNIN (
-        SELECT * FROM user WHERE external_id = $token.sub
+        -- Credential-based signin: validate password against the
+        -- record. $token is NOT available here.
+        SELECT * FROM user
+        WHERE email = $email
+        AND crypto::argon2::compare(pass, $pass)
+    )
+    AUTHENTICATE (
+        -- After a third-party JWT validates against the JWKS
+        -- endpoint above, AUTHENTICATE can resolve the bound
+        -- record from claims; canonical pattern from the test
+        -- fixture at `core/src/iam/verify.rs:2034`.
+        SELECT id FROM user WHERE external_id = $token.sub
     )
     WITH JWT
         URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
+    -- ALGORITHM is REQUIRED with URL verifier (line 1716-1722
+    -- doesn't set iss.alg; default is Hs512 — would silently
+    -- treat the PS256 PEM as an HMAC secret without this).
     WITH ISSUER ALGORITHM PS256 KEY '-----BEGIN PRIVATE KEY-----
 …
 -----END PRIVATE KEY-----'
