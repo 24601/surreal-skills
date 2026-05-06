@@ -587,19 +587,27 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
     AUTHENTICATE (
         -- $token.sub is the IdP's subject claim; map it to the
         -- local user record. `sess.tk` (the source of $token) is
-        -- populated by the authenticate path at
-        -- `core/src/iam/verify.rs:256-263` (claims arm with id)
-        -- or `:432-440` (claims arm without id) before
-        -- AUTHENTICATE executes — NOT by the SIGNIN-mint path
-        -- at signin.rs:340-345 (this access method has no
-        -- SIGNIN clause).
+        -- populated by the authenticate path BEFORE this
+        -- AUTHENTICATE clause runs:
+        --   • Typical IdP-`sub` JWTs (no SurrealDB `id` claim)
+        --     hit the claims-without-id arm at
+        --     `core/src/iam/verify.rs:432-440` — this is the
+        --     usual path for Pattern A.
+        --   • If the inbound JWT happens to also carry a
+        --     SurrealDB `id` claim, the with-id arm at
+        --     `verify.rs:256-263` populates `sess.tk` instead
+        --     and SurrealDB binds the record directly.
+        -- Neither path involves SIGNIN-mint at signin.rs:340-345
+        -- — this access method has no SIGNIN clause.
         SELECT id FROM user WHERE external_id = $token.sub
     )
     DURATION FOR SESSION 12h;
--- Note: `DURATION FOR TOKEN` is NOT applied on the authenticate
--- path for AccessType::Jwt-shaped flows — the IdP's own `exp`
+-- Note: `DURATION FOR TOKEN` is NOT applied on the
+-- AccessType::Record authenticate path — the IdP's own `exp`
 -- claim governs token lifetime. `DURATION FOR SESSION` IS applied
--- (verify.rs:394) to bound the SurrealDB session.
+-- (`verify.rs:457` for the no-id claims arm where AUTHENTICATE
+-- runs; `:282` for the with-id claims arm) to bound the
+-- SurrealDB session.
 
 -- Pattern B — Credential SIGNIN with SurrealDB-minted JWT.
 -- For a classic email/password flow where SurrealDB issues a
@@ -804,11 +812,23 @@ DEFINE ACCESS auth0_jwt ON DATABASE TYPE JWT
     DURATION FOR SESSION 12h;
 
 -- Same pattern, but as the JWT side of a TYPE RECORD access:
--- third-party JWTs sign in record users.
+-- third-party JWTs sign in record users. AUTHENTICATE is
+-- required because inbound IdP JWTs typically don't carry the
+-- SurrealDB `id` claim (verify.rs:401-462 + :464); the example
+-- below maps the IdP's `sub` to a local user record. NS/DB/AC
+-- routing claims must be present per the requirement
+-- documented in the JWT-Based Authentication section above.
 DEFINE ACCESS account ON DATABASE TYPE RECORD
     WITH JWT
         URL 'https://your-tenant.auth0.com/.well-known/jwks.json'
-    DURATION FOR TOKEN 15m, FOR SESSION 12h;
+    AUTHENTICATE (
+        SELECT id FROM user WHERE external_id = $token.sub
+    )
+    DURATION FOR SESSION 12h;
+-- DURATION FOR TOKEN omitted: on the authenticate path for
+-- AccessType::Record without SurrealDB-side minting, the IdP's
+-- `exp` claim governs token lifetime; verify.rs reads only
+-- de.session_duration here (verify.rs:457).
 
 -- TYPE JWT + WITH ISSUER is parser-accepted but currently has no
 -- signin entry point that mints tokens — see the "TYPE JWT is a
@@ -1073,8 +1093,10 @@ ACCESS service_tokens ON DATABASE PURGE EXPIRED, REVOKED FOR 30d;
   `DATABASE`, so their lifecycle subcommands work at the same
   bases.
 - `GRANT FOR RECORD` is **database-only** at runtime
-  (`core/src/expr/statements/access.rs:226-234, :353-355`
-  enforces `Base::Db` for record subjects). The corresponding
+  (`core/src/expr/statements/access.rs:231-234` for the
+  AccessType::Record arm + `:353-355` for the
+  AccessType::Bearer arm — both call `ensure!(matches!(base,
+  Base::Db), Error::DbEmpty);` for record subjects). The corresponding
   `DEFINE ACCESS … TYPE BEARER FOR RECORD` and `TYPE RECORD`
   are also DB-only at parse time
   (`core/src/syn/parser/stmt/define.rs:457-461, :521-526`). The
