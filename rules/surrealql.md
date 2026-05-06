@@ -1055,24 +1055,29 @@ REMOVE BUCKET images;
 
 ### ALTER
 
-Modifies an existing schema object in-place. v3 dispatches `ALTER`
-across seventeen targets (verified at `core/src/syn/parser/stmt/
-alter.rs` lines 26-44 and `core/src/expr/statements/alter/`):
-`ALTER SYSTEM`, `ALTER NAMESPACE`, `ALTER DATABASE`, `ALTER TABLE`,
-`ALTER EVENT`, `ALTER INDEX`, `ALTER FIELD`, `ALTER PARAM`,
-`ALTER SEQUENCE`, `ALTER BUCKET`, `ALTER ANALYZER`,
-`ALTER FUNCTION`, `ALTER USER`, `ALTER ACCESS`, `ALTER CONFIG`,
-`ALTER API`, `ALTER MODULE`. The examples below cover the most
-commonly-used subset (SYSTEM, NAMESPACE, DATABASE, TABLE, INDEX,
-FIELD, SEQUENCE); for the remaining ten targets (EVENT, PARAM,
-BUCKET, ANALYZER, FUNCTION, USER, ACCESS, CONFIG, API, MODULE) the
-clause surface follows the same general shape (IF EXISTS, COMMENT/
-DROP COMMENT, plus target-specific clauses) — consult the upstream
-parser source above for the full clause set on each. Use `ALTER`
-when you
-need to change an attribute of an existing definition without
-losing the object's history or dropping dependent objects (which a
-`REMOVE` + `DEFINE` cycle would do).
+Modifies an existing schema object in-place. v3.0.5 dispatches
+`ALTER` across **seven** targets only (verified against
+`core/src/syn/parser/stmt/alter.rs` lines 17-26 and the seven
+modules under `core/src/sql/statements/alter/` — `database.rs`,
+`field.rs`, `index.rs`, `namespace.rs`, `sequence.rs`, `system.rs`,
+`table.rs`): `ALTER SYSTEM`, `ALTER NAMESPACE`, `ALTER DATABASE`,
+`ALTER TABLE`, `ALTER INDEX`, `ALTER FIELD`, `ALTER SEQUENCE`.
+
+> **Not supported in v3.0.5.** `ALTER EVENT`, `ALTER PARAM`,
+> `ALTER BUCKET`, `ALTER ANALYZER`, `ALTER FUNCTION`, `ALTER USER`,
+> `ALTER ACCESS`, `ALTER CONFIG`, `ALTER API`, and `ALTER MODULE`
+> do **not** parse — the dispatch arm in `parse_alter_stmt` rejects
+> any keyword outside the seven listed above with `unexpected!(self,
+> next, "a alter statement keyword")`. To change one of these
+> objects, use `REMOVE` + `DEFINE` (which is what a future `ALTER`
+> would have to compile to anyway, since the upstream statement
+> implementations don't exist yet). Earlier revisions of this file
+> (v1.5.7 through v1.5.10) listed seventeen `ALTER` targets; that
+> claim was wrong and is corrected here in v1.6.0.
+
+Use `ALTER` when you need to change an attribute of an existing
+definition without losing the object's history or dropping
+dependent objects (which a `REMOVE` + `DEFINE` cycle would do).
 
 ```surql
 -- ALTER SYSTEM — set or drop the global query timeout, run a global
