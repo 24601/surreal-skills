@@ -271,11 +271,20 @@ lines 492-500 (the `WITH REFRESH` arm of the `TYPE RECORD` parser
 loop, which constructs a `BearerAccess { kind: Refresh, subject:
 Record, jwt: <inherited from WITH JWT> }`) and exercised by the
 parser test fixtures at `core/src/syn/parser/test/stmt.rs:911`,
-`:1108`, `:1163`. Runtime behaviour is in
-`core/src/iam/signin.rs:279-355` (signin path consumes a `refresh`
-variable and rotates the bearer grant) and
-`core/src/iam/access.rs:107-170` (`create_refresh_token_record` /
-`revoke_refresh_token_record`).
+`:1108`, `:1163`. Runtime behaviour is split across two ranges:
+
+- **Initial issuance** (`core/src/iam/signin.rs:279-295` for the
+  refresh-var dispatch + `:352-364` for the
+  `create_refresh_token_record(...)` call after a successful
+  `SIGNIN`).
+- **Rotation on subsequent renewals** (`core/src/iam/signin.rs:893-917`
+  inside `signin_bearer`'s `BearerAccessType::Refresh` arm —
+  `revoke_refresh_token_record(old_grant)` followed by
+  `create_refresh_token_record(new_grant)`, returning a new
+  bearer key).
+
+Helpers used by both phases live at `core/src/iam/access.rs:107-170`
+(`create_refresh_token_record` / `revoke_refresh_token_record`).
 
 Key semantics:
 
@@ -287,8 +296,14 @@ Key semantics:
   ceiling.
 - Refresh tokens are **single-use**: each successful refresh
   invalidates the prior token and returns a new one (verified at
-  `core/src/iam/signin.rs:282-355`). Reusing a consumed refresh
+  `core/src/iam/signin.rs:893-917`). Reusing a consumed refresh
   token is rejected.
+- The refresh value the client sees is the full bearer key
+  (`<grant-id>-<secret>` shape constructed inside
+  `create_refresh_token_record`; signin validates `id` plus
+  `secret` at `core/src/iam/signin.rs:1042-1056`), not just the
+  grant id. Persist the value SurrealDB hands back verbatim — do
+  not split it client-side.
 - `WITH REFRESH` and `WITH JWT` can coexist in either order; the
   parser loop accepts repeated `WITH` clauses (test fixtures
   `:1108` shows `WITH REFRESH WITH JWT …`; `:1163` shows
@@ -326,7 +341,9 @@ const tokens = await db.signin({
     variables: { email, pass }
 });
 // tokens shape with WITH REFRESH:
-//   { access: '<jwt>', refresh: '<bearer-grant-id>' }
+//   { access: '<jwt>', refresh: '<full-bearer-key-id-and-secret>' }
+// The refresh value SurrealDB returns is the complete bearer key
+// (id + secret combined). Persist it verbatim; do not split.
 
 // Later, when the access token is near expiry, exchange the refresh
 // token for a fresh pair WITHOUT prompting for credentials again.
