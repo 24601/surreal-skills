@@ -2088,8 +2088,14 @@ important ways:
    informal-English reading of "difference" as `A \ B`. Source:
    `core/src/fnc/set.rs:68-76` (set), `core/src/val/array.rs:289-323`
    (array).
-2. Sets have BTree ordering — `at`, `first`, `last`, `slice`
-   return elements in sorted order, not insertion order.
+2. Sets are stored in `BTreeSet<Value>` (Rust standard-library
+   BTree), so iteration / positional access is in **`Value::Ord`
+   sort order**, not insertion order. `at`, `first`, `last`,
+   `slice`, and the closure-based traversal functions all visit
+   elements in this `Value::Ord` order. The ordering is determined
+   by the cross-type `Value` comparator defined upstream (numbers
+   before strings before arrays, etc.), not a SurrealDB-specific
+   custom ordering.
 3. Closure-based methods (`all`, `any`, `filter`, `find`, `fold`,
    `map`, `reduce`) iterate in sorted order and the closure receives
    one element at a time (or `(accum, val)` for fold/reduce).
