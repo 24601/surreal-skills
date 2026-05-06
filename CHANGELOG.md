@@ -3,6 +3,105 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.2] - 2026-05-06 — `rules/security.md` deferred-IMPORTANT clause closure (4 atomic feature commits + release commit)
+
+### Added
+
+- **`rules/security.md` Access-and-user clause catalog (batch 3 of
+  the v1.5.x deferred-IMPORTANT cleanup).** Closes the five
+  deferred bullets attributed to `rules/security.md` in the v1.5.x
+  convergence notes, all verified against the v3.0.5 source tree
+  at `/tmp/surrealdb-v3.0.5/surrealdb/core/src/{syn,sql,iam}/`
+  rather than against the docs site (which still lags v3.0.5).
+  - **`WITH REFRESH` on `TYPE RECORD`** — bearer-grant-backed
+    refresh-token flow with single-use rotation; coexists with
+    `WITH JWT` in either order; `DURATION FOR GRANT` controls
+    refresh-token lifetime, `FOR TOKEN` controls access-token
+    lifetime, `FOR SESSION` controls session ceiling. Verified
+    against `core/src/syn/parser/stmt/define.rs:492-500`,
+    `core/src/iam/signin.rs:279-355`,
+    `core/src/iam/access.rs:107-170`, plus parser test fixtures
+    `core/src/syn/parser/test/stmt.rs:911 / :1108 / :1163`.
+    Includes a JS-SDK client renewal example showing the
+    `{access, refresh}` token shape.
+  - **`WITH JWT URL '<jwks-uri>'` (JWKS endpoint)** — alternative
+    to inline `ALGORITHM <alg> KEY <key>` for both `TYPE JWT` and
+    nested `WITH JWT` inside `TYPE RECORD`. Standard pattern for
+    integrating with external IdPs (Auth0, Okta, Cognito, Google,
+    Azure AD) that publish a JWKS document and rotate signing
+    keys on their own schedule. Documents the cache-TTL
+    environment variables (`SURREAL_JWKS_CACHE_EXPIRATION_SECONDS`,
+    `SURREAL_JWKS_CACHE_COOLDOWN_SECONDS`,
+    `SURREAL_JWKS_REMOTE_TIMEOUT_MILLISECONDS`), the capabilities
+    requirement to permit network access to the JWKS host, and
+    the hybrid pattern combining JWKS-verify with `WITH ISSUER`
+    inline-key issuance. Verified against
+    `core/src/syn/parser/stmt/define.rs:1716-1722` and
+    `core/src/iam/jwks.rs`, plus parser test fixtures
+    `core/src/syn/parser/test/stmt.rs:703 / :731 / :762 / :792 /
+    :823`.
+  - **`ACCESS GRANT / SHOW / REVOKE / PURGE` statements** — the
+    four top-level subcommands that manage bearer-grant lifecycle
+    against a `DEFINE ACCESS … TYPE BEARER` access method.
+    Documents the issue-once / hash-stored / no-recovery
+    semantics for `GRANT`, the auditing surface of `SHOW { ALL |
+    GRANT <id> | WHERE <cond> }`, the soft-revocation semantics
+    of `REVOKE` (revoked grants stop authenticating immediately
+    but remain visible until purged), and the `PURGE { EXPIRED |
+    REVOKED | EXPIRED, REVOKED } [ FOR <duration> ]` physical
+    deletion path with optional grace-period clause. Includes an
+    end-to-end credential-rotation playbook combining all four
+    subcommands. Verified against
+    `core/src/syn/parser/stmt/mod.rs:108-271` and parser test
+    fixtures `core/src/syn/parser/test/stmt.rs:2604 / :2621 /
+    :2645-2683 / :2703-2741 / :2761-2853` (every subcommand and
+    its parameter variants).
+  - **`DEFINE USER PASSHASH` clause** — accept a pre-hashed
+    [argon2 PHC string](https://en.wikipedia.org/wiki/PHC_string_format)
+    instead of a plaintext `PASSWORD`; mutually exclusive with
+    `PASSWORD` per parser bail at
+    `core/src/syn/parser/stmt/define.rs:349 / :356`. Documents
+    the migration-from-external-IdP use case (re-hashing an
+    already-hashed string locks legacy users out) and the
+    `crypto::argon2::generate($plaintext)` `RETURN`-trick for
+    on-the-fly hashing on the SurrealDB side.
+  - **`DEFINE USER DURATION FOR { TOKEN | SESSION } <expr>`
+    clause** — per-user override of the token (default 1h per
+    `define.rs:336`) and session (default unbounded per
+    `core/src/sql/statements/define/user.rs:43`) expiry; both
+    accepted in either order, comma-separated; either alone
+    valid; `NONE` opts out of expiry on the corresponding axis
+    (test fixture `stmt.rs:402` exercises `DURATION FOR TOKEN
+    NONE`). Application path verified at
+    `core/src/iam/signin.rs:481 / :502` and
+    `core/src/iam/verify.rs:106`. Includes a combined `PASSHASH +
+    ROLES + DURATION + COMMENT` example showing the full v3
+    `DEFINE USER` clause set.
+
+### Process notes
+
+Five clauses landed across four atomic feature commits (one for
+each of `WITH REFRESH`, `WITH JWT URL`, `ACCESS subcommands`, and
+the combined `PASSHASH + DURATION` subsection — the latter two
+clauses naturally compose on the same statement and share a
+verification path, so they ship as one atomic edit per the
+v1.6.0 / v1.6.1 atomic-protocol pattern). 4-WAY adversarial
+review still pending at draft time; will iterate per the same
+cadence as v1.6.0 / v1.6.1 (4-7 review revisions expected;
+Codex deepest, Pi second-deepest, Cursor packaging, Gemini
+sanity baseline).
+
+This pass extends the v1.6.0 / v1.6.1 verification escalator —
+every claim grounded in a parser-source line range plus a parser
+test-fixture line, so any reviewer can trace a clause back to
+the v3.0.5 commit that defined it. Remaining v1.5.x deferred
+IMPORTANTs after v1.6.2: surrealql.md data-type / DEFINE API /
+DEFINE CONFIG / INFO FOR INDEX|USER variants;
+vector-search.md HASHED_VECTOR / MINKOWSKI / jaccard-pearson
+similarity-function examples; performance.md TLS flags and
+SURREAL_HNSW_CACHE_SIZE env-var; graph-queries.md sub-SELECT
+graph clauses; data-modeling.md illustrative-edge consistency.
+
 ## [1.6.1] - 2026-05-06 — Function namespace catalog (10 atomic feature commits + release commit, plus rev-2 review-fix commits)
 
 ### Added
