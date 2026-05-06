@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [1.6.1] - 2026-05-06 — Function namespace catalog (10 atomic commits)
+## [1.6.1] - 2026-05-06 — Function namespace catalog (10 atomic feature commits + release commit, plus rev-2 review-fix commits)
 
 ### Added
 
