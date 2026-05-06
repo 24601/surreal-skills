@@ -2203,6 +2203,109 @@ Argument shape notes (verified against `file.rs`):
 `file::move` does NOT exist — use `file::rename` (intra-bucket) or
 `file::copy` followed by `file::delete` (cross-bucket).
 
+### API Functions
+
+Verified against v3.0.5 `core/src/fnc/api/{mod,req,res}.rs`. The
+`api::*` namespace exposes 7 functions, but they split into two
+distinct usage modes:
+
+1. **Callable from regular SurrealQL** — `api::invoke` only.
+2. **Middleware-only** — `api::req::body`, `api::res::body`,
+   `api::res::status`, `api::res::header`, `api::res::headers`,
+   `api::timeout`. These take a `next` closure as one of their
+   arguments and are designed to compose inside a
+   `DEFINE API ... MIDDLEWARE` chain. Calling them outside that
+   context gives undefined results.
+
+```surql
+-- ============================================
+-- 1. Callable: api::invoke
+-- ============================================
+
+-- api::invoke(path: string, req?: object) -> object
+-- Calls a defined API endpoint internally (server-side dispatch,
+-- no HTTP round-trip). Path MUST start with '/'. The optional
+-- request object accepts:
+--   { method: 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head',
+--     headers: { ... }, body: <any>, params: { ... } }
+-- Defaults: GET, Content-Type + Accept set to native SurrealDB
+-- format if absent. Returns the response object with `context`
+-- stripped. Returns a NotFound-shaped response if no matching
+-- definition.
+
+api::invoke('/users/123');                                  -- GET
+api::invoke('/users/123', { method: 'get' });
+api::invoke('/users', {
+    method: 'post',
+    body: { name: 'Tobie', age: 33 }
+});
+
+-- ============================================
+-- 2. Middleware-only (used inside DEFINE API ... MIDDLEWARE)
+-- ============================================
+
+-- api::req::body(strategy?) — parse the request body in place.
+-- Strategies: 'auto' (default; sniff Content-Type), 'json', 'cbor',
+-- 'flatbuffers', 'plain' (UTF-8 string), 'bytes' (raw, no parse),
+-- 'native' (SurrealDB native).
+DEFINE API "/users"
+    FOR post
+        MIDDLEWARE api::req::body('json')
+        THEN { RETURN { status: 201, body: { name: $request.body.name } }; };
+
+-- api::res::body(strategy?) — serialize the response body.
+-- Same strategy set; 'auto' negotiates from Accept header.
+DEFINE API "/data"
+    FOR get
+        MIDDLEWARE api::res::body('cbor')
+        THEN { RETURN { status: 200, body: { hello: 'world' } }; };
+
+-- api::res::status(code: int) — set status code (must be 100..=599).
+DEFINE API "/not-found"
+    FOR get
+        MIDDLEWARE api::res::status(404)
+        THEN { RETURN { body: { error: 'gone' } }; };
+
+-- api::res::header(name: string, value?: string) — set or remove a
+-- single response header. Pass NONE for value to remove.
+DEFINE API "/cors"
+    FOR get
+        MIDDLEWARE api::res::header('Access-Control-Allow-Origin', '*')
+        THEN { RETURN { status: 200, body: {} }; };
+
+-- api::res::headers(map: { string: string|NONE }) — batch set/remove.
+-- Strings set; NONE removes. More efficient than chaining
+-- api::res::header for many headers.
+DEFINE API "/secure"
+    FOR get
+        MIDDLEWARE api::res::headers({
+            'X-Frame-Options': 'DENY',
+            'X-Content-Type-Options': 'nosniff',
+            'Server': NONE,                  -- removes the Server header
+        })
+        THEN { RETURN { status: 200, body: {} }; };
+
+-- api::timeout(duration) — abort request processing after duration.
+DEFINE API "/slow"
+    FOR get
+        MIDDLEWARE api::timeout(5s)
+        THEN { RETURN { status: 200, body: 'done' }; };
+```
+
+Argument-shape notes:
+- `api::invoke` is a regular async function — its `req` arg is a
+  PUBLIC `ApiRequest` object converted via `FromPublic`, so
+  enum-style values like `method` are case-insensitive lowercase
+  strings.
+- The middleware functions all take `(req, next, ...args)` and
+  invoke `next.invoke(...)` to continue the chain. Their first
+  visible argument in the SurrealQL call is the strategy / status /
+  header — `req` and `next` are bound implicitly by the
+  `DEFINE API ... MIDDLEWARE` runtime.
+- `api::res::status` validates the code via `StatusCode::from_u16`
+  and rejects any value outside `100..=599` with
+  `ApiError::InvalidStatusCode`.
+
 ---
 
 ## Subqueries and Expressions
