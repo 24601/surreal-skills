@@ -1831,14 +1831,31 @@ rand::ulid()                                 -- random ULID
 
 ### Session Functions
 
+Verified against v3.0.5 `core/src/fnc/session.rs`. There are EIGHT
+session functions, not six — `session::ac` (access method name) and
+`session::rd` (record-access record reference) are documented here
+for the first time alongside the existing six.
+
 ```surql
+session::ac()                                -- current access method name (auth)
 session::db()                                -- current database name
 session::id()                                -- current session ID
 session::ip()                                -- client IP address
 session::ns()                                -- current namespace name
 session::origin()                            -- request origin
+session::rd()                                -- record-access record reference
+                                             --   (e.g. user:tobie when signed in
+                                             --    via DEFINE ACCESS ... FOR RECORD)
 session::token()                             -- current auth token claims
 ```
+
+Each function reads from the in-memory `session` value on the
+`FrozenContext` and returns `NONE` if the corresponding field is
+unset. `session::ac` returns the access-method name as set during
+authentication (the `AC` field on `paths::AC`); `session::rd`
+returns the authenticated record (the `RD` field on `paths::RD`).
+Both are particularly useful inside `DEFINE ACCESS ... PERMISSIONS`
+and `DEFINE TABLE ... PERMISSIONS` clauses.
 
 ### Object Functions
 
