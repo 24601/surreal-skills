@@ -444,10 +444,12 @@ JWT access allows external identity providers to authenticate users with Surreal
 > external ones), use `TYPE RECORD WITH JWT … WITH ISSUER
 > ALGORITHM <alg> KEY <key>` rather than `TYPE JWT … WITH ISSUER
 > ALGORITHM <alg> KEY <key>` (the `ALGORITHM` token in `WITH
-> ISSUER` is REQUIRED for asymmetric / JWKS verifier paths — see
-> "Issuer key defaults" below). Pre-v1.6.2 revisions of this rule
-> incorrectly described pure `TYPE JWT` as a first-class issuance
-> path.
+> ISSUER` is REQUIRED for JWKS / URL verifier paths only —
+> inline asymmetric verifiers inherit the verifier algorithm
+> from `define.rs:1697`, so bare `WITH ISSUER KEY '<priv>'`
+> works there; see "Issuer key defaults" below for the full
+> rubric). Pre-v1.6.2 revisions of this rule incorrectly
+> described pure `TYPE JWT` as a first-class issuance path.
 
 ```surrealql
 -- HMAC-based JWT (symmetric key)
@@ -753,21 +755,25 @@ Operational notes:
   issuance hybrid — see the verification-only callout at the
   top of "JWT-Based Authentication" above. For setups that
   need both JWKS-backed validation of third-party tokens AND
-  SurrealDB-minted credential signin tokens, use `TYPE RECORD
-  WITH JWT URL '<jwks>' WITH ISSUER ALGORITHM <alg> KEY
-  '<priv>'`. The `ALGORITHM` token in `WITH ISSUER` is
-  REQUIRED because the URL/JWKS verifier branch at
+  SurrealDB-minted credential signin tokens, define **two
+  separate access methods** — one with `WITH JWT URL '<jwks>'`
+  + `AUTHENTICATE` for inbound IdP tokens (`jwks_inbound`
+  pattern below) and one with `WITH JWT ALGORITHM <alg> KEY
+  '<pub>'` (inline KEY, NOT URL) + `SIGNIN` + `WITH ISSUER`
+  for credential minting (`credential_mint` pattern below).
+  Do NOT compose them into a single `TYPE RECORD WITH JWT URL
+  … WITH ISSUER …` definition: the anti-pattern callout under
+  the example block documents two source-verified failure
+  modes (kid round-trip + sub-vs-ID predicate split). If a
+  consumer insists on the combined shape and only uses it for
+  one entry path at a time, the `ALGORITHM` token in `WITH
+  ISSUER` is REQUIRED because the URL/JWKS verifier branch at
   `core/src/syn/parser/stmt/define.rs:1716-1722` does NOT set
   `iss.alg` (the inline-key branch at `:1697` does); without
   explicit `ALGORITHM <alg>` the issuer side falls back to
   `JwtAccessIssue::default()` (Hs512 from
-  `sql/access_type.rs:181-191`) and treats your asymmetric
+  `sql/access_type.rs:181-191`) and treats an asymmetric
   private key as an HMAC secret at `iam/issue.rs:10-28`.
-  Note: even with the correct `ALGORITHM`, the round-trip
-  limitation in the JWKS callout above still applies —
-  SurrealDB-minted tokens cannot be re-validated against the
-  same access method's JWKS endpoint because they ship without
-  a `kid` header.
 
 ```surrealql
 -- Validate JWTs issued by an external IdP (e.g. Auth0). No
@@ -1581,8 +1587,10 @@ const myProfile = await db.select('user');
 -- because this access method is authenticate-only — there is
 -- no SIGNIN clause that would trigger SurrealDB-side minting,
 -- and on the authenticate path SurrealDB does not mint tokens
--- (`verify.rs:246-288` sets the session from the verified JWT
--- without calling `encode`).
+-- (the AccessType::Record arm at `verify.rs:401-462` for
+-- claims-without-`id` calls `authenticate_record` to bind the
+-- record from $token.* but never invokes `encode` — issuance
+-- is reserved for the signin flow).
 DEFINE ACCESS external_idp ON DATABASE TYPE RECORD
     -- Clause order: WITH JWT must precede AUTHENTICATE (the
     -- TYPE RECORD subparser at define.rs:456-507 consumes WITH
