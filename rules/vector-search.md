@@ -425,10 +425,22 @@ LIMIT 10;
 >   (e.g. `[0.1, 0.1, 0.1]`), `mean()` accumulates via
 >   `try_add` and the rounded mean is
 >   `0.10000000000000002`, so each `x_i − mean` is a non-zero
->   ~1e-17, `std_dev_a` is a tiny positive value, and the
->   ratio resolves to a tiny finite score (NOT `NaN`).
->   Treat float-constant inputs as a degenerate-but-finite
->   case rather than a guaranteed-NaN case. Any `NaN` element
+>   ~1e-17 and `std_dev_a` is a tiny positive value — the
+>   zero-deviation `NaN` path is NOT taken. The final ratio
+>   then depends on the OTHER operand: identical
+>   float-constant pairs (e.g. `pearson([0.1, 0.1, 0.1],
+>   [0.1, 0.1, 0.1])`) tend toward `≈ 1.0`; one constant
+>   paired with one non-constant collapses toward `≈ 0`; one
+>   **float**-constant paired with one **integer**-constant
+>   operand still hits `NaN` because the integer side has
+>   exact zero variance. Treat float-constant inputs as a
+>   degenerate-but-finite case for symmetric-float pairings,
+>   not a guaranteed-NaN case. **Decimal-typed operands**
+>   (e.g. `[0.1dec, 0.1dec, 0.1dec]`, or fields declared
+>   `array<decimal>`) route through the `Decimal` branches
+>   of `mean()` and `Number::try_add` and can keep the mean
+>   exact — that puts them back on the integer-style
+>   zero-deviation `NaN` path. Any `NaN` element
 >   in either input propagates to a `NaN` result via
 >   NaN-poisoned mean and covariance arithmetic (fixture
 >   `core/tests/function.rs:3489-3495` asserts `"NaN"` as the
@@ -938,7 +950,7 @@ DEFINE INDEX idx_embedding ON TABLE document
 | MINKOWSKI | Generalised distance (Lp norm); set order via `DIST MINKOWSKI <p>` | No | [0, inf) |
 | CHEBYSHEV | Worst-case dimension difference | No | [0, inf) |
 | HAMMING | Binary features, hash comparison | N/A | [0, dim] |
-| JACCARD ⚠ | Numeric-token similarity (NOT distance — see warning below); pre-dedup inputs with `array::distinct(...)` for textbook set semantics | N/A | `[0, |b|]` raw (multiset-asymmetric numerator); `[0, 1]` after pre-dedup |
+| JACCARD ⚠ | Numeric-token similarity (NOT distance — see warning below); pre-dedup inputs with `array::distinct(...)` for textbook set semantics | N/A | `NaN` if both inputs empty; otherwise `[0, |b|]` raw (multiset-asymmetric numerator) / `[0, 1]` after pre-dedup |
 | PEARSON ⚠ | Correlation-based similarity (NOT distance — see warning below) | No | [-1, 1] (similarity) |
 
 Most text embedding models produce normalized vectors, making COSINE the standard choice. If you are unsure, use COSINE.
