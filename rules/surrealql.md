@@ -1992,6 +1992,25 @@ encoding::cbor::decode(encoding::cbor::encode({ a: 1 }))  -- { a: 1 }
 `encoding::url`, `encoding::json`, and any other format are NOT
 registered in v3.0.5. Only `base64` and `cbor` exist.
 
+### Bytes Functions
+
+Verified against v3.0.5 `core/src/fnc/bytes.rs`. The `bytes::*`
+namespace exposes exactly ONE function in v3.0.5 — do NOT assume
+the namespace mirrors `string::*`.
+
+```surql
+-- bytes::len(bytes) -> int
+-- Number of raw bytes in a `bytes` value (NOT the string length —
+-- the input is bytes, not a string).
+bytes::len(<bytes> 'hello')                  -- 5
+bytes::len(encoding::base64::decode('aGVsbG8'))  -- 5
+```
+
+`bytes::concat`, `bytes::slice`, `bytes::at`, `bytes::reverse`, and
+any other transform are NOT registered in v3.0.5. Use `encoding::*`
+for format conversions and `string::*` after decoding for textual
+manipulation.
+
 ---
 
 ## Subqueries and Expressions
