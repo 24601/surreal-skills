@@ -3,6 +3,80 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.7] - 2026-05-05
+
+### Fixed (atomic-protocol patch — v1.5.6 Pi-only re-audit CRIT remediation)
+
+A seventh Pi+DeepSeek-V4-Pro:xhigh adversarial pass over the same
+six rules audited in pass-6 returned **3 GO + 2 CONDITIONAL GO + 1
+NO-GO** with **1 CRIT** total. v1.5.7 patches the single CRIT.
+
+This is the strongest pass yet: data-modeling.md, security.md, and
+graph-queries.md all returned GO; vector-search.md and performance.md
+returned CONDITIONAL GO with 0 CRITs each; only surrealql.md
+returned NO-GO with a single source-verified CRIT. CRIT-trend
+21→7→15→6→6→5→1 is now strictly converging.
+
+#### Per-file CRIT counts (pass-7)
+
+- **`rules/surrealql.md` (1 CRIT — v1.5.6 fix-introduced) +
+  cross-fix into `rules/performance.md`:**
+  - **CRIT-1: `DEFER` clause does NOT exist in v3.0.5.** Pass-6
+    added a `DEFINE INDEX … DEFER` example to surrealql.md (and
+    v1.5.3 had originally added a §"Deferred Indexing (`DEFER`)"
+    subsection to performance.md). Pass-7 verified against the
+    v3.0.5 parser at SHA `a97d3af85d79`:
+    - `DefineIndexStatement` has no `defer` field.
+    - `parse_define_index` has no `DEFER` token handler.
+    - Code-search across the entire `surrealdb/surrealdb` Rust
+      codebase returns zero matches for the `DEFER` keyword in
+      this context.
+    Both the original v1.5.3 fix (driven by upstream-docs alone)
+    and the v1.5.6 propagation were based on documentation that
+    does not match the v3.0.5 parser. The pass-6 lesson applies:
+    **parser-body verification is mandatory for grammar claims;
+    documentation alone is insufficient.** v1.5.7 removes the
+    `DEFER` example from `rules/surrealql.md` entirely and
+    rewrites `rules/performance.md`'s §"Deferred Indexing" as
+    §"Deferred Indexing — NOT in v3.0.5 (do not use)" with the
+    full source-citation chain so consumers can re-verify
+    against their binary version.
+
+`rules/data-modeling.md`, `rules/security.md`,
+`rules/graph-queries.md` returned **GO** with 0 CRITs (data-
+modeling.md and security.md back-to-back GO; graph-queries.md
+third consecutive GO). `rules/vector-search.md` returned **GO**
+with 0 CRITs (upgraded from pass-6's CONDITIONAL GO; LM
+correction + JACCARD/PEARSON warning + HASHED_VECTOR all held
+clean against fresh parser-source verification).
+`rules/performance.md` returned **CONDITIONAL GO** with 0 CRITs
+(the FORMAT TEXT restoration + EXPLAIN FULL addition both held).
+
+Pass-7 IMPORTANTs (surrealql.md ALTER section, INSERT IGNORE
+example, DEFINE API/CONFIG, missing function namespaces, missing
+data types; security.md WITH REFRESH / JWKS URL on TYPE RECORD /
+ACCESS REVOKE/SHOW/PURGE; performance.md TLS flags / REBUILD
+INDEX ON TABLE all-indexes form / SURREAL_HNSW_CACHE_SIZE
+verification; vector-search.md similarity-function examples) and
+MINORs are deferred to v1.6.0 — they are documentation gaps or
+polish, not contradictions of upstream — tracked in residual-risk
+lists at `/tmp/pi-{rule}-pass7-out.md`.
+
+Migration: consumers who copied the `DEFINE INDEX … DEFER` clause
+from v1.5.3-v1.5.6 docs need to remove the `DEFER` clause from
+their schema definitions; the clause produces a parse error in
+v3.0.5. Track upstream for a future release that may implement the
+clause.
+
+Cumulative CRITs across atomic-protocol cycle: v1.5.1=21, v1.5.2=7,
+v1.5.3=15, v1.5.4=6, v1.5.5=6, v1.5.6=5, v1.5.7=1 = **61 CRITs
+found-and-fixed across seven passes**. CRIT-trend post-pass-3 is
+now strictly monotone-decreasing: 6→6→5→1. 5/6 GO+CONDITIONAL GO
+at pass-7 (with the single NO-GO carrying just 1 CRIT) is the
+clearest convergence signal of the cycle. Pass-8 likely closes
+the v1.5.x cycle if no fix-drift surfaces from this small
+single-line surgery.
+
 ## [1.5.6] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — v1.5.5 Pi-only re-audit CRIT remediation)

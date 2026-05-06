@@ -487,14 +487,6 @@ DEFINE INDEX idx_embedding ON TABLE document
     FIELDS embedding HNSW DIMENSION 1536 DIST COSINE
     CONCURRENTLY;
 
--- DEFER — decouple ingestion from indexing; writes complete without
--- updating the index, and a background worker catches up
--- asynchronously. Available since v2.5.0. Cannot be combined with
--- UNIQUE.
-DEFINE INDEX idx_event_user ON TABLE event
-    FIELDS user_id
-    DEFER;
-
 -- Rebuild an index
 REBUILD INDEX email_idx ON TABLE person;
 

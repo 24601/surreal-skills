@@ -184,7 +184,7 @@ DEFINE INDEX idx_embedding_hr ON TABLE document
 ```surrealql
 -- v3.0.5 has a first-class REBUILD INDEX statement that preserves
 -- the full index definition (UNIQUE / FULLTEXT ANALYZER / BM25 /
--- HIGHLIGHTS / HNSW DIMENSION / EFC / M / DEFER / CONCURRENTLY).
+-- HIGHLIGHTS / HNSW DIMENSION / EFC / M / CONCURRENTLY).
 -- Prefer this over the manual REMOVE + DEFINE pattern, which loses
 -- the original definition and is error-prone for complex indexes.
 --
@@ -241,30 +241,23 @@ query acceleration; queries fall back to a full scan. `INFO FOR INDEX`
 reports `status: "indexing"` while building and `status: "ready"`
 once complete.
 
-### Deferred Indexing (`DEFER`)
+### Deferred Indexing — NOT in v3.0.5 (do not use)
 
-`DEFINE INDEX ... DEFER` decouples ingestion from index maintenance:
-writes complete without updating the index, and a background worker
-catches up asynchronously. This eliminates write-write conflicts on
-high-throughput parallel ingestion paths and is the preferred pattern
-when eventual consistency of the index is acceptable.
+The SurrealDB documentation site has historically described a
+`DEFINE INDEX … DEFER` clause for decoupling ingestion from index
+maintenance. The v3.0.5 parser does NOT implement this clause —
+verified at SHA `a97d3af85d79`: `DefineIndexStatement` has no
+`defer` field, `parse_define_index` has no `DEFER` token handler,
+and a code search across the entire `surrealdb/surrealdb` Rust
+codebase returns zero matches for the `DEFER` keyword in this
+context.
 
-```surrealql
--- Defer index maintenance — writes return immediately; the index
--- catches up asynchronously. Available since v2.5.0.
-DEFINE INDEX idx_event_user ON TABLE event
-    FIELDS user_id
-    DEFER;
-```
-
-Caveats:
-
-- `UNIQUE` and `DEFER` cannot be combined — uniqueness must be
-  enforced at write time, which `DEFER` precludes.
-- During the catch-up window, queries that rely on the index may
-  return stale results. Use `INFO FOR INDEX` to monitor lag.
-- Pair with `CONCURRENTLY` on the initial build to avoid a write
-  stall when the index is first created.
+Earlier revisions of this rule (v1.5.3 / v1.5.6) documented `DEFER`
+as if it were a working v3 feature, on the basis of upstream docs
+alone. Pass-7 of the surrealql.md re-audit caught the discrepancy
+by checking the parser body. Do not use `DEFINE INDEX … DEFER` in
+v3.0.5 code; it will produce a parse error. Track upstream for a
+future release that implements the clause if it ships.
 
 ---
 
