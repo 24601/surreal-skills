@@ -387,15 +387,15 @@ LIMIT 10;
 >   `union: HashSet<&Number>` from the first argument, then
 >   counts every element of the second argument whose
 >   `union.insert(n)` returns `false` (i.e. was already in the
->   running union — either originally from `self` or from an
->   earlier iteration of `other`). The denominator is the final
+>   running union — either originally from `a` or from an
+>   earlier iteration of `b`). The denominator is the final
 >   `union.len()` (deduped). The numerator is therefore
->   **multiset-weighted on the second argument**: intra-array
->   duplicates in `other` are double-counted. Concrete divergence:
+>   **multiset-weighted on the second argument (`b`)**: intra-array
+>   duplicates in `b` are double-counted. Concrete divergence:
 >   `vector::similarity::jaccard([1], [1, 1])` returns `2.0`,
 >   not `1.0`. Pre-deduplicate both inputs (`array::distinct(...)`)
 >   for textbook set-Jaccard semantics; otherwise the score is
->   **`[0, |other|]`-bounded**, not `[0, 1]`-bounded. Both inputs
+>   **`[0, |b|]`-bounded**, not `[0, 1]`-bounded. Both inputs
 >   empty yields `NaN` (`0 / 0`). Fixture coverage
 >   (`core/tests/function.rs:3470-3484`) only exercises distinct
 >   element vectors, where the multiset and set forms agree.
@@ -449,14 +449,14 @@ LIMIT 10;
 >   reduce to a `(σ²) / (σ * σ)` ratio that is `≈ 1.0`
 >   modulo a possible 1-ulp `sqrt`-then-multiply rounding;
 >   one such constant paired with one non-constant collapses
->   toward `≈ 0` — algebraically `Σ(y_i − mean_y) = 0`, but
+>   toward `≈ 0` — algebraically `Σ(b_i − mean(b)) = 0`, but
 >   in f64 the rounded residual need not be exactly zero
->   (e.g. `[0.1, 0.2, 0.3]` has mean `0.20000000000000004`
->   and a residual sum of ~`-1.11e-16`), so the numerator is
->   `O(ε × |x|) ×` that rounded residual — not literally `0`
->   but bounded by ~`ε² × |x| × |y|`. The final ratio after
->   dividing by the tiny `std_dev_x` resolves to roughly
->   `ε`-scale (Codex pass-3 trace example
+>   (e.g. `b = [0.1, 0.2, 0.3]` has `mean(b) =
+>   0.20000000000000004` and a residual sum of ~`-1.11e-16`),
+>   so the numerator is `O(ε × |a|) ×` that rounded residual
+>   — not literally `0` but bounded by ~`ε² × |a| × |b|`.
+>   The final ratio after dividing by the tiny `std_dev(a)`
+>   resolves to roughly `ε`-scale (Codex pass-3 trace example
 >   `pearson([0.1, 0.1, 0.1], [0.1, 0.2, 0.3])` returns
 >   `~4.53e-16`); one
 >   **float**-constant paired with one **integer**-constant
