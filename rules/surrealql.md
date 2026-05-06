@@ -2794,7 +2794,18 @@ Key fixes and changes in SurrealDB v3.0.5:
 - **`$parent` fixes**: multiple fixes landed for `$parent` resolution in nested and edge-oriented queries
 - **Computed field stability** (#7142, #7202): computed fields now evaluate more consistently in write and query paths
 - **Edge query ordering fixes** (#7193, #7194): `ORDER BY` and related planning on edge-table queries behave correctly again
-- **`encoding::json` restored** (#7197): missing `encoding::json` functions were reintroduced/fixed
+- **`encoding` patch note (#7197)**: PR #7197 landed in the v3.0.5
+  cycle but the v3.0.5 `core/src/fnc/mod.rs` registry (lines 242-245)
+  exposes only `encoding::base64::{encode,decode}` and
+  `encoding::cbor::{encode,decode}`. There is NO `encoding::json::*`
+  function in v3.0.5 — earlier wording in this section that said
+  "encoding::json restored" was a v1.4.x-era doc fabrication (the
+  upstream PR title likely referenced JSON encoding inside the CBOR
+  bridge or analyzer paths, not a callable function namespace).
+  Cross-reference: see `### Encoding Functions` above for the full
+  registered surface and the explicit "what is NOT registered"
+  callout. Discovered by Codex during v1.6.1 4-WAY adversarial
+  review.
 - **GraphQL literal fields** (#7109): schema generation now supports literal fields in GraphQL mappings
 - **Axum router support for embedders** (#7097): embedding use cases have an official axum router path
 - **Validation input from stdin** (#7235): CLI validation flows now accept stdin input cleanly
