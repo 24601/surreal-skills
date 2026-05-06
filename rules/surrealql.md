@@ -1505,10 +1505,16 @@ array::boolean_or([true, false], [false, true]) -- [true, true]
 array::boolean_not([true, false])            -- [false, true]
 array::boolean_xor([true, false], [false, true]) -- [true, true]
 array::combine([1, 2], [3, 4])              -- [[1,3],[1,4],[2,3],[2,4]]
-array::complement([1,2,3,4], [2,4])          -- [1, 3]
+array::complement([1,2,3,4], [2,4])          -- [1, 3]    (relative complement: A \ B)
 array::concat([1, 2], [3, 4])               -- [1, 2, 3, 4]
 array::clump([1,2,3,4,5], 2)                -- [[1,2],[3,4],[5]]
-array::difference([1,2,3], [2,3,4])          -- [1]
+-- array::difference is the SYMMETRIC difference (A △ B) with multiset
+-- pairing: equal elements pair off and are dropped, unmatched elements
+-- from BOTH inputs survive. For unique-element arrays this is exactly
+-- the symmetric difference. (Source: core/src/val/array.rs:310-323.)
+-- For relative complement A \ B use `array::complement` above.
+array::difference([1,2,3], [2,3,4])          -- [1, 4]   (NOT [1] — both unmatched halves)
+array::difference([1,1,2], [1,3])            -- [1, 2, 3]  (multiset pairing)
 array::distinct([1, 2, 2, 3, 3])             -- [1, 2, 3]
 array::find([1, 2, 3], 2)                    -- 2
 array::find_index([1, 2, 3], 2)              -- 1
@@ -2073,10 +2079,15 @@ important ways:
 
 1. **`set::difference(A, B)` is the SYMMETRIC difference (A △ B)**,
    NOT `A \ B`. Use `set::complement(A, B)` for the relative
-   complement (`A \ B`). This is the OPPOSITE convention from
-   `array::difference`, which returns elements in either input but
-   not both — equivalent to symmetric difference for arrays without
-   duplicates, but `set::difference` makes it explicit.
+   complement (`A \ B`). The `array::*` namespace uses the SAME
+   convention: `array::difference` is also the symmetric difference
+   (with multiset-pairing semantics for duplicates — see the array
+   section above), and `array::complement(A, B)` is the relative
+   complement `A \ B`. So in both namespaces the function named
+   `difference` means **A △ B**, contrary to the common
+   informal-English reading of "difference" as `A \ B`. Source:
+   `core/src/fnc/set.rs:68-76` (set), `core/src/val/array.rs:289-323`
+   (array).
 2. Sets have BTree ordering — `at`, `first`, `last`, `slice`
    return elements in sorted order, not insertion order.
 3. Closure-based methods (`all`, `any`, `filter`, `find`, `fold`,
