@@ -145,13 +145,13 @@ order, comma-separated; either one alone is also valid. The
 parser also accepts `NONE` as an expiry value (the parser parses
 through `parse_expr_field()` which evaluates `NONE` to a sentinel
 value the runtime treats as no-expiry). The v3.0.5 test suite
-contains `DURATION FOR TOKEN NONE` blocks at
-`core/src/syn/parser/test/stmt.rs:398-407` (DEFINE USER),
-`:623-631` (DEFINE ACCESS TYPE JWT), and `:1250-1276` (DEFINE
-ACCESS TYPE RECORD on DB / ROOT / NS), but **all four blocks
-are commented out** with `/* ... */` wrappers and call
-`unwrap_err()` on the parse — they exist as anti-fixtures
-documenting why the syntax was suppressed during a
+contains `DURATION FOR TOKEN NONE` anti-fixtures across **three
+commented regions** at `core/src/syn/parser/test/stmt.rs:398-407`
+(one DEFINE USER block), `:623-631` (one DEFINE ACCESS TYPE JWT
+block), and `:1250-1276` (three DEFINE ACCESS TYPE RECORD blocks
+at DB / ROOT / NS levels) — five anti-fixtures total, all gated
+by `/* ... */` wrappers and calling `unwrap_err()` on the parse.
+They exist to document why the syntax was suppressed during a
 parameterization refactor (see the `// TODO: Parameterization
 broke the guarantee that token duration is not none.` note at
 stmt.rs:1252). So direct positive-fixture provenance for
@@ -335,15 +335,19 @@ Key semantics:
   (`create_refresh_token_record`) calls into `create_grant` at
   `core/src/expr/statements/access.rs:181+`, which constructs
   the literal key in `new_grant_bearer` at `:121-126`
-  (`format!("{prefix}-{id}-{secret}")`); the record-refresh
-  call site is `:237-242`. Signin validates four dash-separated
-  parts (prefix-type / `refresh` / id / secret) inside
-  `validate_grant_bearer` at `core/src/iam/signin.rs:1042-1056`.
-  The integration test at `signin.rs:1582-1584` asserts the
-  `surreal-refresh-…` regex on the returned plaintext — that
-  reference is a test, not a production code path. Persist the
-  entire string SurrealDB hands back verbatim — do not strip
-  the `surreal-refresh-` prefix or split on `-` client-side.
+  (`format!("{prefix}-{id}-{secret}")`); the `Base::Db`
+  enforcement guard for record-subject grants inside
+  `create_grant` is at `:237-242` (rejecting Base::Ns / Root
+  for record subjects, even though parser-level
+  `ACCESS … ON NAMESPACE GRANT FOR RECORD` is accepted). Signin
+  validates four dash-separated parts (prefix-type / `refresh` /
+  id / secret) inside `validate_grant_bearer` at
+  `core/src/iam/signin.rs:1042-1056`. The integration test at
+  `signin.rs:1582-1584` asserts the `surreal-refresh-…` regex
+  on the returned plaintext — that reference is a test, not a
+  production code path. Persist the entire string SurrealDB
+  hands back verbatim — do not strip the `surreal-refresh-`
+  prefix or split on `-` client-side.
 - `WITH REFRESH` and `WITH JWT` can coexist in either order; the
   parser loop accepts repeated `WITH` clauses (test fixtures
   `:1108` shows `WITH REFRESH WITH JWT …`; `:1163` shows
@@ -608,15 +612,20 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
 
 > **ES512 caveat.** The parser accepts `ALGORITHM ES512` but
 > v3.0.5 maps `catalog::Algorithm::Es512` to
-> `jsonwebtoken::Algorithm::ES384` in both verification
+> `jsonwebtoken::Algorithm::ES384` in both the
+> `Validation::new` constructed during inbound-token verification
 > (`core/src/iam/verify.rs:47-48`) and the
 > algorithm-to-jwt-algorithm helper used during issuance
-> (`core/src/iam/mod.rs:46-47`). Tokens minted under `ES512`
-> are actually signed with the ES384 algorithm, and external
-> JWTs that carry an `alg: ES512` header will be validated as
-> ES384. Use `ES384` directly (or one of the other ECDSA /
-> EdDSA algorithms) if you want truthful algorithm advertising
-> in your JWT headers.
+> (`core/src/iam/mod.rs:46-47`). Practical effect: an access
+> method configured with `ALGORITHM ES512` actually verifies
+> incoming tokens against ES384 and emits ES384-signed tokens.
+> Whether `jsonwebtoken::decode` accepts an inbound `alg: ES512`
+> header at all depends on the upstream `jsonwebtoken` crate
+> behaviour and is outside what this v3.0.5 source check can
+> verify (`core/src/iam/verify.rs:956-957` calls into the crate
+> with the rebuilt ES384 validation). Use `ES384` directly
+> (or one of the other ECDSA / EdDSA algorithms) if you want
+> truthful algorithm advertising and avoid the silent rewrite.
 
 ### JWKS-Backed JWT (`URL` clause)
 
@@ -1543,23 +1552,30 @@ const myProfile = await db.select('user');
 ### JWT Token Integration with External Identity Providers
 
 ```surrealql
--- Define JWT access that maps external tokens to SurrealDB permissions.
--- `WITH JWT KEY` is the verification key (used to validate incoming
--- third-party-issued tokens). Add `WITH ISSUER KEY` if SurrealDB also
--- needs to issue tokens under this access method (e.g. record-scoped
--- tokens that nested signin flows hand back to clients).
+-- Define JWT access that maps external IdP tokens to a SurrealDB
+-- record. `WITH JWT KEY` is the verification key (validates
+-- inbound third-party JWTs). AUTHENTICATE binds the token's
+-- subject claim to a local record; without AUTHENTICATE, the
+-- inbound JWT must carry SurrealDB's own `id` claim or
+-- verification bails `AccessMethodMismatch` at
+-- `core/src/iam/verify.rs:464`. WITH ISSUER KEY is omitted
+-- because this access method is authenticate-only — there is
+-- no SIGNIN clause that would trigger SurrealDB-side minting,
+-- and on the authenticate path SurrealDB does not mint tokens
+-- (`verify.rs:246-288` sets the session from the verified JWT
+-- without calling `encode`).
 DEFINE ACCESS external_idp ON DATABASE TYPE RECORD
+    AUTHENTICATE (
+        SELECT id FROM user WHERE external_id = $token.sub
+    )
     WITH JWT
         ALGORITHM RS256 KEY '-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...
 -----END PUBLIC KEY-----'
-    WITH ISSUER KEY '-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
------END PRIVATE KEY-----'
-    DURATION FOR TOKEN 1h;
+    DURATION FOR SESSION 12h;
 
 -- The JWT payload should include claims that map to user data
--- Example JWT payload:
+-- Example JWT payload (issued by the IdP, NOT by SurrealDB):
 -- {
 --   "sub": "auth0|12345",
 --   "email": "user@example.com",
@@ -1568,7 +1584,10 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ...
 --   "exp": 1700000000
 -- }
 
--- Access JWT claims in permissions via $token
+-- Access JWT claims in permissions via $token. Permissions can
+-- read $token.* on EVERY query after authenticate; AUTHENTICATE
+-- only runs once at session establishment. Use $token.* for
+-- claim-driven row filtering as below.
 DEFINE TABLE document SCHEMAFULL
     PERMISSIONS
         FOR select WHERE tenant = $token.tenant_id
