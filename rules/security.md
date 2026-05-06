@@ -91,10 +91,10 @@ parser bails with "Can't set both a passhash and a password" at
 > with no format check, and `core/src/expr/statements/define/user.rs:97-103`
 > persists `hash: self.hash.clone()`). The first time the value
 > is interpreted is during signin at
-> `core/src/iam/verify.rs:945-952` — `PasswordHash::new(hash)`
-> rejects malformed PHC strings there. So `DEFINE USER alice ON
-> ROOT PASSHASH 'not-actually-a-phc-string'` succeeds at define
-> time and fails on first signin attempt with
+> `core/src/iam/verify.rs:947-948` — `PasswordHash::new(hash)`
+> rejects malformed PHC strings inside `verify_pass`. So
+> `DEFINE USER alice ON ROOT PASSHASH 'not-actually-a-phc-string'`
+> succeeds at define time and fails on first signin attempt with
 > "Invalid password hash". Treat `PASSHASH` as a "store as-is,
 > validate-on-use" clause; do not rely on define-time syntax
 > checking.
@@ -144,10 +144,15 @@ clause overrides those defaults per user. Both
 order, comma-separated; either one alone is also valid. The
 parser also accepts `NONE` as an expiry value (the parser parses
 through `parse_expr_field()` which evaluates `NONE` to a sentinel
-value the runtime treats as no-expiry); the v3.0.5 test suite
-contains a commented-out `DURATION FOR TOKEN NONE` block at
-`stmt.rs:398-407` that is not active, so the public-test
-provenance for this exact form is indirect.
+value the runtime treats as no-expiry). For `DEFINE USER`
+specifically, the v3.0.5 test suite has a commented-out `DURATION
+FOR TOKEN NONE` block at `core/src/syn/parser/test/stmt.rs:398-407`
+that is not active, so direct public-test provenance for the
+`DEFINE USER … DURATION FOR TOKEN NONE` shape is indirect; for
+`DEFINE ACCESS`, the same syntax is exercised by active fixtures
+at `stmt.rs:627` (TYPE JWT), `:1256` (TYPE RECORD ON DB), `:1264`
+(TYPE RECORD ON ROOT), and `:1272` (TYPE RECORD ON NS) which
+share the underlying parser path.
 
 Apply at signin time at
 `core/src/iam/signin.rs:481` / `:502` (token + session expiry
@@ -386,10 +391,11 @@ JWT access allows external identity providers to authenticate users with Surreal
 
 > **`TYPE JWT` is a verification-only access method.** The parser
 > accepts `DURATION FOR TOKEN` and `DURATION FOR SESSION` (verified
-> against test fixtures in `core/src/syn/parser/test/stmt.rs:758` /
-> `:762` / `:823` which exercise `TYPE JWT … DURATION FOR TOKEN 10s
-> [, FOR SESSION 2d]` patterns successfully), but the issuance
-> story is narrower than parser acceptance suggests:
+> against test fixtures in `core/src/syn/parser/test/stmt.rs:558`
+> for inline-key `TYPE JWT ALGORITHM HS256 KEY … DURATION FOR
+> TOKEN 10s`, `:762` and `:823` for `TYPE JWT URL … WITH ISSUER …
+> DURATION FOR TOKEN 10s [, FOR SESSION 2d]` patterns), but the
+> issuance story is narrower than parser acceptance suggests:
 >
 > - **`signin` does NOT mint tokens for `AccessType::Jwt`.** The
 >   `db_access` / `ns_access` / `root_access` signin paths only
@@ -842,10 +848,11 @@ ACCESS service_tokens ON DATABASE PURGE EXPIRED, REVOKED FOR 30d;
   are also DB-only at parse time
   (`core/src/syn/parser/stmt/define.rs:457-461, :521-526`). The
   parser will accept `ACCESS … ON NAMESPACE GRANT FOR RECORD …`
-  syntactically (test fixture `core/src/syn/parser/test/stmt.rs:2620`
-  exercises that exact shape), but execution will fail at
-  runtime because no record-typed access method can exist on a
-  namespace.
+  syntactically (test SQL string at
+  `core/src/syn/parser/test/stmt.rs:2621`; the harness wrapper
+  begins on the previous line at `:2620`), but execution will
+  fail at runtime because no record-typed access method can
+  exist on a namespace.
 - Match the `ON …` clause to the base the corresponding `DEFINE
   ACCESS` was created on.
 
