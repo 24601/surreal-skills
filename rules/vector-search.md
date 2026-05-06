@@ -340,12 +340,15 @@ FROM document
 ORDER BY distance ASC
 LIMIT 10;
 
--- Jaccard similarity (set-based; appropriate for discrete-token vectors)
-LET $query_tags = ['ai', 'database', 'rust'];
+-- Jaccard similarity (set-based over numeric token IDs)
+-- Note: vector::similarity::jaccard dispatches as (Vec<Number>, Vec<Number>)
+-- per core/src/fnc/vector.rs:130. String tag arrays will fail runtime
+-- coercion; map your tokens to stable numeric IDs first.
+LET $query_tag_ids = [101, 205, 309];
 
 SELECT
     id, name,
-    vector::similarity::jaccard(tags, $query_tags) AS similarity
+    vector::similarity::jaccard(tag_ids, $query_tag_ids) AS similarity
 FROM article
 ORDER BY similarity DESC
 LIMIT 10;
@@ -369,20 +372,32 @@ LIMIT 10;
 >
 > - `vector::similarity::jaccard(a, b)` computes
 >   `|intersect| / |union|` treating array elements as set
->   members (deduped via `HashSet<&Number>`). Range `[0, 1]`.
->   Suitable for **discrete-token vectors** — tag arrays, sparse
->   feature-id lists, hash-bucket indicators — where elements are
->   meant to be compared as set membership. NOT suitable for
+>   members (deduped via `HashSet<&Number>`). The function
+>   dispatches as `(Vec<Number>, Vec<Number>)`
+>   (`core/src/fnc/vector.rs:130`) — **numeric arrays only**;
+>   string-token arrays fail runtime coercion in
+>   `core/src/val/value/convert/coerce.rs`. Map your tokens to
+>   stable numeric IDs first. Range `[0, 1]` when the union is
+>   non-empty; both inputs empty yields `NaN` (`0 / 0` at
+>   `core/src/fnc/util/math/vector.rs:120-125`). Suitable for
+>   **numeric discrete-token vectors** — stable tag IDs, sparse
+>   feature-id lists, hash-bucket indicators — where elements
+>   are meant to be compared as set membership. NOT suitable for
 >   dense floating-point embeddings: every element of a typical
 >   embedding is effectively unique under set equality, so the
 >   ratio degenerates and the metric is no longer meaningful.
 > - `vector::similarity::pearson(a, b)` computes the Pearson
 >   correlation coefficient
->   (`covar / (std_dev_a * std_dev_b)`). Range `[-1, 1]`.
->   Suitable for **mean-shift-tolerant similarity** — for
->   example, user-rating vectors (where one user rates
->   consistently higher than another but ranks items in the
->   same relative order) or time-series correlation.
+>   (`covar / (std_dev_a * std_dev_b)`). Range `[-1, 1]` for
+>   finite, non-zero-variance inputs; constant vectors (zero
+>   variance in either operand) make the denominator zero and
+>   the result `NaN` / `Infinity`, and any `NaN` element in
+>   either input propagates to a `NaN` result (see fixture
+>   `core/tests/function.rs:3490-3495`). Suitable for
+>   **mean-shift-tolerant similarity** — for example,
+>   user-rating vectors (where one user rates consistently
+>   higher than another but ranks items in the same relative
+>   order) or time-series correlation.
 >
 > Both functions are also available as `DIST` values when defining
 > an HNSW index, but **prefer the standalone scalar functions
