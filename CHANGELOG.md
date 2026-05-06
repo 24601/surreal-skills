@@ -651,9 +651,61 @@ pattern, expect ratification within 1-2 more passes; remaining
 churn should be cite-line drift which Codex + Cursor catch
 reliably.
 
-#### Rev-7 outstanding
+#### Pass-7 ratification (4/4 GO+CONDITIONAL GO with 0 CRITs)
 
-Pass-7 4-WAY dispatch pending after this commit lands.
+Pass-7 verdicts:
+
+| Reviewer | Verdict | CRITs | IMPs | Minors |
+|---|---|---|---|---|
+| Pi       | **GO**         | 0 | 0 | 1 (auth0_jwt NS/DB/AC mention) |
+| Cursor   | CONDITIONAL GO | 0 | 2 (auth0_jwt cross-reference + jwks_inbound cite consistency) | 2 |
+| Codex    | CONDITIONAL GO | 0 | 1 (CHANGELOG hygiene — pass-5 table archival) | 2 |
+| Gemini   | CONDITIONAL GO | 0 | 2 (account/jwks_inbound consolidation + jwks_inbound NS/DB/AC) | 2 |
+
+Per `~/CLAUDE.md` aggregation rule: "CONDITIONAL GO w/ no CRIT
+= ship if maintainer accepts IMPs as deferred." Pi achieved
+full GO; remaining IMPs across the other three reviewers are
+documentation-polish (cross-reference cite consistency,
+example consolidation, single line-anchor tightening from
+:155+ → :158-159) with no source-correctness contradictions.
+
+**v1.6.2 ratified at pass-7.** Convergence trajectory:
+
+| Pass | Real CRITs | Verdicts |
+|------|------------|----------|
+| 1 | 2 | 1 NO-GO + 2 NO-GO + 1 NO-GO + 1 COND |
+| 2 | 0 | 2 COND + 1 GO + 1 NO-GO* |
+| 3 | 3 | 1 COND + 1 NO-GO + 1 GO + 1 NO-GO |
+| 4 | 3 | 3 NO-GO + 1 COND |
+| 5 | 3 | 2 NO-GO + 1 GO + 1 COND |
+| 6 | 5 | 2 NO-GO + 1 GO + 1 COND |
+| **7** | **0** | **3 COND + 1 GO** |
+
+16 cumulative real CRITs found-and-fixed across 7 passes;
+2 Gemini CRITs rejected with parser-cited rebuttals. Trajectory
+matches v1.5.x convergence pattern (rev-N closes pass-(N-1)
+findings while introducing 1-3 new bugs from fix surgery).
+Rev-7's edit was precisely scoped (5 commits) and pass-7
+introduced ZERO new bugs from surgery — the cleanest pass.
+
+#### Deferred to v1.6.3 (pass-7 IMPs and minors)
+
+- Add NS/DB/AC routing-claim mention to `auth0_jwt` TYPE JWT
+  example for per-example consistency (currently relies on
+  global preamble block).
+- Align `jwks_inbound`'s session-duration comment with the
+  `:282` / `:457` dual-pointer used in `external_jwt_auth`.
+- Consolidate the `account` + `jwks_inbound` examples in the
+  JWKS section (currently functionally identical after rev-7's
+  `account` rewrite).
+- Tighten `verify.rs:155+` cite in the routing-claim block to
+  `:158-159` (anchor where `decode_claims_unverified` is
+  called).
+- Archive or label the `Cumulative trajectory after pass-5`
+  table as historical (superseded by the pass-6 table below).
+
+None of these affect runtime correctness; all are documentation
+polish suitable for a v1.6.3 batch.
 
 #### Reviewer-blind-spot doctrine (carried forward from earlier passes)
 
