@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [1.6.3] - 2026-05-06 — `rules/security.md` v1.6.2 pass-7 deferred-IMP polish (4 atomic doc commits + release commit)
+## [1.6.3] - 2026-05-06 — `rules/security.md` v1.6.2 pass-7 deferred-IMP polish (1 atomic doc commit + release commit + rev-2 review-fix commit)
 
 ### Changed
 
@@ -15,8 +15,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
   example consolidation:
   - **`auth0_jwt` TYPE JWT example** (JWKS-Backed JWT section)
     now mentions the NS/DB/AC routing-claim requirement
-    inline, matching the per-example consistency of `account` /
-    `external_idp`. The preamble's ROUTING-CLAIM REQUIREMENT
+    inline, matching the per-example consistency of
+    `external_idp` and `jwks_inbound` (the redundant `account`
+    JWKS example is removed in this same release per item 3
+    below). The preamble's ROUTING-CLAIM REQUIREMENT
     block already covers TYPE JWT (the `fn token` entry point
     decodes ALL inbound JWTs through `decode_claims_unverified`
     before dispatching to access-type-specific verifiers), but
@@ -44,9 +46,46 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Process notes
 
-5 atomic doc commits + release commit. Post-v1.6.2-pass-7,
-expect 1-2 4-WAY review revisions for ratification (smaller
-edit surface than v1.6.2's 7-pass cycle).
+1 atomic doc commit (5 polish items combined per v1.6.0
+single-commit fix pattern) + release commit + 1 rev-2
+review-fix commit (after pass-1 4-WAY review surfaced
+convergent CHANGELOG-hygiene minors).
+
+Pass-1 4-WAY adversarial review:
+- Cursor: GO              (0 CRITs / 0 IMPs / 3 minors)
+- Codex:  CONDITIONAL GO  (0 CRITs / 0 IMPs / 2 minors)
+- Gemini: GO              (clean — 0 findings)
+- Pi:     GO              (0 CRITs / 0 IMPs / 1 minor)
+
+Convergent minors (closed in rev-2):
+- Pi M1 + Cursor M1 + Codex implicit: `:158-159` line range
+  for `decode_claims_unverified` was a 2-line span where
+  only `:159` is the actual call (`:158` is the describing
+  comment). Tightened to `:159 (with a describing comment at
+  :158)`.
+- Cursor M2 + Codex M2: CHANGELOG `[1.6.3]` `auth0_jwt` bullet
+  said the per-example consistency restored alignment with
+  `account` / `external_idp` — but `account` was removed in
+  the same release. Reworded to `external_idp` and
+  `jwks_inbound` (the actual remaining peers).
+- Codex M1: CHANGELOG header said "4 atomic doc commits"
+  while process notes said "5 atomic doc commits"; live
+  branch had 2. Header now says "1 atomic doc commit (5
+  polish items combined) + release commit + rev-2 review-fix
+  commit" — accurate.
+
+Cursor M3 (routing arm cite `verify.rs:288-297` vs `292-297`
+boundary) deferred — the cited block is correct in intent
+(`Claims { ns: Some, db: Some, ac: Some, .. }` arm), and the
+range covers the surrounding match-arm comments + the body;
+tightening to `:292-297` would lose context. Tracked as a
+v1.6.4 hygiene candidate if a future deeper audit reaches the
+v1.6.x backlog tail.
+
+No re-dispatch for rev-2 — convergent CHANGELOG-only minors
+that are mechanical fixes against the same source the pass-1
+reviewers cited; rev-2 risk profile is near-zero (no
+security.md surface change beyond the one line tightening).
 
 ## [1.6.2] - 2026-05-06 — `rules/security.md` deferred-IMPORTANT clause closure (4 atomic feature commits + release commit)
 

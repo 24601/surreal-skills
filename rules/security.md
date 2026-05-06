@@ -549,7 +549,8 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD...
 -- Inbound JWTs MUST carry `ns`, `db`, and `ac` claims for
 -- SurrealDB to route them to an access method. The `token`
 -- entry point `fn token` at `verify.rs:155` calls
--- `decode_claims_unverified(token)?` at `:158-159` to decode
+-- `decode_claims_unverified(token)?` at `:159` (with a
+-- describing comment at `:158`) to decode
 -- the JWT WITHOUT verifying it first (the actual signature
 -- verification runs later, inside the access-method-specific
 -- branch); the resulting `token_data.claims` is then matched
