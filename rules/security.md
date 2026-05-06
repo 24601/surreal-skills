@@ -167,7 +167,7 @@ JWT access allows external identity providers to authenticate users with Surreal
 >
 > - **With `WITH ISSUER KEY` present** (SurrealDB issues JWTs): `FOR
 >   TOKEN` controls the lifetime of tokens SurrealDB mints. Default
->   is 1h (`AccessDuration::default()` in `core/src/sql/access_type.rs`);
+>   is 1h (`AccessDuration::default()` in `core/src/sql/access.rs`);
 >   `signin.rs:319` calls `expiration(av.token_duration)` when issuing.
 > - **Verification-only JWT** (no issuer key, SurrealDB only validates
 >   externally-issued JWTs): the parser accepts `FOR TOKEN` but the

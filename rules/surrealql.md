@@ -520,19 +520,33 @@ DEFINE ACCESS account ON DATABASE TYPE RECORD
     DURATION FOR TOKEN 15m, FOR SESSION 12h;
 
 -- JWT access (external identity provider).
--- `TYPE JWT` accepts only `DURATION FOR SESSION` -- the token's own
--- lifetime is set by the issuer, not by SurrealDB.
+-- `TYPE JWT` accepts BOTH `DURATION FOR TOKEN` and `DURATION FOR
+-- SESSION` (verified against parser tests stmt.rs:560/764/825).
+-- Semantics depend on issuer-key presence: with `WITH ISSUER KEY`,
+-- SurrealDB issues tokens and FOR TOKEN controls their lifetime;
+-- for verification-only JWT (no issuer), the parser accepts FOR
+-- TOKEN but the external issuer's `exp` claim is authoritative.
+-- See rules/security.md §"JWT-Based Authentication" for the full
+-- callout. Symmetric algorithms (HS256/HS384/HS512) auto-populate
+-- the issuer with the same key — they are NOT verification-only.
 DEFINE ACCESS token_auth ON DATABASE TYPE JWT
     ALGORITHM HS256 KEY 'your-secret-key-here'
-    DURATION FOR SESSION 12h;
+    DURATION FOR TOKEN 1h, FOR SESSION 12h;
 
 -- JWT with JWKS URL (for OAuth/OIDC providers)
 DEFINE ACCESS oauth ON DATABASE TYPE JWT
     URL 'https://auth.example.com/.well-known/jwks.json'
     DURATION FOR SESSION 24h;
 
--- WITH ISSUER KEY is only valid inside a RECORD-access definition
--- that uses WITH JWT, not on a standalone TYPE JWT access.
+-- WITH ISSUER KEY is valid on BOTH standalone `TYPE JWT` and inside
+-- a RECORD-access `WITH JWT` block (verified against parser test
+-- stmt.rs:466 — `TYPE JWT ALGORITHM EDDSA KEY "foo" WITH ISSUER KEY
+-- "bar"` parses to `JwtAccessIssue { alg: EdDSA, key: "bar" }`).
+-- The actual upstream constraint is that the issuer algorithm must
+-- match the verification algorithm (per stmt.rs:619 unwrap_err()),
+-- not that the clause is scope-restricted. The example below shows
+-- the RECORD-WITH-JWT pattern; the same `WITH ISSUER KEY` clause
+-- also composes with standalone `TYPE JWT` definitions.
 DEFINE ACCESS account ON DATABASE TYPE RECORD
     SIGNUP ( CREATE user SET email = $email, pass = crypto::argon2::generate($pass) )
     SIGNIN ( SELECT * FROM user WHERE email = $email AND crypto::argon2::compare(pass, $pass) )
@@ -1042,10 +1056,20 @@ REMOVE BUCKET images;
 ### ALTER
 
 Modifies an existing schema object in-place. v3 dispatches `ALTER`
-across seven targets (verified at `core/src/syn/parser/stmt/alter.rs`
-lines 14-29 and `core/src/expr/statements/alter/`):
+across seventeen targets (verified at `core/src/syn/parser/stmt/
+alter.rs` lines 26-44 and `core/src/expr/statements/alter/`):
 `ALTER SYSTEM`, `ALTER NAMESPACE`, `ALTER DATABASE`, `ALTER TABLE`,
-`ALTER INDEX`, `ALTER FIELD`, `ALTER SEQUENCE`. Use `ALTER` when you
+`ALTER EVENT`, `ALTER INDEX`, `ALTER FIELD`, `ALTER PARAM`,
+`ALTER SEQUENCE`, `ALTER BUCKET`, `ALTER ANALYZER`,
+`ALTER FUNCTION`, `ALTER USER`, `ALTER ACCESS`, `ALTER CONFIG`,
+`ALTER API`, `ALTER MODULE`. The examples below cover the most
+commonly-used subset (SYSTEM, NAMESPACE, DATABASE, TABLE, INDEX,
+FIELD, SEQUENCE); for the remaining ten targets (EVENT, PARAM,
+BUCKET, ANALYZER, FUNCTION, USER, ACCESS, CONFIG, API, MODULE) the
+clause surface follows the same general shape (IF EXISTS, COMMENT/
+DROP COMMENT, plus target-specific clauses) — consult the upstream
+parser source above for the full clause set on each. Use `ALTER`
+when you
 need to change an attribute of an existing definition without
 losing the object's history or dropping dependent objects (which a
 `REMOVE` + `DEFINE` cycle would do).
@@ -1075,17 +1099,31 @@ ALTER TABLE person SCHEMAFULL;
 ALTER TABLE wrote TYPE RELATION FROM person TO article;
 ALTER TABLE person PERMISSIONS FOR select WHERE id = $auth.id;
 
--- ALTER INDEX — primarily COMPACT, optionally idempotent.
-ALTER INDEX email_idx ON TABLE person COMPACT;
-ALTER INDEX IF EXISTS optional_idx ON TABLE person COMPACT;
+-- ALTER INDEX — supports IF EXISTS, PREPARE REMOVE (decommission an
+-- index before removal), COMMENT '…' / DROP COMMENT. There is NO
+-- COMPACT clause on ALTER INDEX in v3.0.5 (verified against
+-- core/src/syn/parser/stmt/alter.rs lines 311-347 and the
+-- AlterIndexStatement struct in core/src/sql/statements/alter/
+-- index.rs — the struct carries `prepare_remove: bool` and
+-- `comment: AlterKind<String>`, no `compact` field).
+ALTER INDEX email_idx ON TABLE person PREPARE REMOVE;
+ALTER INDEX email_idx ON TABLE person COMMENT 'Lookup by email';
+ALTER INDEX email_idx ON TABLE person DROP COMMENT;
+ALTER INDEX IF EXISTS optional_idx ON TABLE person PREPARE REMOVE;
 
 -- ALTER FIELD — change an existing field's DEFAULT, ASSERT,
 -- VALUE, READONLY, or PERMISSIONS without dropping the field.
 ALTER FIELD email ON TABLE person DEFAULT 'unknown@example.com';
 ALTER FIELD age ON TABLE person ASSERT $value >= 0;
 
--- ALTER SEQUENCE — restart the sequence at a new starting value.
-ALTER SEQUENCE order_no RESTART 1000;
+-- ALTER SEQUENCE — change the sequence TIMEOUT (or clear it with
+-- TIMEOUT NONE). There is NO RESTART clause on ALTER SEQUENCE in
+-- v3.0.5 (verified against core/src/syn/parser/stmt/alter.rs lines
+-- 1220-1243 and AlterSequenceStatement which carries only `name`,
+-- `if_exists`, `timeout`).
+ALTER SEQUENCE order_no TIMEOUT 5s;
+ALTER SEQUENCE order_no TIMEOUT NONE;
+ALTER SEQUENCE IF EXISTS optional_seq TIMEOUT 30s;
 ```
 
 ### REBUILD INDEX

@@ -3,6 +3,138 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.9] - 2026-05-05
+
+### Fixed (atomic-protocol patch — v1.5.8 Pi-only re-audit CRIT remediation)
+
+A ninth Pi+DeepSeek-V4-Pro:xhigh adversarial pass over the same six
+rules audited in pass-8 returned **2 GO + 1 CONDITIONAL GO + 3
+NO-GO** with **5 CRITs** total. v1.5.9 patches every CRIT.
+
+The v1.5.8 ALTER section in surrealql.md (the largest post-pass-7
+surgery) introduced two phantom-clause CRITs (ALTER INDEX COMPACT
+and ALTER SEQUENCE RESTART neither parses in v3.0.5). The v1.5.8
+TYPE JWT callout rewrite fixed only `rules/security.md`, leaving
+the same wrong claim in `rules/surrealql.md` (CRIT-3) plus a
+second related claim about `WITH ISSUER KEY` scope (CRIT-4).
+`rules/performance.md` returned NO-GO on a pre-existing
+UPDATE-LIMIT phantom that 8 prior passes missed. Plus a docs-only
+`AccessDuration::default()` citation pointed at the wrong rust
+file path (IMP escalated to fix as part of the security cross-
+fix patch).
+
+#### Per-file CRIT counts (pass-9)
+
+- **`rules/surrealql.md` (4 CRITs):**
+  - **CRIT-1: `ALTER INDEX … COMPACT` is a phantom clause.**
+    v1.5.8 ALTER section example was invented. Verified at
+    `core/src/syn/parser/stmt/alter.rs` lines 311-347 plus the
+    `AlterIndexStatement` struct in
+    `core/src/sql/statements/alter/index.rs`: the actual clauses
+    are `IF EXISTS`, `PREPARE REMOVE`, `COMMENT '…'`,
+    `DROP COMMENT`. There is no `compact` field on the struct.
+    Replaced the phantom example with parser-verified
+    `ALTER INDEX … PREPARE REMOVE` and `… COMMENT '…' / DROP
+    COMMENT` examples plus the `IF EXISTS` variant.
+  - **CRIT-2: `ALTER SEQUENCE … RESTART <n>` is a phantom
+    clause.** Verified at `alter.rs` lines 1220-1243 +
+    `AlterSequenceStatement`: the actual fields are `name`,
+    `if_exists`, `timeout`. The clause is `TIMEOUT <duration>`
+    (or `TIMEOUT NONE` to clear). Replaced the phantom RESTART
+    example with `ALTER SEQUENCE … TIMEOUT 5s` /
+    `ALTER SEQUENCE … TIMEOUT NONE` and an `IF EXISTS` variant.
+  - **CRIT-3 (cross-fix from security pass-9): TYPE JWT comment
+    at line 523-524 still claims "DURATION FOR SESSION only".**
+    v1.5.8 fixed the `rules/security.md` callout but missed the
+    same wrong claim embedded as a comment above the JWT example
+    in `rules/surrealql.md`. The two files were left contradicting
+    each other on the same fact-assertion. v1.5.9 rewrites the
+    surrealql.md comment to match the parser-verified callout in
+    security.md (TYPE JWT accepts both FOR TOKEN and FOR SESSION;
+    semantics depend on issuer-key presence; symmetric algorithms
+    auto-populate the issuer).
+  - **CRIT-4 (cross-fix from security pass-9): WITH ISSUER KEY
+    comment at line 535-537 wrongly claims scope-restriction.**
+    v1.5.1 added a comment claiming `WITH ISSUER KEY` is "only
+    valid inside a RECORD-access definition that uses WITH JWT,
+    not on a standalone TYPE JWT access." Pass-9 verified against
+    `core/src/syn/parser/test/stmt.rs:466`: `TYPE JWT ALGORITHM
+    EDDSA KEY "foo" WITH ISSUER KEY "bar"` parses successfully
+    on a standalone `TYPE JWT` to
+    `JwtAccessIssue { alg: EdDSA, key: "bar" }`. The actual
+    upstream constraint (per stmt.rs:619 `unwrap_err()`) is that
+    the issuer algorithm must match the verification algorithm
+    — not that the clause is scope-restricted. v1.5.9 rewrites
+    the comment to clarify the clause works on both standalone
+    and RECORD-WITH-JWT, with the actual algorithm-match
+    constraint explained.
+
+- **`rules/performance.md` (1 CRIT — pre-existing since v1.5.x):
+  `UPDATE … LIMIT` does not exist in v3.0.5.** Lines 581-588
+  recommended chunking large updates with `UPDATE user SET … WHERE
+  … LIMIT 1000`. Verified at `surrealdb/core/src/sql/statements/
+  update.rs`: `UpdateStatement` struct fields are `only / what /
+  with / data / cond / output / timeout / explain` — NO `limit`
+  field. The parser at `syn/parser/stmt/update.rs` does not parse
+  LIMIT for UPDATE. `UPDATE … LIMIT 1000` would produce a parse
+  error. Replaced with the parser-verified `SELECT VALUE id …
+  LIMIT 1000` then `UPDATE $batch SET …` two-step chunking
+  pattern. Same class of bug as the v1.5.3 `DELETE … LIMIT` CRIT.
+
+- **`rules/security.md` (cross-fix only — CRIT count: 0 self,
+  4 cross-cuts into surrealql.md tracked above):** The v1.5.8
+  callout has IMP-1: `AccessDuration::default()` was cited at
+  `core/src/sql/access_type.rs`. Pass-9 verified at upstream SHA
+  `a97d3af85d79`: `AccessDuration::default()` is actually defined
+  in `core/src/sql/access.rs` (`access_type.rs` defines `Default`
+  for `AccessType` and `JwtAccess`, not `AccessDuration`). v1.5.9
+  fixes the citation path.
+
+`rules/data-modeling.md` and `rules/graph-queries.md` returned
+**GO** with 0 CRITs (4th and 5th consecutive GO respectively for
+data-modeling; 4th GO for graph-queries).
+`rules/vector-search.md` returned **CONDITIONAL GO** with 0 CRITs
+(breaks pass-7+8 GO streak with 6 documentation IMPORTANTs but no
+correctness errors).
+
+Pass-9 also surfaced an IMPORTANT not-yet-CRIT: the v1.5.8 ALTER
+section claimed "seven targets"; the actual parser dispatch table
+at `alter.rs:26-44` matches **17** keywords. v1.5.9 corrects the
+intro line to state 17 targets and explicitly flags the ten
+undocumented ones (EVENT, PARAM, BUCKET, ANALYZER, FUNCTION,
+USER, ACCESS, CONFIG, API, MODULE) so consumers know to consult
+upstream for those clause surfaces.
+
+Pass-9 IMPORTANTs (security.md WITH REFRESH on TYPE RECORD / JWKS
+URL on TYPE RECORD / ACCESS REVOKE-SHOW-PURGE; surrealql.md ALTER
+TABLE IF EXISTS+SCHEMALESS / ALTER FIELD full clause set / ALTER
+ACCESS / 10 undocumented ALTER targets / encoding-bytes-file-set-
+sequence-schema-api function namespaces / DEFINE API / DEFINE
+CONFIG; performance.md SCHEMAFULL inference rationale / FIELDS vs
+COLUMNS drift / TIMEOUT clause coverage; vector-search.md MINKOWSKI
+in similarity-functions section + similarity-function examples
++ unimplemented-function warnings) and MINORs are deferred to
+v1.6.0 — they are documentation gaps or polish, not contradictions
+of upstream — tracked at `/tmp/pi-{rule}-pass9-out.md`.
+
+Migration: consumers who copied any of `ALTER INDEX … COMPACT`,
+`ALTER SEQUENCE … RESTART`, `UPDATE … LIMIT`, the (still-wrong-in-
+surrealql.md) "TYPE JWT only DURATION FOR SESSION" claim, or the
+(wrong) "WITH ISSUER KEY only valid inside RECORD-access" claim,
+need to apply the corrections noted above. Machine-checked
+version-consistency CI gate continues to apply.
+
+Cumulative CRITs across atomic-protocol cycle: v1.5.1=21, v1.5.2=
+7, v1.5.3=15, v1.5.4=6, v1.5.5=6, v1.5.6=5, v1.5.7=1, v1.5.8=2,
+v1.5.9=5 = **68 CRITs found-and-fixed across nine passes**. Pass-9
+re-uptick (1→2→5) is two-fold: (a) v1.5.8 ALTER surgery
+introduced 2 phantom-clause fix-drift CRITs, (b) the cross-rule
+gap surfaced 2 more pre-existing latent bugs in surrealql.md that
+the v1.5.8 callout-rewrite-only fix didn't propagate. Pass-10 is
+expected to converge if the v1.5.9 surgery (~30-line ALTER block
+correction + 4 comment-rewrites + 1 chunking-pattern replacement)
+holds.
+
 ## [1.5.8] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — v1.5.7 Pi-only re-audit CRIT remediation)

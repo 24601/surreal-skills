@@ -578,14 +578,23 @@ INSERT INTO user [
 -- BAD: Updating millions of rows in one transaction
 UPDATE user SET verified = true WHERE created_at < d'2025-01-01';
 
--- BETTER: Process in chunks using LIMIT
--- Chunk 1
-UPDATE user SET verified = true WHERE created_at < d'2025-01-01' AND verified = false LIMIT 1000;
--- Chunk 2 (repeat until no more matches)
-UPDATE user SET verified = true WHERE created_at < d'2025-01-01' AND verified = false LIMIT 1000;
+-- BETTER: Process in chunks via SELECT-then-UPDATE. v3 SurrealQL
+-- has NO LIMIT clause on UPDATE (verified against
+-- `surrealdb/core/src/sql/statements/update.rs` — UpdateStatement
+-- struct has fields `only / what / with / data / cond / output /
+-- timeout / explain` and no `limit` field; the parser at
+-- `syn/parser/stmt/update.rs` does not look for LIMIT). The
+-- equivalent v3 chunking pattern is to SELECT a bounded batch of
+-- record IDs first, then UPDATE that explicit batch.
+LET $batch = (
+    SELECT VALUE id FROM user
+    WHERE created_at < d'2025-01-01' AND verified = false
+    LIMIT 1000
+);
+UPDATE $batch SET verified = true;
 
 -- Use application-level loop:
--- while (affected > 0) { run UPDATE ... LIMIT 1000 }
+-- while ($batch is non-empty) { LET $batch = (SELECT … LIMIT 1000); UPDATE $batch SET … }
 ```
 
 ### Bulk Import
