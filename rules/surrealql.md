@@ -1957,6 +1957,41 @@ value::diff({ a: 1, b: 2 }, { a: 1, b: 3 })  -- returns diff
 value::patch({ a: 1, b: 2 }, [{ op: 'replace', path: '/b', value: 3 }])
 ```
 
+### Encoding Functions
+
+Verified against v3.0.5 `core/src/fnc/encoding.rs`. The `encoding::*`
+namespace exposes exactly four functions: two for Base64 and two for
+CBOR. Nothing else (no hex / urlencoding / base32 / etc.).
+
+```surql
+-- Base64 (RFC 4648 standard alphabet)
+-- encoding::base64::encode(bytes, padded?: bool=false) -> string
+-- The optional second argument controls padding. Default is NO padding
+-- (`STANDARD_NO_PAD`). Pass `true` to emit standard padded base64.
+encoding::base64::encode(<bytes> 'hello')         -- 'aGVsbG8'      (no padding)
+encoding::base64::encode(<bytes> 'hello', true)   -- 'aGVsbG8='     (padded)
+
+-- encoding::base64::decode(string) -> bytes
+-- Decoding is padding-INSENSITIVE: it accepts both padded and unpadded
+-- input (`DecodePaddingMode::Indifferent`). Returns a `bytes` value.
+encoding::base64::decode('aGVsbG8')               -- <bytes> 'hello'
+encoding::base64::decode('aGVsbG8=')              -- <bytes> 'hello' (also OK)
+
+-- CBOR (RFC 8949) round-trip via SurrealDB's public-value bridge.
+-- encoding::cbor::encode(value) -> bytes
+-- encoding::cbor::decode(bytes) -> value
+-- Useful for binary serialization of arbitrary SurrealQL values
+-- (records, datetimes, durations, decimals all supported via CBOR
+-- tags). Errors on values that cannot be represented as a public
+-- value (e.g. closures).
+encoding::cbor::encode({ a: 1, b: [2, 3] })       -- <bytes> ...
+encoding::cbor::decode(encoding::cbor::encode({ a: 1 }))  -- { a: 1 }
+```
+
+`encoding::base32`, `encoding::base64url`, `encoding::hex`,
+`encoding::url`, `encoding::json`, and any other format are NOT
+registered in v3.0.5. Only `base64` and `cbor` exist.
+
 ---
 
 ## Subqueries and Expressions
