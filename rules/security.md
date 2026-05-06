@@ -154,6 +154,84 @@ DEFINE ACCESS tenant_account ON DATABASE TYPE RECORD
     DURATION FOR TOKEN 30m, FOR SESSION 24h;
 ```
 
+#### Refresh Tokens (`WITH REFRESH`)
+
+`TYPE RECORD` access can issue a **refresh token** alongside the
+short-lived access token. The refresh token is itself a single-use
+bearer grant: the client exchanges it for a fresh access token
+(plus a fresh refresh token) without re-running `SIGNIN`. Verified
+against the v3.0.5 parser at `core/src/syn/parser/stmt/define.rs`
+lines 492-500 (the `WITH REFRESH` arm of the `TYPE RECORD` parser
+loop, which constructs a `BearerAccess { kind: Refresh, subject:
+Record, jwt: <inherited from WITH JWT> }`) and exercised by the
+parser test fixtures at `core/src/syn/parser/test/stmt.rs:911`,
+`:1108`, `:1163`. Runtime behaviour is in
+`core/src/iam/signin.rs:279-355` (signin path consumes a `refresh`
+variable and rotates the bearer grant) and
+`core/src/iam/access.rs:107-170` (`create_refresh_token_record` /
+`revoke_refresh_token_record`).
+
+Key semantics:
+
+- `WITH REFRESH` is only valid on `TYPE RECORD`. The parser
+  rejects it on `TYPE JWT` and `TYPE BEARER`.
+- The refresh token's lifetime comes from `DURATION FOR GRANT` on
+  the same access definition. `FOR TOKEN` still controls the
+  access-token lifetime; `FOR SESSION` still controls the session
+  ceiling.
+- Refresh tokens are **single-use**: each successful refresh
+  invalidates the prior token and returns a new one (verified at
+  `core/src/iam/signin.rs:282-355`). Reusing a consumed refresh
+  token is rejected.
+- `WITH REFRESH` and `WITH JWT` can coexist in either order; the
+  parser loop accepts repeated `WITH` clauses (test fixtures
+  `:1108` shows `WITH REFRESH WITH JWT …`; `:1163` shows
+  `WITH JWT … WITH REFRESH`).
+
+```surrealql
+-- Record access with refresh-token rotation. Access token is
+-- short-lived (15m); refresh token lives 30 days and rotates on
+-- every renewal.
+DEFINE ACCESS account ON DATABASE TYPE RECORD
+    SIGNUP (
+        CREATE user SET
+            email = $email,
+            pass = crypto::argon2::generate($pass)
+    )
+    SIGNIN (
+        SELECT * FROM user
+        WHERE email = $email
+        AND crypto::argon2::compare(pass, $pass)
+    )
+    WITH REFRESH
+    DURATION
+        FOR GRANT 30d,    -- refresh-token lifetime
+        FOR TOKEN 15m,    -- access-token lifetime
+        FOR SESSION 12h;
+```
+
+Client-side renewal (JavaScript SDK):
+
+```javascript
+// Initial sign-in returns BOTH an access token and a refresh token
+// when the access method has WITH REFRESH.
+const tokens = await db.signin({
+    access: 'account',
+    variables: { email, pass }
+});
+// tokens shape with WITH REFRESH:
+//   { access: '<jwt>', refresh: '<bearer-grant-id>' }
+
+// Later, when the access token is near expiry, exchange the refresh
+// token for a fresh pair WITHOUT prompting for credentials again.
+const renewed = await db.signin({
+    access: 'account',
+    variables: { refresh: tokens.refresh }
+});
+// renewed.refresh is a NEW token; the old one is now invalid.
+// Persist `renewed.refresh` for the next renewal.
+```
+
 ### JWT-Based Authentication
 
 JWT access allows external identity providers to authenticate users with SurrealDB.
