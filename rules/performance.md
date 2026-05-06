@@ -278,7 +278,9 @@ Use `EXPLAIN` to understand how SurrealDB executes a query and whether it uses i
 -- See the query execution plan (clause form)
 SELECT * FROM user WHERE email = 'alice@example.com' EXPLAIN;
 
--- Standalone form (verified upstream): EXPLAIN [ ANALYZE ] [ FORMAT TEXT | JSON ] @statement
+-- Standalone form (verified upstream): EXPLAIN [ ANALYZE ] [ FORMAT JSON ] @statement
+-- Default output is text (no `FORMAT TEXT` keyword exists in v3 — the
+-- only explicit format keyword is `FORMAT JSON`).
 EXPLAIN SELECT * FROM user WHERE email = 'alice@example.com';
 EXPLAIN ANALYZE SELECT * FROM user WHERE email = 'alice@example.com';
 EXPLAIN FORMAT JSON SELECT * FROM user WHERE email = 'alice@example.com';

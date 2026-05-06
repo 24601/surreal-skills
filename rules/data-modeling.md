@@ -1314,8 +1314,6 @@ DEFINE FIELD joined_at ON TABLE user TYPE datetime DEFAULT time::now();
 -- Graph relationships
 DEFINE TABLE follows TYPE RELATION IN user OUT user ENFORCED;
 DEFINE TABLE blocked TYPE RELATION IN user OUT user ENFORCED;
-DEFINE TABLE member_of TYPE RELATION IN user OUT group ENFORCED;
-DEFINE FIELD role ON TABLE member_of TYPE string DEFAULT 'member';
 
 -- Query: nearby users with shared interests, excluding blocked
 LET $me = user:alice;

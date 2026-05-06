@@ -566,11 +566,16 @@ surreal start --allow-origin "*"
 
 # Full server startup with security flags. NOTE: in v3, strictness
 # is no longer a server-startup flag — `--strict` is deprecated and
-# silently ignored. Use `DEFINE DATABASE <db> STRICT;` (per-database)
-# or `DEFINE NAMESPACE <ns> STRICT;` (per-namespace) at runtime
-# instead. To restrict server-level surface, use the capabilities
-# flags (`--deny-guests`, `--deny-arbitrary-query`,
-# `--deny-funcs <list>`, etc.) covered in §"Capabilities".
+# silently ignored. v3 only accepts STRICT on `DEFINE DATABASE` (NOT
+# on `DEFINE NAMESPACE` — verified against `core/src/sql/statements/
+# define/namespace.rs`, which has no `strict` field). For namespace-
+# wide coverage, define each database within the namespace as STRICT:
+#   USE NS prod;
+#   DEFINE DATABASE app STRICT;
+#   DEFINE DATABASE analytics STRICT;
+# To restrict server-level surface, use the capabilities flags
+# (`--deny-guests`, `--deny-arbitrary-query`, `--deny-funcs <list>`,
+# etc.) — see the network-security and CORS sections below.
 surreal start \
     --bind 0.0.0.0:8000 \
     --user root \
@@ -607,11 +612,13 @@ surreal start --bind 10.0.1.5:8000
 surreal start --kvs-ca /etc/tikv/ca.pem --kvs-crt /etc/tikv/client.crt --kvs-key /etc/tikv/client.key tikv://10.0.1.10:2379
 
 # In v3, `--strict` is deprecated and silently ignored. Enforce
-# strict mode per-namespace/per-database at runtime instead:
+# strict mode per-database at runtime (STRICT is NOT valid on
+# DEFINE NAMESPACE in v3 — only on DEFINE DATABASE):
 #   DEFINE DATABASE app STRICT;
-#   DEFINE NAMESPACE prod STRICT;
-# To require authentication for all connections, deny guest access
-# at the server level via the capabilities flag below.
+# For namespace-wide coverage, define each database within the
+# namespace as STRICT. To require authentication for all connections,
+# deny guest access at the server level via the capabilities flag
+# below.
 surreal start --deny-guests --deny-arbitrary-query
 ```
 
@@ -668,7 +675,7 @@ DEFINE EVENT audit_permission_changes ON TABLE system_config
 
 5. Using overly long token durations. Keep tokens short (5-30 minutes) and sessions reasonable.
 
-6. Relying on `--strict` for production hardening. The flag is deprecated in v3 and silently ignored at startup. Enforce strict mode at the schema layer with `DEFINE DATABASE <db> STRICT;` / `DEFINE NAMESPACE <ns> STRICT;`, and lock down server-level surface with `--deny-guests` and `--deny-arbitrary-query`.
+6. Relying on `--strict` for production hardening. The flag is deprecated in v3 and silently ignored at startup. Enforce strict mode at the schema layer with `DEFINE DATABASE <db> STRICT;` (STRICT is only valid on `DEFINE DATABASE` in v3 — not on `DEFINE NAMESPACE`; for namespace-wide coverage, define each database within the namespace as STRICT), and lock down server-level surface with `--deny-guests` and `--deny-arbitrary-query`.
 
 7. Exposing SurrealDB directly to the internet without TLS. Always use TLS in production.
 
@@ -870,7 +877,7 @@ DEFINE FIELD tenant ON TABLE data TYPE record<tenant> DEFAULT $auth.tenant READO
 
 Before deploying SurrealDB to production:
 
-- Use `--deny-guests` and `--deny-arbitrary-query` to require authentication for all connections (the legacy `--strict` flag is deprecated and silently ignored in v3); enforce schema strictness via `DEFINE DATABASE <db> STRICT;` / `DEFINE NAMESPACE <ns> STRICT;`
+- Use `--deny-guests` and `--deny-arbitrary-query` to require authentication for all connections (the legacy `--strict` flag is deprecated and silently ignored in v3); enforce schema strictness via `DEFINE DATABASE <db> STRICT;` (STRICT is only valid on `DEFINE DATABASE` in v3, not on `DEFINE NAMESPACE` — for namespace-wide coverage, define each database within the namespace as STRICT)
 - Enable TLS with valid certificates (`--web-crt`, `--web-key`)
 - Set strong root passwords (minimum 20 characters, random)
 - Define PERMISSIONS on every table that record users access

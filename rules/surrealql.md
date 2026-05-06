@@ -558,8 +558,12 @@ ACCESS service_tokens GRANT FOR USER ci_runner;
 `TYPE BEARER` accepts `DURATION FOR GRANT` (how long the issued
 token remains usable), `DURATION FOR TOKEN`, and `DURATION FOR
 SESSION`. It accepts `FOR USER` to bind the token to a system user
-or `FOR RECORD` to bind it to a specific record (the latter requires
-an `AUTHENTICATE` clause to validate the record on each use).
+or `FOR RECORD` to bind it to a specific record (the latter
+optionally accepts an `AUTHENTICATE` clause to validate the record
+on each use — verified against the upstream `TYPE BEARER FOR [USER
+| RECORD] [AUTHENTICATE @expression]` grammar; AUTHENTICATE is not
+required, e.g. `DEFINE ACCESS api ON DATABASE TYPE BEARER FOR
+RECORD DURATION FOR GRANT 10d;` is valid on its own).
 
 ### DEFINE ANALYZER
 
@@ -1917,17 +1921,43 @@ SELECT ->child_of->person->child_of->person FROM person:1;
 SELECT ->child_of->person.* FROM person:1;
 ```
 
-### Futures
+### Deferred Computation: Computed Fields, Closures, JS Functions
 
-Deferred computations that execute when queried.
+The `<future> { … }` expression syntax does NOT exist in v3.0.5
+(verified against the v3.0.5 `Value` enum in `core/src/val/mod.rs`,
+the `Kind` enum in `core/src/sql/kind.rs`, the lexer keyword set,
+and the expression parser — none recognise `FUTURE` as a token, and
+no `Future` variant exists in either enum). Earlier SurrealDB
+versions did expose a `<future>` form; in v3 the use cases are
+covered by three other features:
 
-```surql
--- Future value (recomputed on each read)
-CREATE person SET
-    name = 'Tobie',
-    created = time::now(),
-    age_display = <future> { string::concat(<string> age, ' years old') };
-```
+- **Computed fields** via `DEFINE FIELD … VALUE @expression` (see
+  the [DEFINE FIELD](#define-field) section above) — re-evaluates
+  the expression on every read of the record. This is the direct
+  successor to v1/v2 `<future>` for "deferred computation on read".
+
+  ```surql
+  -- Recomputed on every SELECT — no value stored on disk.
+  DEFINE FIELD age_display ON TABLE person
+      VALUE string::concat(<string> age, ' years old');
+
+  CREATE person SET name = 'Tobie', age = 33;
+  -- SELECT age_display FROM person → 'Tobie' record returns
+  -- 'age_display: "33 years old"' computed on read.
+  ```
+
+- **Closures** via the `|args| body` syntax — first-class function
+  values you can store on records, pass as parameters, or invoke
+  on demand.
+
+  ```surql
+  LET $double = |x| x * 2;
+  $double(21);   -- 42
+  ```
+
+- **Embedded JavaScript** via `function() { … }` (see the
+  [Embedded JavaScript](#embedded-javascript) section) — for
+  computation that does not fit SurrealQL's expression surface.
 
 ### Parameters
 

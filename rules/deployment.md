@@ -103,7 +103,7 @@ surreal upgrade --path ./mydata.db
 | `--log` | Log level (none, full, error, warn, info, debug, trace) | `info` |
 | `--user` | Root username | Required |
 | `--pass` | Root password | Required |
-| `--strict` | **Deprecated in v3** — flag still parses but is silently ignored. Enforce strictness via `DEFINE DATABASE <db> STRICT;` / `DEFINE NAMESPACE <ns> STRICT;` at the schema layer; require authentication via `--deny-guests` instead. | (no-op) |
+| `--strict` | **Deprecated in v3** — flag still parses but is silently ignored. Enforce strictness via `DEFINE DATABASE <db> STRICT;` at the schema layer (STRICT is only valid on `DEFINE DATABASE` in v3 — not on `DEFINE NAMESPACE`; for namespace-wide coverage, define each database within the namespace as STRICT); require authentication via `--deny-guests` instead. | (no-op) |
 | `--web-crt` | Path to TLS certificate | None |
 | `--web-key` | Path to TLS private key | None |
 | `--client-crt` | Path to client CA certificate (mTLS) | None |

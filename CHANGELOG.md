@@ -3,6 +3,145 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.5] - 2026-05-05
+
+### Fixed (atomic-protocol patch — v1.5.4 Pi-only re-audit CRIT remediation)
+
+A fifth Pi+DeepSeek-V4-Pro:xhigh adversarial pass over the same six
+rules audited in pass-4 returned **5 NO-GO + 1 GO** with **6 CRITs**
+total. v1.5.5 patches every CRIT.
+
+`rules/graph-queries.md` returned its first clean pass after four
+prior NO-GOs (10 cumulative CRITs) — verified via direct parser-
+source citation including the `path_shortest.surql` upstream
+language test. The convergence target for that file held.
+
+The other five files surfaced a mixture of **fix-patch drift from
+v1.5.4 surgery** and **latent CRITs that were pass-4 IMPORTANTs
+escalated under pass-5's ruthless standard**. Most consequential
+finding: a `JACCARD` / `PEARSON` semantic-inversion catalog bug in
+`rules/vector-search.md` — the same genus as the v1.5.3 LM
+mislabelling correction.
+
+#### Per-file CRIT counts (pass-5)
+
+- **`rules/data-modeling.md` (1 CRIT — pre-existing, pattern-
+  identical to PASS-1):** §"Document + Graph (Social Network with
+  Rich Profiles)" defined `member_of TYPE RELATION IN user OUT
+  group ENFORCED;` but the `group` table itself was never defined
+  in the file (and `member_of` was unused in any query in the
+  pattern). Identical class of bug to the PASS-1 `wrote`-edge
+  CRIT. Removed the unused edge definition.
+
+- **`rules/security.md` (1 CRIT — v1.5.4 fix-introduced) +
+  cross-fix into `rules/deployment.md` and `rules/surrealql.md`:**
+  - **CRIT-1: `DEFINE NAMESPACE <ns> STRICT;` is invalid SurrealQL
+    in v3.** v1.5.4 introduced this as the recommended replacement
+    for the deprecated `--strict` flag, but verification against
+    `core/src/syn/parser/stmt/define.rs` `parse_define_namespace()`
+    proves the parser only handles `COMMENT` after the namespace
+    name — there is no `STRICT` token handler. The
+    `DefineNamespaceStatement` struct (`core/src/sql/statements/
+    define/namespace.rs`) has no `strict` field. STRICT is **only**
+    valid on `DEFINE DATABASE`. Four sites in security.md replaced
+    with per-database-only guidance (for namespace-wide coverage,
+    define each database within the namespace as STRICT).
+    Cross-fix: `deployment.md` line 106 server-flags table same
+    correction; `surrealql.md` line 562 §DEFINE ACCESS BEARER
+    incorrectly claimed `FOR RECORD` *requires* an `AUTHENTICATE`
+    clause (it is optional per the upstream BEARER syntax
+    diagram) — corrected.
+
+- **`rules/vector-search.md` (2 CRITs):**
+  - **CRIT-1 (pass-4 IMP escalated): `HASHED_VECTOR` clause
+    missing.** The `use_hashed_vector: bool` parameter exists in
+    both `catalog::HnswParams` and `sql::HnswParams` (v3.x
+    revision 2) and is fully wired through parser → SQL → catalog,
+    but was entirely absent from the rule. Same class of error as
+    the v1.5.3 LM mislabelling — undocumented HNSW parameter.
+    Added to the syntax-block placeholder and parameter table.
+  - **CRIT-2 (NEW): `JACCARD` and `PEARSON` are similarity
+    functions, not distance functions, but the catalog
+    `Distance::compute` body calls them as if they were the
+    correct metric for HNSW search.** Verified at
+    `catalog/schema/index.rs:293-300`: `Self::Cosine =>
+    v1.cosine_distance(v2)` (true distance), but `Self::Jaccard =>
+    v1.jaccard_similarity(v2)` and `Self::Pearson =>
+    v1.pearson_similarity(v2)` (similarities). The HNSW
+    `KnnPriorityList` uses ascending `BTreeMap` order (smaller =
+    closer for true distance), so configuring `DIST JACCARD` or
+    `DIST PEARSON` ranks the **least** similar results first —
+    the search is silently inverted. The §"Distance Function
+    Selection Guide" presented both as regular distance metrics.
+    Added an explicit warning callout, marked the affected rows
+    with ⚠, redirected users to standalone
+    `vector::similarity::jaccard()` /
+    `vector::similarity::pearson()` for ad-hoc scoring, and
+    recommended a true distance metric for indexed nearest-
+    neighbour search. Also added the missing `MINKOWSKI` row to
+    the selection guide (pass-5 IMP).
+
+- **`rules/performance.md` (1 CRIT — pass-4 IMP escalated):
+  `EXPLAIN [ FORMAT TEXT | JSON ]` syntax includes a `FORMAT TEXT`
+  keyword that does not exist in v3.0.5.** The upstream EXPLAIN
+  page documents only `EXPLAIN [ANALYZE] [FORMAT JSON]` — text is
+  the default, not an explicit format keyword. Users copying
+  `EXPLAIN FORMAT TEXT SELECT ...` would have got a parser error.
+  Corrected the documented standalone form to
+  `EXPLAIN [ ANALYZE ] [ FORMAT JSON ] @statement` with a
+  precision comment.
+
+- **`rules/surrealql.md` (1 CRIT — pre-existing, missed by 4
+  prior passes): §"Futures" documents `<future> { … }` syntax
+  that does not exist in v3.0.5.** Verified exhaustively: no
+  `Future` variant in the `Value` enum (`core/src/val/mod.rs`),
+  no `Future` variant in the `Kind` enum (`core/src/sql/kind.rs`),
+  no `FUTURE` keyword in the lexer, no `<future>` parse path in
+  the expression parser. Earlier SurrealDB versions did expose
+  this form; v3 covers the same use cases via three other
+  features. Replaced the section with §"Deferred Computation:
+  Computed Fields, Closures, JS Functions" pointing at
+  `DEFINE FIELD … VALUE @expression` (the direct successor for
+  "computed on read"), `|args| body` closures, and the existing
+  Embedded JavaScript section.
+
+`rules/graph-queries.md` returned **GO with 0 CRITs** — first
+clean pass after four prior NO-GOs. v1.5.4's `+inclusive`
+correction held; PASS-1 through PASS-3 fixes verified clean
+against parser source plus upstream language tests; cross-
+references to v1.5.4 surrealql.md and security.md showed no
+drift. Three IMPORTANTs (sub-SELECT graph clauses with
+`ORDER`/`LIMIT`/`START`/`GROUP BY`, `$parent` in graph-traversal
+WHERE clauses, custom edge Record IDs in `RELATE`) deferred to
+v1.6.0 as additive coverage gaps.
+
+Pass-5 IMPORTANTs (data-modeling illustrative-edge consistency;
+security WITH REFRESH on TYPE RECORD / JWKS URL on TYPE RECORD /
+broken §Capabilities cross-reference / better AUTHENTICATE
+example; vector-search MINKOWSKI in similarity-functions section
++ JACCARD/PEARSON similarity functions + MINOR doc duplication;
+performance EXPLAIN FULL / SURREAL_HNSW_CACHE_SIZE / REBUILD
+INDEX ON TABLE all-indexes form / TLS flags missing from
+performance flag list; surrealql INSERT IGNORE example / seven
+`time::set_*` functions / four data types `regex`/`range`/
+`literal`/`file` / `array<T,N>` cardinality / 13 missing function
+namespaces / CONCURRENTLY+IF NOT EXISTS on DEFINE INDEX) and
+MINORs are deferred — they are documentation gaps or polish, not
+contradictions of upstream — tracked in residual-risk lists at
+`/tmp/pi-{rule}-pass5-out.md`.
+
+Migration: consumers who copied `member_of TYPE RELATION IN user
+OUT group`, `DEFINE NAMESPACE <ns> STRICT;`, `EXPLAIN FORMAT TEXT
+…`, `<future> { … }`, or configured `DIST JACCARD` / `DIST
+PEARSON` on an HNSW index expecting nearest-neighbour search,
+need to apply the corrections noted above. Machine-checked
+version-consistency CI gate continues to apply.
+
+Cumulative CRITs across atomic-protocol cycle: v1.5.1=21,
+v1.5.2=7, v1.5.3=15, v1.5.4=6, v1.5.5=6 = **55 CRITs found-and-
+fixed across five passes**. Pass-5 CRIT count matched pass-4
+exactly (6 / 6) — convergence has plateaued, not completed.
+
 ## [1.5.4] - 2026-05-05
 
 ### Fixed (atomic-protocol patch — v1.5.3 Pi-only re-audit CRIT remediation)

@@ -97,7 +97,8 @@ DEFINE INDEX index_name ON TABLE table_name FIELDS field_name
     [M0 max_connections_layer0]
     [LM level_multiplier]
     [EXTEND_CANDIDATES]
-    [KEEP_PRUNED_CONNECTIONS];
+    [KEEP_PRUNED_CONNECTIONS]
+    [HASHED_VECTOR];
 ```
 
 | Parameter | Description | Default | Guidance |
@@ -111,6 +112,7 @@ DEFINE INDEX index_name ON TABLE table_name FIELDS field_name
 | LM | HNSW level multiplier (`ml`); controls layer-assignment probability | `1 / ln(M)` (~0.402 at M=12) | Leave at default unless you've profiled the layer distribution |
 | EXTEND_CANDIDATES | Extend candidate list during construction | Off | Enable for higher recall |
 | KEEP_PRUNED_CONNECTIONS | Keep pruned connections | Off | Enable for higher recall |
+| HASHED_VECTOR | Use hashed vector representation for retrieval (memory-optimised) | Off | Enable on large indexes where vector storage memory is the bottleneck |
 
 > **HNSW parameter precision (verified at v3.0.5 — see
 > `surrealdb/core/src/sql/statements/define/index.rs` and the
@@ -782,9 +784,27 @@ DEFINE INDEX idx_embedding ON TABLE document
 | COSINE | Text embeddings, semantic similarity | Yes (recommended) | [0, 2] (distance) |
 | EUCLIDEAN | Spatial data, coordinate systems | No | [0, inf) |
 | MANHATTAN | Feature counting, grid distances | No | [0, inf) |
+| MINKOWSKI | Generalised distance (Lp norm); set order via `DIST MINKOWSKI <p>` | No | [0, inf) |
 | CHEBYSHEV | Worst-case dimension difference | No | [0, inf) |
 | HAMMING | Binary features, hash comparison | N/A | [0, dim] |
-| JACCARD | Set similarity | N/A | [0, 1] |
-| PEARSON | Correlation-based similarity | No | [-1, 1] |
+| JACCARD ⚠ | Set similarity (NOT distance — see warning below) | N/A | [0, 1] (similarity) |
+| PEARSON ⚠ | Correlation-based similarity (NOT distance — see warning below) | No | [-1, 1] (similarity) |
 
 Most text embedding models produce normalized vectors, making COSINE the standard choice. If you are unsure, use COSINE.
+
+> **⚠ JACCARD / PEARSON semantic inversion warning (v3.0.5).** The
+> v3.0.5 catalog `Distance::compute` body
+> (`catalog/schema/index.rs` lines 293–300) calls
+> `jaccard_similarity()` and `pearson_similarity()` for these two
+> `DIST` values, while every other `DIST` value computes a true
+> distance (smaller = closer). Because the HNSW `KnnPriorityList`
+> uses ascending `BTreeMap` order (smaller = nearer), configuring
+> `DIST JACCARD` or `DIST PEARSON` on an HNSW index ranks the
+> **least similar** results first — the search is silently
+> inverted. Until upstream fixes this (track in the SurrealDB
+> issue tracker), avoid `DIST JACCARD` / `DIST PEARSON` on HNSW
+> indexes; use the standalone `vector::similarity::jaccard()` /
+> `vector::similarity::pearson()` functions for ad-hoc scoring
+> instead, or pick a true distance metric (`COSINE`, `EUCLIDEAN`,
+> `MANHATTAN`, `CHEBYSHEV`, `HAMMING`) for indexed nearest-
+> neighbour search.
