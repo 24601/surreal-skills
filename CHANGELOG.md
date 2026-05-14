@@ -40,6 +40,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Updated GitHub Actions from deprecated Node 20 action majors to exact current
   tags: `actions/checkout@v6.0.2`, `actions/setup-python@v6.2.0`, and
   `astral-sh/setup-uv@v8.1.0`. `setup-uv` does not publish a `v8` major alias.
+- Disabled uv cache auto-detection in this repo because it has no dependency
+  lockfile, and pinned publish-time Node to `actions/setup-node@v6.4.0` /
+  Node 22 so `clawhub` does not emit Node-engine warnings.
 - Fixed the nightly upstream-check red flag by creating the `upstream-update`
   label idempotently before issue creation.
 
