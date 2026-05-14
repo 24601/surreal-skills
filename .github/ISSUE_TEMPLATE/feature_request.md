@@ -25,9 +25,15 @@ A clear description of what you want to happen.
 - [ ] `rules/sdks.md` - SDK integration
 - [ ] `rules/deployment.md` - Deployment
 - [ ] `rules/surrealism.md` - Surrealism WASM
+- [ ] `rules/surrealml.md` - SurrealML preview scope
+- [ ] `rules/surrealmcp.md` - SurrealMCP
+- [ ] `rules/editor-tooling.md` - Editor tooling
+- [ ] `rules/langchain.md` - LangChain integration
+- [ ] `rules/ecosystem-integrations.md` - n8n / ecosystem integrations
 - [ ] `rules/surreal-sync.md` - Surreal-Sync
 - [ ] `rules/surrealist.md` - Surrealist IDE
 - [ ] `rules/surrealfs.md` - SurrealFS
+- [ ] `rules/surrealkit.md` - SurrealKit
 - [ ] `scripts/onboard.py` - Onboard script
 - [ ] `scripts/doctor.py` - Doctor script
 - [ ] `scripts/schema.py` - Schema script

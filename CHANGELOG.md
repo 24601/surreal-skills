@@ -3,6 +3,46 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.6] - 2026-05-14 — ecosystem refresh, provenance normalization, and release workflow hardening
+
+### Added
+
+- **`rules/ecosystem-integrations.md`** covering the official scoped n8n
+  community node (`@surrealdb/n8n-nodes-surrealdb` v0.6.0), the official AI
+  framework docs index, Spectron / Agent Memory Context as roadmap-only,
+  CodeMirror packages, and the upstream `surrealdb/agent-skills` repo.
+- **CodeMirror coverage** in `rules/editor-tooling.md` for
+  `@surrealdb/codemirror` / `@surrealdb/lezer` v1.0.5.
+- **SDK provenance expansion** for first-party Java, .NET, PHP, C, Swift,
+  Kotlin, and Ruby repositories in `SOURCES.json`.
+
+### Changed
+
+- **Upstream provenance normalized to concrete SHAs** across 31 tracked repos,
+  replacing sentinel values such as `tracked-via-pypi` / `tracked-via-surrealdb`
+  with auditable commit baselines.
+- **`rules/sdks.md`** now calls out the unreleased Python v3 builder API and
+  `surrealdb-embedded` split, .NET `SurrealDb.Net` v0.10.2, and the source-only
+  C binding caveat.
+- **`rules/surrealkit.md`** updated to v0.6.3 with current install surfaces
+  (`cargo binstall`, Cargo, release archives with checksums, GHCR Docker image),
+  template variables, and current `SURREALDB_*` env-var behavior.
+- **`rules/surrealml.md`** now separates GitHub `v0.1.2` from PyPI `0.0.4` and
+  flags setup-time native-library downloads unless `LOCAL_BUILD=TRUE`.
+- **`rules/surrealist.md`** moved to main commit `cc19eb149dbc`, noting
+  post-release dropdown and workflow/supply-chain hardening without claiming a
+  newer public release.
+
+### Security / CI
+
+- Kept runtime script permissions stable: no new credential storage, no hidden
+  production shortcuts, and no remote shell installer guidance.
+- Updated GitHub Actions from deprecated Node 20 action majors to current
+  `actions/checkout@v6`, `actions/setup-python@v6`, and
+  `astral-sh/setup-uv@v8`.
+- Fixed the nightly upstream-check red flag by creating the `upstream-update`
+  label idempotently before issue creation.
+
 ## [1.6.5] - 2026-05-06 — `rules/vector-search.md` deferred-IMPORTANT closure (HASHED_VECTOR semantics + minkowski/jaccard/pearson similarity-fn examples) — 9-pass 4-WAY ratification
 
 ### Added

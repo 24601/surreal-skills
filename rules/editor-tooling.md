@@ -1,16 +1,17 @@
 # SurrealQL Editor Tooling
 
-> **v1.5.0 status note:** this rule was shrunk in v1.4.1 after the v1.4.0
+> **v1.6.6 status note:** this rule was shrunk in v1.4.1 after the v1.4.0
 > editor section was caught documenting a `surrealql.toml` schema, a
 > `lint --format github` CI subcommand, a `--socket` flag, and a VS Code
-> command palette that did not exist upstream. v1.5.0 restores per-editor
-> detail by inspecting the actual upstream source for each extension at a
-> pinned tag (`surrealdb/surrealql-language-server v0.1.2`,
+> command palette that did not exist upstream. v1.6.6 keeps per-editor
+> detail grounded in the actual upstream source for each extension at a
+> pinned tag (`surrealdb/surrealql-language-server v0.1.3`,
 > `surrealdb/surrealql-vsx v0.3.0`, `surrealdb/surrealql-zed v0.1.0`,
 > `surrealdb/surrealql-jetbrains` head, `surrealdb/surrealql-tree-sitter`
-> head). Anything in this file is from the inspected source; anything an
-> editor exposes beyond what is listed here is out-of-scope until a
-> future verify pass.
+> head). v1.6.6 also adds the official CodeMirror packages
+> (`@surrealdb/codemirror`, `@surrealdb/lezer` v1.0.5). Anything in this file
+> is from inspected source; anything beyond it is out-of-scope until a future
+> verify pass.
 
 This rule covers the editor-side toolchain for SurrealQL: the language
 server, the tree-sitter grammar, and the per-editor extensions. Pair
@@ -19,15 +20,16 @@ human authoring; MCP serves agent execution.
 
 ---
 
-## Canonical Components (verified 2026-05-05)
+## Canonical Components (verified 2026-05-14)
 
 | Component | Repo | Pinned tag | Wire name on disk |
 |-----------|------|------------|-------------------|
-| Language server | `surrealdb/surrealql-language-server` | `v0.1.2` (2026-04-21) | `surrealql-language-server` (Cargo `[package].name`; no `[[bin]]` override) |
+| Language server | `surrealdb/surrealql-language-server` | `v0.1.3` (2026-05-08) | `surrealql-language-server` (Cargo `[package].name`; no `[[bin]]` override) |
 | Tree-sitter grammar | `surrealdb/surrealql-tree-sitter` | head (sibling checkout required by the LSP build) | -- |
 | VS Code grammar+snippets | `surrealdb/surrealql-vsx` | `v0.3.0` | `surrealdb.surrealql` (Marketplace publisher.name) |
 | JetBrains plugin | `surrealdb/surrealql-jetbrains` | head | `com.surrealdb.surql-jetbrains` (Marketplace id `31397`) |
 | Zed extension | `surrealdb/surrealql-zed` | `v0.1.0` | `surrealdb-surrealql` (Zed extension id) |
+| CodeMirror package | `surrealdb/codemirror` | `v1.0.5` | `@surrealdb/codemirror`, `@surrealdb/lezer` |
 
 There is also an older crate `surql-lsp` on crates.io. **The canonical
 LSP for first-party extensions is `surrealql-language-server`** -- the
@@ -37,7 +39,11 @@ one editor wiring.
 
 ---
 
-## Language Server: `surrealql-language-server` v0.1.2
+## Language Server: `surrealql-language-server` v0.1.3
+
+v0.1.3 migrated to `tower-lsp-server`, improved workspace/metadata handling,
+and added parser support for trailing commas. It still depends on
+`surrealdb = "3.0.5"` with HTTP, WebSocket, and rustls features.
 
 ### Communication + invocation
 
@@ -187,7 +193,7 @@ codium --install-extension surrealdb.surrealql
 To get diagnostics/hover/completion in VS Code today, install the
 extension above for syntax + run the LSP through a generic LSP-client
 extension that lets you bind a binary to a `languageId`. There is no
-first-party VS Code LSP extension at the v1.5.0 cut.
+first-party VS Code LSP extension at the v1.6.6 cut.
 
 ---
 
@@ -268,13 +274,50 @@ https://github.com/surrealdb/surrealql-language-server`."*
 
 ---
 
+## CodeMirror (`@surrealdb/codemirror` v1.0.5)
+
+The official CodeMirror package lives in `surrealdb/codemirror` and publishes
+two npm packages:
+
+| Package | Purpose |
+|---------|---------|
+| `@surrealdb/codemirror` | CodeMirror extension with highlighting, folding, indentation, comment toggling, embedded JavaScript highlighting, and version-aware linting |
+| `@surrealdb/lezer` | Low-level Lezer grammar used by the CodeMirror extension |
+
+Install:
+
+```bash
+npm install @surrealdb/codemirror
+```
+
+Use:
+
+```typescript
+import { surrealql, surrealqlVersionLinter } from "@surrealdb/codemirror";
+
+const state = EditorState.create({
+  doc: "SELECT * FROM table",
+  extensions: [
+    surrealql(),
+    surrealqlVersionLinter("2.0.0"),
+  ],
+});
+```
+
+`@surrealdb/codemirror` is editor-embedded syntax tooling. It is not an LSP
+client, does not connect to a SurrealDB instance, and should not be treated as
+a replacement for `surrealql-language-server` when you need schema-aware
+workspace diagnostics.
+
+---
+
 ## Other editors (community / wire-it-yourself)
 
-The surrealdb GitHub org does not publish first-party packages for
-Neovim, Helix, Sublime Text, or Emacs at the v1.5.0 cut. For those
-editors, install `surrealql-language-server` on `$PATH` (cargo install
-or a release asset) and configure the editor's LSP client to point at
-it.
+The SurrealDB GitHub org now publishes small first-party extension repos for
+Neovim, Helix, and Emacs (`surrealql-neovim`, `surrealql-helix`,
+`surrealql-emacs`), but they are source-only at the v1.6.6 cut and have no
+release tags. For those editors, install `surrealql-language-server` on
+`$PATH` and configure the editor's LSP client to point at it.
 
 ### Neovim (`nvim-lspconfig`)
 
@@ -300,9 +343,9 @@ end
 require("lspconfig").surrealql.setup({})
 ```
 
-`nvim-lspconfig` does not (yet) ship a built-in entry for SurrealQL;
-the snippet above registers one inline. Pass workspace settings under
-the `surrealql` key per the LSP schema above.
+Use the upstream `surrealdb/surrealql-neovim` repo as the first place to check
+for current Neovim wiring. The inline snippet above remains a portable fallback
+when you only have `nvim-lspconfig`.
 
 ### Helix (`languages.toml`)
 
@@ -321,7 +364,7 @@ config = { surrealql = { activeAuthContext = "viewer" } }
 
 ### Sublime Text
 
-No first-party Sublime package exists at the v1.5.0 cut. Wire the LSP
+No first-party Sublime package exists at the v1.6.6 cut. Wire the LSP
 through the `LSP` package (sublimelsp.github.io/LSP) and bring your
 own SurrealQL syntax (the TextMate grammar in `surrealdb/surrealql-vsx`
 is loadable). Treat anything more specific than "use the LSP package
@@ -329,10 +372,9 @@ plus a TextMate grammar" as out of scope.
 
 ### Emacs
 
-No first-party Emacs package exists at the v1.5.0 cut. `eglot` or
-`lsp-mode` can drive `surrealql-language-server` over stdio; bring
-your own syntax-highlighting mode (`tree-sitter` / `tree-sitter-langs`
-can host the grammar above).
+Use the upstream `surrealdb/surrealql-emacs` repo for current Emacs packaging.
+`eglot` or `lsp-mode` can drive `surrealql-language-server` over stdio; bring
+tree-sitter grammar support if you need richer local highlighting.
 
 ---
 
@@ -364,4 +406,5 @@ and Surrealist on the side for ops.
 - VS Code grammar repo: `https://github.com/surrealdb/surrealql-vsx`
 - JetBrains plugin repo: `https://github.com/surrealdb/surrealql-jetbrains`
 - Zed extension repo: `https://github.com/surrealdb/surrealql-zed`
+- CodeMirror repo: `https://github.com/surrealdb/codemirror`
 - Tree-sitter grammar: `https://github.com/surrealdb/surrealql-tree-sitter`

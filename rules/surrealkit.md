@@ -5,23 +5,25 @@ SurrealKit is a schema management tool for SurrealDB applications. It treats
 and uses rollout manifests for reviewed staged changes on shared or production
 databases.
 
-Tracked upstream snapshot: **v0.6.0** pre-release (`28f5a1c9d20c`, 2026-05-03).
-v0.6.0 builds on the v0.5.x sync/rollout/seed/test foundation with iterative
-patch releases (v0.5.1 -> v0.5.8 -> v0.6.0) and a procedural macro publish
-workflow added in CI; the user-facing CLI and project layout below are
-unchanged from v0.5.
+Tracked upstream snapshot: **v0.6.3** pre-release (`7771b93ea563`, 2026-05-13).
+The v0.6.1 -> v0.6.3 patch line added library-lock fixes, template variables,
+comment-stripping cleanup, `DROP ... IF EXISTS` handling for namespace/database
+removal, and `DEFINE` coverage for `BUCKET`, `SEQUENCE`, and `CONFIG`.
 
-> **Packaging note**: the current README in `surrealdb/surrealkit` still points
-> to historical `ForetagInc/surrealkit` release binaries while the active repo
-> is now `surrealdb/surrealkit`. Treat Cargo installation as the stable path
-> unless the release distribution story is clarified upstream.
+> **Packaging note**: the active upstream README now documents four install
+> paths: `cargo binstall surrealkit`, `cargo install surrealkit`, prebuilt
+> GitHub release archives with `.sha256` files, and a GHCR Docker image
+> (`ghcr.io/surrealdb/surrealkit:latest`). Prefer exact release tags in CI and
+> production; use `latest` only for disposable local or preview workflows.
 
 ---
 
 ## Installation
 
 ```bash
+cargo binstall surrealkit
 cargo install surrealkit
+docker pull ghcr.io/surrealdb/surrealkit:latest
 ```
 
 ## Project Layout
@@ -45,13 +47,17 @@ surrealkit init
 
 ## Environment Variables
 
-SurrealKit reads these values into its local `.env` workflow:
+SurrealKit reads connection values from CLI args first, then system env vars,
+then `.env`, then defaults. Current names are `SURREALDB_*` with older
+`DATABASE_*` names as fallbacks:
 
-- `DATABASE_HOST` or `PUBLIC_DATABASE_HOST`
-- `DATABASE_NAME` or `PUBLIC_DATABASE_NAME`
-- `DATABASE_NAMESPACE` or `PUBLIC_DATABASE_NAMESPACE`
-- `DATABASE_USER`
-- `DATABASE_PASSWORD`
+- `SURREALDB_HOST` (fallback: `DATABASE_HOST`)
+- `SURREALDB_NAME` (fallback: `DATABASE_NAME`)
+- `SURREALDB_NAMESPACE` (fallback: `DATABASE_NAMESPACE`)
+- `SURREALDB_USER` (fallback: `DATABASE_USER`)
+- `SURREALDB_PASSWORD` (fallback: `DATABASE_PASSWORD`)
+- `SURREALDB_AUTH_LEVEL` (fallback: `DATABASE_AUTH_LEVEL`; accepted values:
+  `root`, `namespace` / `ns`, `database` / `db`)
 
 ## Operating Modes
 
@@ -75,6 +81,28 @@ For shared databases, destructive prune requires an explicit override:
 ```bash
 surrealkit sync --allow-shared-prune
 ```
+
+### Template Variables
+
+v0.6.2 added template variables for schema, seed, and rollout SQL. Use
+`${VAR_NAME}` tokens in `.surql` files and bind them at runtime:
+
+```surql
+DEFINE TABLE ${schema_prefix}_users SCHEMAFULL;
+DEFINE ROLE ${writer_role} PERMISSIONS FULL;
+```
+
+Resolution priority:
+
+| Source | Example |
+|--------|---------|
+| CLI `--var KEY=VALUE` | `surrealkit sync --var schema_prefix=acme` |
+| Env var `SURREALKIT_VAR_<KEY>` | `SURREALKIT_VAR_SCHEMA_PREFIX=acme surrealkit sync` |
+| `[variables]` in `surrealkit.toml` | `schema_prefix = "acme"` |
+
+Variable names are case-insensitive. Use variables for environment-specific
+identifiers or values; keep structural schema differences visible in the
+reviewed `.surql` files.
 
 ### Rollouts
 
@@ -156,6 +184,8 @@ CI on any test failure.
 - Use `sync` for disposable environments where desired-state deletion is safe.
 - Use `rollout` for shared or production databases, especially when dropping or
   renaming fields, indexes, access definitions, or tables.
+- Use `--var` / `SURREALKIT_VAR_*` only for environment-specific identifiers or
+  values. Don't hide schema shape changes behind opaque variables.
 - Use `seed` for fixtures and example data, not schema evolution.
 - Use `test` to validate permissions, schema invariants, and API behavior in CI
   before rollout completion.
@@ -186,4 +216,36 @@ surrealkit rollout complete 20260410120000__add_order_indexes
 surrealkit sync
 surrealkit seed
 surrealkit test --fail-fast --json-out artifacts/surrealkit-tests.json
+```
+
+### Docker / Compose CI
+
+The upstream image is distroless and exits after the command completes, so it
+fits "apply schema then run tests" pipelines:
+
+```yaml
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    command: start --user root --pass root memory
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+
+  surrealkit:
+    image: ghcr.io/surrealdb/surrealkit:latest
+    depends_on:
+      surrealdb:
+        condition: service_healthy
+    volumes:
+      - ./database:/database:ro
+    command:
+      - --host=http://surrealdb:8000
+      - --ns=my_ns
+      - --db=my_db
+      - --user=root
+      - --pass=root
+      - sync
 ```

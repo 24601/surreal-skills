@@ -1,12 +1,12 @@
 # SurrealML -- Machine Learning Models in SurrealDB
 
-> **v1.5.0 status note:** v1.4.1 retracted the v1.4.0 documentation of
+> **v1.6.6 status note:** v1.4.1 retracted the v1.4.0 documentation of
 > `DEFINE MODEL ml::name<version>(...)`, `INFO FOR MODEL`, `REMOVE
 > MODEL`, `ml::name<version>(...)` invocation, `surreal start
 > --user-mem-limit`, `surreal ml import`, `db.upload_ml(...)`, and the
 > `SurMlFile.from_pytorch / from_onnx / from_sklearn / from_keras /
-> from_hf` factories -- none of those exist upstream. v1.5.0 now
-> documents the **actual** `SurMlFile` constructor + builder API
+> from_hf` factories -- none of those exist upstream. This rule documents
+> the **actual** `SurMlFile` constructor + builder API
 > verified against the published `surrealml 0.0.4` wheel
 > (`surrealml/__init__.py`, `surrealml/surml_file.py`,
 > `surrealml/engine/__init__.py`). The SurrealDB-side surface
@@ -19,17 +19,32 @@ that bundles an ONNX graph plus metadata, intended to be loadable
 into a SurrealDB server and invokable from queries.
 
 - Upstream: `https://github.com/surrealdb/surrealml`
-- PyPI: `https://pypi.org/project/surrealml/` (v0.0.4 at the v1.4.1 cut)
+- GitHub release: `v0.1.2` (2025-04-29; Rust/C core + dynamic-library assets)
+- PyPI: `https://pypi.org/project/surrealml/` (v0.0.4 remains the latest
+  published Python package as of 2026-05-14)
 - Status: early-stage / preview -- API and SurrealQL surface are not
   stable; treat anything below as a pointer, not a contract
 
 ---
 
-## Current Reality (verified 2026-05-05)
+## Current Reality (verified 2026-05-14)
 
 - The PyPI package `surrealml 0.0.4` exists. Its extras are
   `[sklearn]`, `[torch]`, `[tensorflow]` -- there is no `[hf]` extra.
   Pinned deps include `numpy==1.26.3`.
+- The GitHub repo has moved beyond the PyPI package. Current upstream
+  `clients/python/setup.py` reports a Python package line driven by
+  `config.json` and downloads precompiled dynamic C libraries from GitHub
+  Releases into `~/surrealml_deps` during package setup unless
+  `LOCAL_BUILD=TRUE`. That is a real supply-chain and reproducibility boundary:
+  pin the GitHub release, review the setup script, and avoid source installs in
+  locked-down production builders until upstream publishes a stable package with
+  a documented artifact-verification story.
+- The newer Rust workspace splits `modules/core`, `modules/c-wrapper`,
+  `modules/tokenizers`, `modules/llms`, `modules/wasm-linker`, and
+  `modules/transformers`, with ONNX Runtime pinned at `2.0.0-rc.9` and
+  Candle/tokenizer dependencies for future local model work. Treat this as
+  upstream implementation detail unless you are contributing to SurrealML.
 - The package's Python API uses an `Engine` enum and builder methods
   on a `SurMlFile` (verified against the upstream `clients/python`
   source); it does **not** expose the `from_pytorch / from_onnx /
@@ -43,8 +58,21 @@ into a SurrealDB server and invokable from queries.
   copying any such snippet.
 - The `surreal ml` CLI root page exists at
   `https://surrealdb.com/docs/surrealdb/cli/ml`, but `/import` and
-  `/export` subpages 404 at the v1.4.1 cut. Treat the CLI surface as
+  `/export` subpages still 404 at the v1.6.6 cut. Treat the CLI surface as
   a moving target.
+
+### Registry vs GitHub release boundary
+
+Do not conflate these:
+
+| Surface | Current verified state |
+|---------|------------------------|
+| PyPI `surrealml` | `0.0.4`, direct Python package, NumPy `1.26.3`, extras `[sklearn]`, `[torch]`, `[tensorflow]` |
+| GitHub `surrealdb/surrealml` | `v0.1.2`, Rust/C core, dynamic-library download/install flow, Python client under `clients/python` |
+| SurrealDB server / SurrealQL | No stable `DEFINE MODEL`, `INFO FOR MODEL`, `REMOVE MODEL`, or `ml::name<version>(...)` invocation documented here |
+
+For application guidance, default to PyPI `0.0.4` unless you explicitly need
+the newer GitHub core and have reviewed the setup-time binary download path.
 
 ---
 
@@ -141,7 +169,7 @@ These were claimed in the v1.4.0 rule and **are not present** in
 ### What the SurrealDB side does NOT (yet) expose
 
 These were also in the v1.4.0 rule and remain unverified upstream at
-the v1.5.0 cut:
+the v1.6.6 cut:
 
 - `DEFINE MODEL ml::name<version>(...)` SurrealQL statement.
 - `INFO FOR MODEL` / `REMOVE MODEL` statements.
@@ -149,7 +177,7 @@ the v1.5.0 cut:
 - `surreal ml import` / `surreal ml export` CLI subcommands -- the
   `surreal ml` root page exists at
   `https://surrealdb.com/docs/surrealdb/cli/ml`, but `/import` and
-  `/export` 404 at the v1.5.0 cut.
+  `/export` 404 as of 2026-05-14.
 - `db.upload_ml(...)` SDK method on the JS / Rust / Go clients.
 
 If you need server-side model invocation today, push the model out via

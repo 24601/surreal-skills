@@ -3,14 +3,14 @@ name: surrealkit
 description: "SurrealKit schema sync, rollout migrations, seeding, and declarative testing for SurrealDB apps. Part of the surreal-skills collection."
 license: MIT
 metadata:
-  version: "1.6.5"
+  version: "1.6.6"
   author: "24601"
   parent_skill: "surrealdb"
-  snapshot_date: "2026-05-06"
+  snapshot_date: "2026-05-14"
   upstream:
     repo: "surrealdb/surrealkit"
-    release: "v0.6.0"
-    sha: "28f5a1c9d20c"
+    release: "v0.6.3"
+    sha: "7771b93ea563"
 ---
 
 # SurrealKit -- Schema Management for SurrealDB Apps
@@ -19,16 +19,17 @@ SurrealKit manages SurrealDB application schemas as desired-state `.surql`
 files, with separate paths for disposable development databases and shared or
 production rollouts.
 
-Tracked upstream snapshot: **v0.6.0** pre-release (`28f5a1c9d20c`, 2026-05-03).
-v0.6.0 introduces a procedural macro publish workflow on top of the v0.5.x
-sync/rollout/seed/test pipeline; the public CLI surface below remains stable
-between v0.5 and v0.6.
+Tracked upstream snapshot: **v0.6.3** pre-release (`7771b93ea563`, 2026-05-13).
+The v0.6.1 -> v0.6.3 patch line added library-lock fixes, template variables,
+comment-stripping cleanup, `DROP ... IF EXISTS` handling, and `DEFINE` coverage
+for `BUCKET`, `SEQUENCE`, and `CONFIG`.
 
 ## Quick Start
 
 ```bash
 # Install
-cargo install surrealkit
+cargo binstall surrealkit
+# or: cargo install surrealkit
 
 # Scaffold project structure
 surrealkit init
@@ -69,11 +70,12 @@ surrealkit rollout complete 20260410120000__add_customer_indexes
 
 SurrealKit reads these variables:
 
-- `DATABASE_HOST` or `PUBLIC_DATABASE_HOST`
-- `DATABASE_NAME` or `PUBLIC_DATABASE_NAME`
-- `DATABASE_NAMESPACE` or `PUBLIC_DATABASE_NAMESPACE`
-- `DATABASE_USER`
-- `DATABASE_PASSWORD`
+- `SURREALDB_HOST` (fallback: `DATABASE_HOST`)
+- `SURREALDB_NAME` (fallback: `DATABASE_NAME`)
+- `SURREALDB_NAMESPACE` (fallback: `DATABASE_NAMESPACE`)
+- `SURREALDB_USER` (fallback: `DATABASE_USER`)
+- `SURREALDB_PASSWORD` (fallback: `DATABASE_PASSWORD`)
+- `SURREALDB_AUTH_LEVEL` (fallback: `DATABASE_AUTH_LEVEL`)
 
 ## Testing
 

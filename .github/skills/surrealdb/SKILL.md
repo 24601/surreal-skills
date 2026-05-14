@@ -1,6 +1,6 @@
 ---
 name: surrealdb
-description: "Expert SurrealDB 3 skill. Use when working with SurrealDB, SurrealQL queries, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, graph traversal, vector search, security and permissions, deployment and operations, performance tuning, SDK integration (JavaScript, Python, Go, Rust, Java, .NET), Surrealism WASM extensions, Surrealist IDE, Surreal-Sync migrations, SurrealFS, or SurrealKit."
+description: "Expert SurrealDB 3 skill. Use when working with SurrealDB, SurrealQL queries, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, graph traversal, vector search, security and permissions, deployment and operations, performance tuning, SDK integration, Surrealism WASM extensions, SurrealMCP, Surrealist IDE, Surreal-Sync migrations, SurrealFS, SurrealKit, or ecosystem integrations such as n8n and CodeMirror."
 argument-hint: "[query or topic, e.g. 'graph traversal patterns' or 'vector search with HNSW']"
 ---
 
@@ -15,16 +15,17 @@ Activate automatically when the user:
 - Works with `.surql` files
 - Designs database schemas for SurrealDB
 - Configures SurrealDB deployment or Docker
-- Uses SurrealDB SDKs (JavaScript, Python, Go, Rust, Java, .NET)
+- Uses SurrealDB SDKs (JavaScript, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Swift, Ruby)
 - Works with graph relationships (RELATE, traversal)
 - Implements vector search or RAG patterns
 - Configures security, permissions, or access control
 - Builds Surrealism WASM extensions
 - Migrates data to SurrealDB from other databases
+- Connects SurrealDB to MCP hosts, n8n, AI frameworks, or custom editors
 
 ## Rules Reference
 
-This skill contains 13 detailed rule files. Read the relevant rule file when
+This skill contains 18 detailed rule files. Read the relevant rule file when
 the user's request matches its domain:
 
 | Rule File | When to Load | Domain |
@@ -36,8 +37,13 @@ the user's request matches its domain:
 | [security.md](../../../rules/security.md) | Permissions, auth, JWT, access control | Row-level security and auth flows |
 | [deployment.md](../../../rules/deployment.md) | Installing, configuring, running SurrealDB | Storage engines, Docker, Kubernetes |
 | [performance.md](../../../rules/performance.md) | Slow queries, index strategy, EXPLAIN | Performance tuning and optimization |
-| [sdks.md](../../../rules/sdks.md) | Using SurrealDB from application code | JS, Python, Go, Rust SDK patterns |
+| [sdks.md](../../../rules/sdks.md) | Using SurrealDB from application code | JS, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Swift, Ruby patterns |
 | [surrealism.md](../../../rules/surrealism.md) | Writing WASM extensions | Rust to WASM extension development |
+| [surrealml.md](../../../rules/surrealml.md) | Working near SurrealML | Preview .surml boundary and native dependency warning |
+| [surrealmcp.md](../../../rules/surrealmcp.md) | Connecting AI hosts | MCP tool catalog and deployment |
+| [editor-tooling.md](../../../rules/editor-tooling.md) | Editor / IDE support | LSP, tree-sitter, CodeMirror, editor extensions |
+| [langchain.md](../../../rules/langchain.md) | LangChain RAG | Python vector store API |
+| [ecosystem-integrations.md](../../../rules/ecosystem-integrations.md) | n8n / framework pointers | n8n, AI framework docs, Spectron boundary, Agent Skills |
 | [surrealist.md](../../../rules/surrealist.md) | Using the Surrealist IDE/GUI | IDE features and schema designer |
 | [surreal-sync.md](../../../rules/surreal-sync.md) | Migrating from other databases | CDC sync from Postgres, Mongo, etc. |
 | [surrealfs.md](../../../rules/surrealfs.md) | AI agent filesystem operations | Virtual FS backed by SurrealDB |

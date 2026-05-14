@@ -115,7 +115,7 @@ Need schema validation?
 1. Reference rules/surrealml.md
 2. Prerequisites: `surrealml` PyPI package 0.0.4 (extras: [sklearn] / [torch] /
    [tensorflow]); SurrealML is preview-stage and the SurrealQL invocation
-   surface is unstable as of 2026-05-05.
+   surface is unstable as of 2026-05-14.
 3. The v1.4.0 documentation for `DEFINE MODEL`, `INFO FOR MODEL`,
    `ml::name<version>(...)`, `surreal ml import`, `db.upload_ml(...)`, and
    `SurMlFile.from_<framework>(...)` was retracted in v1.4.1 -- those
@@ -161,19 +161,18 @@ Need schema validation?
 
 ```
 1. Reference rules/editor-tooling.md
-2. Prerequisites: an LSP binary on $PATH. Two crates exist as of
-   2026-05-05: `surrealql-language-server` v0.1.2 (newer) and
-   `surql-lsp` v0.1.1. Pick one and pin -- do not assume which is canonical.
+2. Prerequisites: an LSP binary on $PATH. First-party baseline:
+   `surrealql-language-server` v0.1.3. `surql-lsp` v0.1.1 is a separate
+   community crate.
 3. Pick the editor:
    VS Code / Cursor / Windsurf -> "SurrealQL" extension (Marketplace + OpenVSX)
    JetBrains                    -> "SurrealQL" plugin (JetBrains Marketplace)
    Neovim                       -> surrealdb/surrealql-neovim + nvim-treesitter
    Helix                        -> wire via languages.toml once LSP is on $PATH
    Zed                          -> Zed extensions panel
-4. Per-extension command palettes, settings catalogs, and config-file
-   schemas were retracted in v1.4.1 -- the v1.4.0 documentation was not
-   verified against the actual extension `package.json` files. Use each
-   extension's own README for command/setting names.
+4. Custom web editors -> `@surrealdb/codemirror` / `@surrealdb/lezer` v1.0.5
+5. Per-extension command palettes, settings catalogs, and config-file
+   schemas must still be verified against each extension's own README.
 ```
 
 ### "User wants LangChain / RAG"
@@ -191,7 +190,7 @@ Need schema validation?
    store = SurrealDBVectorStore(embeddings, conn)
    # Note: kwarg is `custom_filter`, not `filter`
    store.similarity_search_with_score(query=..., k=..., custom_filter={...})
-3. JS/TS: NO official `@langchain/surrealdb` npm package as of 2026-05-05;
+3. JS/TS: NO official `@langchain/surrealdb` npm package as of 2026-05-14;
    the v1.4.0 documentation for it was retracted in v1.4.1. Use the v2
    JavaScript SurrealDB SDK directly until an official integration ships.
 4. For multi-tenant:
@@ -201,6 +200,30 @@ Need schema validation?
    (rules/surrealml.md). Compute embeddings in Python with the embedding
    provider of your choice and persist via the vector store, OR via your
    own DEFINE FUNCTION wrapping a Surrealism extension.
+```
+
+### "User wants n8n / AI framework / ecosystem integration"
+
+```
+1. Reference rules/ecosystem-integrations.md.
+2. n8n:
+   - Use scoped npm package `@surrealdb/n8n-nodes-surrealdb` v0.6.0.
+   - Self-hosted n8n only; community nodes do not run in n8n Cloud.
+   - HTTP/HTTPS only; do not configure ws:// or wss:// endpoints.
+   - Set N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true only if exposing the
+     node as an AI tool.
+   - Use scoped SurrealDB users and parameterized query inputs.
+3. AI framework docs:
+   - LangChain has a verified local rule (`rules/langchain.md`).
+   - Agno, Camel, CrewAI, Dagster, Google Agent, Kreuzberg, LlamaIndex,
+     Pydantic AI, and SmolAgents are docs-index pointers. Verify package,
+     import path, constructor/API shape, and SDK dependency before coding.
+4. Spectron / Agent Memory Context:
+   - Treat as roadmap-only until upstream publishes installable packages,
+     schema/API docs, and operational guidance.
+5. Official agent skills:
+   - `npx skills add surrealdb/agent-skills` installs upstream narrow skills;
+     this repo remains the broader SurrealDB 3 rule set.
 ```
 
 ### "User migrating from another database"
@@ -353,12 +376,13 @@ uv run {baseDir}/scripts/schema.py introspect --endpoint $SURREAL_ENDPOINT
 | `rules/security.md` | Row-level permissions, DEFINE ACCESS (JWT, record), DEFINE USER, namespace/database/table scoping, $auth/$session variables, authentication flows |
 | `rules/deployment.md` | Installation methods, storage engines (memory, RocksDB, SurrealKV, TiKV), Docker, Kubernetes Helm charts, production hardening, backup/restore, monitoring; `surrealdb/setup-surreal@v2` GitHub Action for CI (the v1.4.0 documentation that described setup-surreal as a CLI bootstrap was retracted in v1.4.2) |
 | `rules/performance.md` | Index strategies (unique, search, HNSW), EXPLAIN for query analysis, batch operations, connection pooling, storage engine trade-offs, resource limits |
-| `rules/sdks.md` | Official SDK usage for JS/TS, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Dart, Swift, Ruby: connection setup, authentication, CRUD, live queries, typed records |
+| `rules/sdks.md` | Official SDK usage for JS/TS, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Swift, Ruby plus source-only C boundary: connection setup, authentication, CRUD, live queries, typed records |
 | `rules/surrealism.md` | Surrealism WASM extension system (new in v3): Rust SDK, custom functions, custom analyzers, module lifecycle, deployment |
-| `rules/surrealml.md` | SurrealML scope summary (preview/unstable as of 2026-05-05); `.surml` artifact format, supported pip extras; v1.4.0 claims about `DEFINE MODEL`, `ml::name<version>(...)`, `surreal ml import`, `db.upload_ml(...)`, `SurMlFile.from_<framework>(...)` were retracted in v1.4.1 |
+| `rules/surrealml.md` | SurrealML scope summary (preview/unstable as of 2026-05-14); `.surml` artifact format, supported pip extras, GitHub v0.1.2 vs PyPI 0.0.4 boundary, setup-time native-library download warning |
 | `rules/surrealmcp.md` | Model Context Protocol server (`surrealdb/surrealmcp` v0.4.0): verified install (Cargo from source / Docker; not on crates.io or npm), `surrealmcp start` CLI shape, `SURREALDB_*` env-var conventions, snake_case tool catalog grouped per upstream README, host-config pointers for Claude Desktop / Cursor / Copilot in VS Code / Zed / n8n, JWT bearer auth for HTTP mode |
-| `rules/editor-tooling.md` | LSP crates (`surrealql-language-server` v0.1.2 + `surql-lsp` v0.1.1; canonical not asserted), `surrealql-tree-sitter` grammar, discoverability pointers for VS Code / Cursor / Windsurf / VSCodium / JetBrains / Neovim / Helix / Sublime / Zed / Emacs extensions; per-extension command and setting detail deferred to v1.5.0 |
+| `rules/editor-tooling.md` | First-party `surrealql-language-server` v0.1.3, community `surql-lsp` boundary, `surrealql-tree-sitter`, CodeMirror packages, and discoverability pointers for VS Code / Cursor / Windsurf / VSCodium / JetBrains / Neovim / Helix / Sublime / Zed / Emacs extensions |
 | `rules/langchain.md` | LangChain integration: `langchain-surrealdb` 0.2.1 (Python only) -- verified deps (`langchain-core ~= 1.1.0`, `surrealdb ~= 1.0.8` v1 SDK), constructor-based `SurrealDBVectorStore(embeddings, conn)` API, `custom_filter` kwarg. JS package, async class, chat history, and hybrid retriever from v1.4.0 were retracted in v1.4.1 |
+| `rules/ecosystem-integrations.md` | n8n community node (`@surrealdb/n8n-nodes-surrealdb` v0.6.0), official AI framework docs index, Spectron roadmap boundary, CodeMirror, official Agent Skills repo |
 | `rules/surrealist.md` | Surrealist IDE/GUI: schema designer, query editor, graph visualizer, table explorer, connection management |
 | `rules/surreal-sync.md` | Surreal-Sync CDC tool: source connectors, target connectors, migration workflows, incremental sync, schema translation |
 | `rules/surrealfs.md` | SurrealFS AI agent filesystem: file storage and retrieval, metadata management, directory structures, agent integration patterns |
@@ -467,10 +491,10 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 ```json
 {
   "skill": "surrealdb",
-  "version": "1.6.5",
-  "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealml", "surrealmcp", "editor-tooling", "langchain", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
+  "version": "1.6.6",
+  "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealml", "surrealmcp", "editor-tooling", "langchain", "ecosystem-integrations", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
   "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
-  "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealml.md", "surrealmcp.md", "editor-tooling.md", "langchain.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
+  "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealml.md", "surrealmcp.md", "editor-tooling.md", "langchain.md", "ecosystem-integrations.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
   "prerequisites": {
     "surreal_cli": true,
     "python": true,
@@ -501,7 +525,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.0.5+ (main tracking v3.1.0-alpha) |
-| Skill version | 1.6.5 |
+| Skill version | 1.6.6 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 
@@ -518,19 +542,29 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 | Repository | Release | SHA (short) | Snapshot Date | Rules Affected |
 |------------|---------|-------------|---------------|----------------|
 | surrealdb/surrealdb | v3.0.5 (main toward v3.1.0-alpha) | `a97d3af85d79` | 2026-04-29 | surrealql, data-modeling, security, performance, deployment, surrealism, surrealml |
-| surrealdb/surrealist | surrealist-v3.8.5 | `3699b2d09b62` | 2026-05-01 | surrealist |
-| surrealdb/surrealdb.js | v2.0.3 | `f0fa3cd7d8fb` | 2026-03-25 | sdks |
-| surrealdb/surrealdb.py | v2.0.0 (GA) | `6e45a820d27c` | 2026-05-02 | sdks |
+| surrealdb/surrealist | surrealist-v3.8.5 | `cc19eb149dbc` | 2026-05-13 | surrealist |
+| surrealdb/surrealdb.js | v2.0.3 | `8533173ed3c9` | 2026-05-12 | sdks |
+| surrealdb/surrealdb.py | v2.0.0 (PyPI); main v3.0.0 unreleased | `846f5de6df41` | 2026-05-12 | sdks |
 | surrealdb/surrealdb.go | v1.4.0 (main) | `aef39d3a439f` | 2026-04-30 | sdks |
+| surrealdb/surrealdb.java | v2.0.1 | `6057d346c377` | 2026-04-28 | sdks |
+| surrealdb/surrealdb.net | v0.10.2 | `f6a7ce946e52` | 2026-05-13 | sdks |
+| surrealdb/surrealdb.php | v1.0.1 | `2f8f7ade9c47` | 2026-03-02 | sdks |
+| surrealdb/surrealdb.c | -- | `039481e0c46f` | 2026-03-06 | sdks |
+| surrealdb/surrealdb.swift | -- | `046f7d5f2405` | 2026-04-29 | sdks |
+| surrealdb/surrealdb.kotlin | -- | `1d91ee969664` | 2026-05-13 | sdks |
+| surrealdb/surrealdb.rb | v0.7.0 | `5a98c3464b1f` | 2026-04-01 | sdks |
 | surrealdb/surreal-sync | v0.3.4 | `59b3166910f0` | 2026-03-11 | surreal-sync |
 | surrealdb/surrealfs | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
-| surrealdb/surrealkit | v0.6.0 (pre-release) | `28f5a1c9d20c` | 2026-05-03 | surrealkit |
-| surrealdb/surrealmcp | v0.4.0 | tag-pinned | 2025-09-05 | surrealmcp |
-| surrealdb/surrealml | 0.0.4 (PyPI) | tracked-via-pypi | 2026-05-05 | surrealml |
-| surrealdb/langchain-surrealdb | 0.2.1 (PyPI) | tracked-via-pypi | 2026-05-05 | langchain |
-| surrealdb/surrealql-language-server | 0.1.2 (crates.io) | tag-pinned | 2026-04-21 | editor-tooling |
-| surrealdb/surrealql-tree-sitter | -- | tracked-via-surrealdb | 2026-05-05 | editor-tooling |
+| surrealdb/surrealkit | v0.6.3 (pre-release) | `7771b93ea563` | 2026-05-13 | surrealkit |
+| surrealdb/surrealmcp | v0.4.0 | `6b82d699ece8` | 2026-01-14 | surrealmcp |
+| surrealdb/surrealml | v0.1.2 GitHub; 0.0.4 PyPI | `152ac2d508f1` | 2025-09-17 | surrealml |
+| surrealdb/surrealql-language-server | v0.1.3 | `6438d73c5c60` | 2026-05-08 | editor-tooling |
+| surrealdb/surrealql-tree-sitter | -- | `5db387281bcc` | 2026-05-07 | editor-tooling |
+| surrealdb/codemirror | v1.0.5 | `72c367232b08` | 2026-05-12 | editor-tooling, ecosystem-integrations |
+| surrealdb/langchain-surrealdb | v0.2.1 | `4cfecc53efbc` | 2026-03-16 | langchain |
+| surrealdb/n8n-nodes-surrealdb | v0.6.0 | `a14db7def6e2` | 2026-04-24 | ecosystem-integrations |
+| surrealdb/agent-skills | -- | `53ac3d2b7e4c` | 2026-04-13 | ecosystem-integrations |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-05-05.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-05-14.
 
 Full provenance data: `SOURCES.json` (machine-readable).

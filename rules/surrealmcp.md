@@ -1,8 +1,8 @@
 # SurrealMCP -- Model Context Protocol Server for SurrealDB
 
-> **v1.5.0 status note:** v1.4.1 retracted the v1.4.0 install path, CLI
+> **v1.6.6 status note:** v1.4.1 retracted the v1.4.0 install path, CLI
 > shape, env-var names, and tool catalog (none matched
-> `surrealdb/surrealmcp` upstream). v1.5.0 restores the full tool
+> `surrealdb/surrealmcp` upstream). This rule keeps the full tool
 > argument schema by inspecting `surrealdb/surrealmcp` at tag `v0.4.0`
 > directly (`src/tools/mod.rs`). Pin to that tag if you want the
 > schemas below to match exactly; later upstream commits may add or

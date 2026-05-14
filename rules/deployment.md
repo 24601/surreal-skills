@@ -126,8 +126,8 @@ surreal upgrade --path ./mydata.db
 > **None of those exist.** The repository
 > `github.com/surrealdb/setup-surreal` is a **GitHub Action** for
 > running SurrealDB inside a CI workflow (action.yml + composite
-> action), not a CLI bootstrap. This section was rewritten on
-> 2026-05-05 to document only the verified Action surface.
+> action), not a CLI bootstrap. This section was rechecked on
+> 2026-05-14 to document only the verified Action surface.
 
 `surrealdb/setup-surreal` is the official GitHub Action that starts a
 SurrealDB instance for use in CI workflows. It is **not** a

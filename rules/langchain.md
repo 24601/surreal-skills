@@ -8,7 +8,7 @@
 > not exist upstream. Those sections have been removed. The content
 > below is grounded in the upstream `surrealdb/langchain-surrealdb`
 > README and the v0.2.1 PyPI metadata. Anything not covered here is
-> deferred to v1.5.0 after a manual upstream pass.
+> deferred until a manual upstream pass.
 
 `langchain-surrealdb` is the official LangChain integration for
 SurrealDB. It exposes SurrealDB as a LangChain **vector store** so

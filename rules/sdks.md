@@ -1,6 +1,11 @@
 # SurrealDB SDK Reference
 
-This document covers SDK usage patterns for all officially supported languages. SurrealDB provides native SDKs in 9+ languages, each offering HTTP and WebSocket connectivity, with select SDKs also supporting embedded (in-process) database engines.
+This document covers SDK usage patterns for the officially documented SDKs
+(Rust, JavaScript, Python, Go, Java, .NET, PHP) plus first-party or
+SurrealDB-org SDK repos that are still pre-release or not fully documented
+(C, Swift, Kotlin, Ruby). Each section states whether the package is published
+and whether examples are verified against a release or only against upstream
+source.
 
 ---
 
@@ -660,7 +665,10 @@ const db = new Surreal({
 
 **Package**: `surrealdb` on PyPI (v2.0.0 GA, released 2026-04-23)
 **Repository**: github.com/surrealdb/surrealdb.py
-**Status**: Stable. SurrealDB 3.x support, Python 3.10+ required (3.9 dropped).
+**Status**: Stable for the published v2 package. Upstream `main` is already
+tracking an unreleased v3.0.0 Python API (`846f5de6df41`, 2026-05-12); do not
+write v3-only code unless you pin to that source commit or a future published
+v3 release.
 
 **v2.0.0 GA highlights** (2026-04-23, promoted from `v2.0.0-alpha.1`):
 - SurrealDB 3.x feature support (#230)
@@ -672,10 +680,32 @@ const db = new Surreal({
 - README slimmed and developer docs moved to CONTRIBUTING.md (#243)
 - Release-notification workflow added (#240, #244)
 
+**Post-v2.0.0 upstream main (not on PyPI as of 2026-05-14)**:
+- CRUD methods (`create`, `update`, `upsert`, `delete`, `insert`) move to an
+  awaitable/lazy builder API with chainable `.content()`, `.merge()`,
+  `.replace()`, `.patch()`, and `.relation()` clauses.
+- `query()` now returns all statement results: a single value for one statement,
+  or a tuple for multi-statement queries / transaction blocks. `query().into()`
+  maps multi-result outputs onto dataclasses.
+- `run(name, args)` exposes the `RUN` RPC.
+- The old `db.merge(record, data)`, `db.patch(record, data)`, and
+  `db.insert_relation(table, data)` forms are removed in the v3 API.
+- Embedded engines were split into a separate optional package:
+  `pip install surrealdb[embedded]` installs `surrealdb-embedded`; the base
+  package is HTTP/WebSocket only. Without the extra, `mem://`, `file://`, and
+  `surrealkv://` raise `UnsupportedEngineError`.
+- Builder execution is intentionally idempotent and guarded against several
+  injection/reconfiguration hazards, but sync-builder truthiness/comparison can
+  still execute the pending RPC. Avoid idioms like `if db.query("DELETE ...")`;
+  call `.execute()` explicitly for fire-and-forget operations.
+
 ### Installation
 
 ```bash
 pip install surrealdb
+
+# Unreleased-main v3 pattern once published:
+# pip install "surrealdb[embedded]"
 ```
 
 ### Synchronous API
@@ -740,13 +770,11 @@ asyncio.run(main())
 
 ### Embedded Connections
 
-The Python SDK supports two verified embedded URL schemes
-(`mem://` and `file://`); the upstream `examples/embedded/` and
-`async_embedded.py` source comment both pin the surface to "mem:// or
-file://". The earlier `surrealkv://` and `rocksdb://` schemes
-documented in v1.4.0 / v1.4.1 / v1.4.2 are not present in current
-upstream examples -- treat them as unverified until the upstream docs
-re-document them.
+Published v2.0.0 includes embedded support in the main `surrealdb` package. The
+unreleased v3 API splits embedded support into the optional
+`surrealdb-embedded` package. In v3 main, base `surrealdb` installs no Rust
+extension, and embedded URLs (`mem://`, `file://`, `surrealkv://`) fail with
+install guidance unless the `[embedded]` extra is present.
 
 ```python
 # In-memory (data lost when process exits)
@@ -758,6 +786,10 @@ async with AsyncSurreal("mem://") as db:
 async with AsyncSurreal("file:///path/to/db") as db:
     await db.use("test", "test")
     await db.create("person", {"name": "Alice"})
+
+# v3 main also wires SurrealKV through the embedded extra
+async with AsyncSurreal("surrealkv://path/to/db") as db:
+    await db.use("test", "test")
 ```
 
 ### Authentication Patterns
@@ -1138,14 +1170,14 @@ while let Some(notification) = stream.next().await {
 > `db.signin("root", "root")`, `db.use("ns", "db")`,
 > `db.create("person", Map.of(...))`, `db.queryAsync(...)` returning
 > `CompletableFuture<...>`) that did not match the actual upstream
-> SDK. **Verified upstream on 2026-05-05** -- `repo1.maven.org`
+> SDK. **Verified upstream on 2026-05-14** -- `repo1.maven.org`
 > shows `latest=2.0.1` (last updated 2026-04-28); the API uses
 > `Credential` typed objects and chained `useNs()` / `useDb()` calls;
 > `queryAsync` and `CompletableFuture` do not appear in the source
 > at all.
 
 **Package**: `com.surrealdb:surrealdb` on Maven Central
-**Verified version at v1.4.3 cut**: `2.0.1` (2026-04-28; previous
+**Verified version at v1.6.6 cut**: `2.0.1` (2026-04-28; previous
 versions `0.1.0`, `0.2.0`, `0.2.1`, `1.0.0-beta.1`, `2.0.0-alpha.1`,
 `2.0.0`, `2.0.1`)
 **Repository**: `github.com/surrealdb/surrealdb.java`
@@ -1265,8 +1297,12 @@ driver.queryBind(
 
 ## .NET SDK
 
-**Package**: `SurrealDb.Net` on NuGet
+**Package**: `SurrealDb.Net` on NuGet (latest verified: `0.10.2`, 2026-04-24)
 **Repository**: github.com/surrealdb/surrealdb.net
+**Status**: beta. Official README documents HTTP/WS remote connections,
+embedded packages (`SurrealDb.Embedded.InMemory`, `.RocksDb`, `.SurrealKv`),
+dependency injection, authentication, live queries, and client-side
+transactions. API is pre-1.0 and may still change.
 
 ### Installation
 
@@ -1309,12 +1345,16 @@ await db.DisposeAsync();
 
 ```csharp
 // In Startup.cs or Program.cs
-builder.Services.AddSurreal(options =>
-{
-    options.Endpoint = "ws://localhost:8000/rpc";
-    options.Namespace = "my_ns";
-    options.Database = "my_db";
-});
+var options = SurrealDbOptions
+  .Create()
+  .WithEndpoint("http://127.0.0.1:8000")
+  .WithNamespace("my_ns")
+  .WithDatabase("my_db")
+  .WithUsername("root")
+  .WithPassword("root")
+  .Build();
+
+builder.Services.AddSurreal(options);
 
 // In a service or controller
 public class PersonService
@@ -1332,6 +1372,9 @@ public class PersonService
     }
 }
 ```
+
+Lifetime boundary: `SurrealDbClient` is singleton-compatible; use
+`SurrealDbSession` / `ISurrealDbSession` for scoped or transient DI.
 
 ### LINQ Integration
 
@@ -1353,7 +1396,7 @@ var adults = await db.Select<Person>("person")
 > value, used double-quoted SurrealQL strings (PHP would interpolate
 > `$min_age`), and used string record-IDs everywhere where the
 > canonical upstream API uses typed `RecordId::create()` and
-> `Table::create()` objects. Rewritten 2026-05-05 against the upstream
+> `Table::create()` objects. Rechecked 2026-05-14 against the upstream
 > `surrealdb/surrealdb.php` README + `src/Surreal.php` source.
 
 **Package**: `surrealdb/surrealdb.php` on Packagist
@@ -1423,6 +1466,43 @@ $db->close();
 
 ---
 
+## C SDK (`surrealdb.c`)
+
+**Package**: source-only beta; no tagged release or package-registry artifact
+verified at the v1.6.6 cut.
+**Repository**: `github.com/surrealdb/surrealdb.c`
+**Status**: beta / low-level FFI. The upstream README warns that a `cbindgen`
+header-ordering issue can cause linking failures; use a published header or
+manually reorder headers until upstream resolves it.
+
+The C driver is backed by Rust crates (`surrealdb = 3.0.1`,
+`surrealdb-core = 3.0.1`) and builds `staticlib` / `cdylib` outputs. It is a
+systems-integration surface, not a general application SDK. Prefer the
+language-native SDKs above unless you are embedding SurrealDB behind an FFI
+boundary.
+
+```c
+#include "path/to/surrealdb.h"
+
+sr_surreal_t *db;
+sr_string_t err;
+
+char *endpoint = "ws://localhost:8000";
+/* or: char *endpoint = "surrealkv://database.skv"; */
+
+if (sr_connect(&err, &db, endpoint) < 0) {
+    printf("failed to connect: %s", err);
+    return 1;
+}
+
+sr_surreal_disconnect(db);
+```
+
+Cross-reference the upstream README before using any API beyond connection and
+disconnect; this skill does not yet document the full generated header.
+
+---
+
 ## Swift SDK (`surrealdb.swift`)
 
 > **v1.4.2 status note:** the v1.4.0 / v1.4.1 versions of this section
@@ -1432,14 +1512,13 @@ $db->close();
 > surface (`db.connect`, `db.signin(.root(...))`, `db.live(table: ...)`,
 > `event.value()`, `event.recordID`, `db.on(.disconnected)`) that did
 > not match the actual upstream package. **None of those claims survived
-> direct upstream verification on 2026-05-05.** This file has been
-> shrunk to verified-only content; full API documentation is deferred
-> to v1.5.0 after a manual upstream pass against tagged releases (when
-> the package publishes its first tag).
+> direct upstream verification on 2026-05-14.** This file remains
+> verified-only; full API documentation is deferred until the package
+> publishes its first tag.
 
 **Package**: `SurrealDB` (SwiftPM module name in upstream `Package.swift`)
 **Repository**: `github.com/surrealdb/surrealdb.swift`
-**Status (verified 2026-05-05)**: pre-release. **No git tags published**;
+**Status (verified 2026-05-14)**: pre-release. **No git tags published**;
 no version on Swift Package Index. The package compiles against
 `swift-tools-version: 6.1`.
 **Verified platform deployment targets** (from upstream `Package.swift`
@@ -1486,7 +1565,7 @@ the package exposes a freestanding macro DSL (`#select`, `#create`,
 
 > The exact method signatures, the macro arguments, and the embedded
 > engine story (the upstream `Package.swift` does not currently declare
-> a `surrealdb-core` FFI dependency) are deferred to v1.5.0 after the
+> a `surrealdb-core` FFI dependency) are deferred until the
 > first tagged release lands. **Do not copy-paste API examples from
 > any earlier version of this rule -- they were hallucinated.**
 
@@ -1507,12 +1586,12 @@ the package exposes a freestanding macro DSL (`#select`, `#create`,
 > `db.connect("mem://")`), Kotlin Multiplatform JS / Native targets,
 > coroutines `1.8.0` + Kotlin `2.0.0`, plus a `Java SDK strict superset`
 > + `@JvmOverloads` interop story. **None of those survived direct
-> upstream verification on 2026-05-05.** Shrunk here pending a v1.5.0
-> rewrite once the package publishes a Maven Central release.
+> upstream verification on 2026-05-14.** Shrunk here pending a rewrite
+> once the package publishes a Maven Central release.
 
 **Package**: not yet published. The repo's `gradle.properties` declares
 `GROUP=com.surrealdb`, `VERSION_NAME=0.1.0-SNAPSHOT`. Maven Central has
-**no** `com.surrealdb:surrealdb-kotlin` artifact at the v1.4.2 cut.
+**no** `com.surrealdb:surrealdb-kotlin` artifact as of 2026-05-14.
 The Java SDK (`com.surrealdb:surrealdb` `2.0.1`) is a separate
 artifact; consume that from Kotlin if you need a published JVM client
 today.
@@ -1551,10 +1630,10 @@ opaque payloads.
 
 Auth goes through a `SurrealAuthInput` sealed interface with
 `SignIn(params: JsonObject)` and `Token(token: String)` variants --
-there is no `Root` / `Database` data class at the v1.4.2 cut.
+there is no `Root` / `Database` data class as of 2026-05-14.
 
 > **Do not copy-paste API examples from any earlier version of this
-> rule.** Detailed usage is deferred to v1.5.0 after a tagged release.
+> rule.** Detailed usage is deferred until a tagged release.
 
 ### Cross-references
 
@@ -1573,7 +1652,7 @@ there is no `Root` / `Database` data class at the v1.4.2 cut.
 > and a `live(...).each do |event|` enumerator-returning live-query
 > shape.
 >
-> Verified upstream on 2026-05-05:
+> Verified upstream on 2026-05-14:
 >
 > - `surrealdb-rails` does **not** exist (rubygems.org 404; GitHub
 >   `surrealdb/surrealdb-rails` repo 404). The `SurrealDB::Record`
@@ -1587,12 +1666,12 @@ there is no `Root` / `Database` data class at the v1.4.2 cut.
 > - The pinned `~> 1.0` does not exist -- the latest official release
 >   is `0.7.0`.
 >
-> The main-gem shape below was rewritten on 2026-05-05 to match the
+> The main-gem shape below was rewritten on 2026-05-14 to match the
 > actual `surrealdb` gem; `surrealdb-embedded` API documentation is
-> deferred to v1.5.0 after a fresh upstream pass.
+> deferred until a fresh upstream pass.
 
 **Package**: `surrealdb` on RubyGems (verified)
-**Verified version at v1.4.2 cut**: `0.7.0` (published 2026-04-01 by
+**Verified version at v1.6.6 cut**: `0.7.0` (published 2026-04-01 by
 SurrealDB authors)
 **Repository**: `github.com/surrealdb/surrealdb.rb`
 **Required Ruby**: `>= 3.2` (verified from `surrealdb.gemspec`)
@@ -1646,8 +1725,8 @@ end
 # Later: db.kill(live_id)
 ```
 
-> **Rails / ActiveRecord adapter:** there is no official adapter at
-> the v1.4.2 cut. Use the SDK directly from your Rails models if you
+> **Rails / ActiveRecord adapter:** there is no official adapter as of
+> the v1.6.6 cut. Use the SDK directly from your Rails models if you
 > need Rails integration.
 
 ### Cross-references
@@ -1687,10 +1766,11 @@ end
 - **Go**: microservices, high-concurrency servers, CLI tools, cloud-native applications.
 - **Rust**: performance-critical apps, systems programming, embedded databases, Surrealism extensions (`rules/surrealism.md`).
 - **Java**: enterprise apps, Spring Boot services, JVM codebases. The published Maven artifact today is `com.surrealdb:surrealdb 2.0.1` (verified via `repo1.maven.org/maven2/com/surrealdb/surrealdb/maven-metadata.xml`, last updated 2026-04-28). Supports embedded `memory` mode plus remote connections.
-- **Kotlin**: at the v1.4.2 cut, **no Maven release**; consume the Java SDK from Kotlin until upstream publishes `surrealdb-kotlin`.
+- **Kotlin**: as of 2026-05-14, **no Maven release**; consume the Java SDK from Kotlin until upstream publishes `surrealdb-kotlin`.
 - **.NET**: ASP.NET, Windows services, C# codebases, Blazor.
 - **PHP**: Laravel/Symfony, WordPress plugins, traditional web apps.
-- **Swift**: at the v1.4.2 cut, **no published tag**; pin `branch: "main"` only for development. SDK exists; tagged release pending.
+- **C**: FFI/system integration when a native binding is required. Beta, source-only, and currently affected by an upstream `cbindgen` header-ordering caveat.
+- **Swift**: as of 2026-05-14, **no published tag**; pin `branch: "main"` only for development. SDK exists; tagged release pending.
 - **Ruby**: gem `surrealdb` 0.7.0 published 2026-04-01. No Rails / ActiveRecord adapter at this time; use the SDK directly from Rails models if needed.
 
 ### Embedded vs Remote Trade-offs
@@ -1700,7 +1780,7 @@ end
 - Single-process deployment
 - No separate database server to manage
 - Limited to single-node (no distributed queries)
-- Available in: JS/TS (Node.js, WASM), Python, Go, Rust. Other-language embedded support is unverified at the v1.4.2 cut.
+- Available in: JS/TS (Node.js, WASM), Python, Go, Rust. Other-language embedded support is unverified as of 2026-05-14.
 
 **Remote** (HTTP/WebSocket to server):
 - Shared database across instances
@@ -1717,4 +1797,4 @@ end
 - **Python SDK**: GIL-bound; use async API for I/O-bound workloads.
 - **Ruby SDK**: GVL-bound; use the async-runtime client and a connection pool for concurrent workloads.
 - **WASM (browser)**: client-side; performance follows browser WASM runtime.
-- **Swift / Kotlin SDKs**: pre-release; performance characteristics deferred to v1.5.0 after tagged releases.
+- **Swift / Kotlin SDKs**: pre-release; performance characteristics deferred until tagged releases.

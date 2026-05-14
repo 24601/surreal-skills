@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v8
 
       - name: Check upstream repos
         id: check
@@ -50,6 +50,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          gh label create "upstream-update" \
+            --description "Tracks upstream SurrealDB ecosystem drift" \
+            --color "5319e7" >/dev/null 2>&1 || true
+
           # Check for existing open issue to avoid duplicates
           EXISTING=$(gh issue list --label "upstream-update" --state open --json number --jq '.[0].number // empty')
           if [ -n "$EXISTING" ]; then
