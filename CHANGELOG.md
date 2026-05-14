@@ -43,6 +43,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - Disabled uv cache auto-detection in this repo because it has no dependency
   lockfile, and pinned publish-time Node to `actions/setup-node@v6.4.0` /
   Node 22 so `clawhub` does not emit Node-engine warnings.
+- Made the `clawhub publish` step idempotent for reruns: an existing
+  `surrealdb@1.6.6` version is treated as already published instead of a failed
+  release.
 - Fixed the nightly upstream-check red flag by creating the `upstream-update`
   label idempotently before issue creation.
 

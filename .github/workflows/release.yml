@@ -146,14 +146,27 @@ jobs:
           export CLAWHUB_CONFIG_PATH="$RUNNER_TEMP/clawhub-config.json"
           echo "Publishing skill to clawhub.ai..."
           npx --yes clawhub login --token "$CLAWHUB_TOKEN" --no-browser
+          PUBLISH_LOG="$RUNNER_TEMP/clawhub-publish.log"
+          set +e
           npx --yes clawhub publish . \
             --slug surrealdb \
             --name "SurrealDB 3" \
             --version "$VERSION" \
             --changelog "$CHANGELOG_TEXT" \
             --tags "latest,ai-agents,database,graph,openclaw,surrealdb,vector" \
-            || { echo "ERROR: Failed to publish to clawhub.ai"; exit 1; }
-          echo "Published successfully."
+            2>&1 | tee "$PUBLISH_LOG"
+          PUBLISH_STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$PUBLISH_STATUS" -ne 0 ]; then
+            if grep -Fq "Version already exists" "$PUBLISH_LOG"; then
+              echo "Version already exists on clawhub.ai; treating as already published."
+            else
+              echo "ERROR: Failed to publish to clawhub.ai"
+              exit "$PUBLISH_STATUS"
+            fi
+          else
+            echo "Published successfully."
+          fi
 
       - name: Trigger skills.sh reindex
         run: |
