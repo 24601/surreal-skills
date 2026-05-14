@@ -37,9 +37,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 - Kept runtime script permissions stable: no new credential storage, no hidden
   production shortcuts, and no remote shell installer guidance.
-- Updated GitHub Actions from deprecated Node 20 action majors to current
-  `actions/checkout@v6`, `actions/setup-python@v6`, and
-  `astral-sh/setup-uv@v8`.
+- Updated GitHub Actions from deprecated Node 20 action majors to exact current
+  tags: `actions/checkout@v6.0.2`, `actions/setup-python@v6.2.0`, and
+  `astral-sh/setup-uv@v8.1.0`. `setup-uv` does not publish a `v8` major alias.
 - Fixed the nightly upstream-check red flag by creating the `upstream-update`
   label idempotently before issue creation.
 
