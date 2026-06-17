@@ -5,10 +5,11 @@ SurrealKit is a schema management tool for SurrealDB applications. It treats
 and uses rollout manifests for reviewed staged changes on shared or production
 databases.
 
-Tracked upstream snapshot: **v0.6.3** pre-release (`7771b93ea563`, 2026-05-13).
-The v0.6.1 -> v0.6.3 patch line added library-lock fixes, template variables,
-comment-stripping cleanup, `DROP ... IF EXISTS` handling for namespace/database
-removal, and `DEFINE` coverage for `BUCKET`, `SEQUENCE`, and `CONFIG`.
+Tracked upstream snapshot: **v0.7.0** (`8b83dd867338`, 2026-06-11). v0.7.0 adds
+library/embedded sync surfaces, improved typegen, template variables, and MODULE
+tracking in schema state. The v0.6.x line added library-lock fixes, comment
+stripping, `DROP … IF EXISTS` for namespace/database removal, and `DEFINE`
+coverage for `BUCKET`, `SEQUENCE`, and `CONFIG`.
 
 > **Packaging note**: the active upstream README now documents four install
 > paths: `cargo binstall surrealkit`, `cargo install surrealkit`, prebuilt

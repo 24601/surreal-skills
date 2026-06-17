@@ -2,6 +2,37 @@
 
 This document covers installation, deployment patterns, operational tasks, and monitoring for SurrealDB 3.x across local development, containerized, orchestrated, and cloud environments.
 
+**Production target:** SurrealDB **v3.1.4+** (2026-06-10). In-place upgrade from 3.0.x is supported with no catalog or on-disk layout changes. See [Release 3.1](https://surrealdb.com/releases/3.1) for breaking changes.
+
+---
+
+## Upgrading 3.0.x → 3.1.x
+
+```bash
+# After brew install or existing CLI
+surreal upgrade --version 3.1.4
+surreal version   # confirm active version
+
+# Docker
+docker run --rm --pull always -p 8000:8000 surrealdb/surrealdb:v3.1.4 start memory --user root --pass root
+```
+
+**Breaking changes to plan for** (full table in [Release 3.1 § breaking changes](https://surrealdb.com/releases/3.1)):
+
+| Area | Change |
+|---|---|
+| Metrics | Reorganized under `surrealdb.*` scope — update dashboards |
+| HTTP `/key` | Request bodies are inert values bound to `$data` only (no server-side SurrealQL execution) |
+| GraphQL | Apollo-only naming — regenerate clients; use `GRAPHQL_ALIAS` / `GRAPHQL_DEPRECATED` |
+| GraphQL GeoJSON | `coordinates` introspected as `JSON` scalar |
+| RocksDB | Default readahead 256 KiB (`SURREAL_ROCKSDB_MAX_AUTO_READAHEAD_SIZE`) |
+| Filesystem buckets | `lowercase_paths` defaults to `false` |
+| `--allow-net` | Resolved private/special-use IPs must be explicitly allowed |
+
+**SurrealDB Cloud:** upgrade in place via Surrealist (organisation → instance → Upgrade).
+
+**Security:** v3.1.4 fixes array element-level SELECT permission leak ([GHSA-8rw6-p7m8-63jp](https://github.com/surrealdb/surrealdb/security/advisories/GHSA-8rw6-p7m8-63jp)). Recommend v3.1.4 minimum for production.
+
 ---
 
 ## Local Development

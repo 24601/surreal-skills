@@ -1,6 +1,6 @@
 # SurrealQL Editor Tooling
 
-> **v1.6.6 status note:** this rule was shrunk in v1.4.1 after the v1.4.0
+> **v1.7.0 status note:** this rule was shrunk in v1.4.1 after the v1.4.0
 > editor section was caught documenting a `surrealql.toml` schema, a
 > `lint --format github` CI subcommand, a `--socket` flag, and a VS Code
 > command palette that did not exist upstream. v1.6.6 keeps per-editor
@@ -20,16 +20,24 @@ human authoring; MCP serves agent execution.
 
 ---
 
-## Canonical Components (verified 2026-05-14)
+## Canonical Components (verified 2026-06-17)
+
+| Component | Verified release | Notes |
+|---|---|---|
+| `surrealql-language-server` | **v0.1.6** (crates.io) | First-party LSP baseline |
+| `@surrealdb/codemirror` / `@surrealdb/lezer` | **v1.0.6** (npm) | Async DEFINE EVENT support in v1.0.6 |
+| SurrealQL VS Code extension (`surrealql-vsx`) | **v0.4.2** | Marketplace + OpenVSX |
+| SurrealQL JetBrains plugin | **v0.2.3** | JetBrains Marketplace |
+| `surql-lsp` (community) | v0.1.1 | Separate community crate — not first-party |
 
 | Component | Repo | Pinned tag | Wire name on disk |
 |-----------|------|------------|-------------------|
-| Language server | `surrealdb/surrealql-language-server` | `v0.1.3` (2026-05-08) | `surrealql-language-server` (Cargo `[package].name`; no `[[bin]]` override) |
+| Language server | `surrealdb/surrealql-language-server` | `v0.1.6` (2026-05-28) | `surrealql-language-server` (Cargo `[package].name`; no `[[bin]]` override) |
 | Tree-sitter grammar | `surrealdb/surrealql-tree-sitter` | head (sibling checkout required by the LSP build) | -- |
-| VS Code grammar+snippets | `surrealdb/surrealql-vsx` | `v0.3.0` | `surrealdb.surrealql` (Marketplace publisher.name) |
-| JetBrains plugin | `surrealdb/surrealql-jetbrains` | head | `com.surrealdb.surql-jetbrains` (Marketplace id `31397`) |
+| VS Code grammar+snippets | `surrealdb/surrealql-vsx` | `v0.4.2` (2026-06-09) | `surrealdb.surrealql` (Marketplace publisher.name) |
+| JetBrains plugin | `surrealdb/surrealql-jetbrains` | `v0.2.3` (2026-06-09) | `com.surrealdb.surql-jetbrains` (Marketplace id `31397`) |
 | Zed extension | `surrealdb/surrealql-zed` | `v0.1.0` | `surrealdb-surrealql` (Zed extension id) |
-| CodeMirror package | `surrealdb/codemirror` | `v1.0.5` | `@surrealdb/codemirror`, `@surrealdb/lezer` |
+| CodeMirror package | `surrealdb/codemirror` | `v1.0.6` (2026-05-19) | `@surrealdb/codemirror`, `@surrealdb/lezer` |
 
 There is also an older crate `surql-lsp` on crates.io. **The canonical
 LSP for first-party extensions is `surrealql-language-server`** -- the
@@ -39,11 +47,12 @@ one editor wiring.
 
 ---
 
-## Language Server: `surrealql-language-server` v0.1.3
+## Language Server: `surrealql-language-server` v0.1.6
 
-v0.1.3 migrated to `tower-lsp-server`, improved workspace/metadata handling,
-and added parser support for trailing commas. It still depends on
-`surrealdb = "3.0.5"` with HTTP, WebSocket, and rustls features.
+v0.1.6 continues the v0.1.3 migration to `tower-lsp-server` with parser and
+diagnostic improvements. It depends on a pinned `surrealdb` crate for parsing;
+check the tag's `Cargo.toml` for the exact server version when debugging
+syntax mismatches.
 
 ### Communication + invocation
 

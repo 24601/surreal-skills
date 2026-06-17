@@ -1055,25 +1055,39 @@ REMOVE BUCKET images;
 
 ### ALTER
 
-Modifies an existing schema object in-place. v3.0.5 dispatches
-`ALTER` across **seven** targets only (verified against
-`core/src/syn/parser/stmt/alter.rs` lines 17-26 and the seven
-modules under `core/src/sql/statements/alter/` — `database.rs`,
-`field.rs`, `index.rs`, `namespace.rs`, `sequence.rs`, `system.rs`,
-`table.rs`): `ALTER SYSTEM`, `ALTER NAMESPACE`, `ALTER DATABASE`,
-`ALTER TABLE`, `ALTER INDEX`, `ALTER FIELD`, `ALTER SEQUENCE`.
+Modifies an existing schema object in-place.
 
-> **Not supported in v3.0.5.** `ALTER EVENT`, `ALTER PARAM`,
-> `ALTER BUCKET`, `ALTER ANALYZER`, `ALTER FUNCTION`, `ALTER USER`,
-> `ALTER ACCESS`, `ALTER CONFIG`, `ALTER API`, and `ALTER MODULE`
-> do **not** parse — the dispatch arm in `parse_alter_stmt` rejects
-> any keyword outside the seven listed above with `unexpected!(self,
-> next, "a alter statement keyword")`. To change one of these
-> objects, use `REMOVE` + `DEFINE` (which is what a future `ALTER`
-> would have to compile to anyway, since the upstream statement
-> implementations don't exist yet). Earlier revisions of this file
-> (v1.5.7 through v1.5.10) listed seventeen `ALTER` targets; that
-> claim was wrong and is corrected here in v1.6.0.
+**SurrealDB v3.1.0+** extends `ALTER` to every `DEFINE` counterpart:
+`EVENT`, `PARAM`, `BUCKET`, `ANALYZER`, `FUNCTION`, `USER`, `ACCESS`,
+`CONFIG`, and `API`, in addition to the seven targets available since v3.0.5
+(verified against `core/src/syn/parser/stmt/alter.rs` at v3.0.5):
+`ALTER SYSTEM`, `ALTER NAMESPACE`, `ALTER DATABASE`, `ALTER TABLE`,
+`ALTER INDEX`, `ALTER FIELD`, `ALTER SEQUENCE`.
+
+> **v3.0.5 boundary (still relevant on older servers).** On v3.0.5 only,
+> `ALTER EVENT`, `ALTER PARAM`, `ALTER BUCKET`, `ALTER ANALYZER`,
+> `ALTER FUNCTION`, `ALTER USER`, `ALTER ACCESS`, `ALTER CONFIG`, and
+> `ALTER API` do **not** parse. Use `REMOVE` + `DEFINE` on 3.0.x, or upgrade
+> to **v3.1.4+** for full ALTER coverage.
+
+v3.1 ALTER constraints (from [Release 3.1](https://surrealdb.com/releases/3.1)):
+
+- `ALTER PARAM` does not support `DROP VALUE` (a param without a value is meaningless).
+- `ALTER EVENT` uses `DROP ASYNC` to revert to synchronous mode.
+- `ALTER ACCESS` does not allow changing the access type (record / JWT / bearer).
+- Resource names and table targets accept bound parameters, matching `DEFINE` / `REMOVE`.
+
+```surql
+-- v3.1+ examples (require SurrealDB 3.1.0+)
+ALTER EVENT notify_user ON TABLE person DROP ASYNC;
+ALTER PARAM app_version SET VALUE '2.0.0';
+ALTER ACCESS user_auth SET DURATION FOR TOKEN 1h;
+ALTER CONFIG GRAPHQL SET TABLES AUTO;
+REMOVE CONFIG IF EXISTS GRAPHQL;
+
+-- value::expect (v3.1.0+) — assert in method chains
+SELECT value::expect($value, |$v| $v > 0, 'must be positive') FROM data;
+```
 
 Use `ALTER` when you need to change an attribute of an existing
 definition without losing the object's history or dropping

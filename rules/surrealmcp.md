@@ -1,6 +1,51 @@
 # SurrealMCP -- Model Context Protocol Server for SurrealDB
 
-> **v1.6.6 status note:** v1.4.1 retracted the v1.4.0 install path, CLI
+> **v1.7.0 status note:** SurrealDB **v3.1.0+** ships a **built-in MCP
+> server** (`surreal mcp` stdio, HTTP `POST /mcp`) inside the main `surreal`
+> binary. The standalone `surrealdb/surrealmcp` repo (v0.4.0) remains for
+> extended tool catalogs, cloud helpers, and multi-endpoint switching. Prefer
+> built-in MCP for local IDE hosts; use standalone surrealmcp when you need
+> its extra tools or HTTP deployment patterns from the separate repo.
+
+---
+
+## Built-in MCP (SurrealDB v3.1.0+)
+
+Since v3.1.0, every `surreal` binary includes MCP without a separate install.
+
+```bash
+# stdio — typical MCP host config (Cursor, Claude Desktop, VS Code Copilot)
+surreal mcp --endpoint ws://127.0.0.1:8000/rpc --ns myns --db mydb \
+  --user root --pass root
+
+# Or attach to an already-running server (stdio transport)
+surreal mcp --endpoint http://127.0.0.1:8000 --ns myns --db mydb
+```
+
+HTTP mode is exposed at `POST /mcp` on a running server (requires normal
+SurrealDB authentication — unlike stdio, which grants owner-level tool access
+with no login step). **Do not expose stdio MCP to untrusted hosts.**
+
+Server-side tuning env vars (verified in [MCP docs](https://surrealdb.com/docs/build/ai-agents/mcp)):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SURREAL_HTTP_MAX_MCP_BODY_SIZE` | 4 MiB | Max MCP request body |
+| `SURREAL_MCP_QUERY_TIMEOUT_SECS` | 60 | Query timeout for tool calls |
+| `SURREAL_MCP_MAX_RESULT_BYTES` | 256 KiB | Max tool result size |
+| `SURREAL_MCP_RUN_MAX_ARGS` | 64 | Max args for `run`-style tools |
+| `SURREAL_MCP_PARAMS_MAX_KEYS` | 256 | Max keys in tool param objects |
+
+Built-in tools include schema introspection resources and CRUD/query tools with
+`read_only_hint` / `destructive_hint` / `idempotent_hint` annotations for MCP
+clients. For the full standalone catalog (cloud tools, endpoint switching), see
+the **SurrealMCP (standalone)** section below.
+
+---
+
+## SurrealMCP (standalone repo)
+
+> **v1.4.1 status note:** v1.4.1 retracted the v1.4.0 install path, CLI
 > shape, env-var names, and tool catalog (none matched
 > `surrealdb/surrealmcp` upstream). This rule keeps the full tool
 > argument schema by inspecting `surrealdb/surrealmcp` at tag `v0.4.0`

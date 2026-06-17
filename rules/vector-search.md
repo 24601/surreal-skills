@@ -1,6 +1,6 @@
 # SurrealDB Vector Search
 
-SurrealDB provides native vector storage and similarity search capabilities, making it suitable for AI/ML applications including RAG (Retrieval-Augmented Generation), semantic search, recommendations, and classification. Vectors are stored as array fields and searched using HNSW indexes with KNN operators.
+SurrealDB provides native vector storage and similarity search capabilities, making it suitable for AI/ML applications including RAG (Retrieval-Augmented Generation), semantic search, recommendations, and classification. Vectors are stored as array fields and searched using **HNSW** or **DiskANN** indexes with the same `<|K, EF|>` KNN operator (since v3.1.0).
 
 ---
 
@@ -81,9 +81,35 @@ DEFINE INDEX idx_embed ON TABLE document
 
 ### HNSW (Hierarchical Navigable Small World)
 
-HNSW is the primary (and as of SurrealDB 3.x, the only) vector index type. It builds a multi-layered graph structure for approximate nearest neighbor search with sub-linear query time.
+HNSW is the default vector index type for most workloads. It builds a multi-layered graph structure for approximate nearest neighbor search with sub-linear query time.
 
-Note: MTREE was deprecated in SurrealDB 2.x and removed in 3.x. All vector indexes should use HNSW.
+Note: MTREE was deprecated in SurrealDB 2.x and removed in 3.x.
+
+### DiskANN (since v3.1.0)
+
+DiskANN is an alternative vector index optimized for large, disk-backed datasets. It uses the **same** `<|K, EF|>` query operator as HNSW — only the `DEFINE INDEX` clause differs.
+
+```surrealql
+DEFINE INDEX idx_doc_diskann ON TABLE document
+    FIELDS embedding
+    DISKANN DIMENSION 1536 DIST COSINE TYPE F32 DEGREE 16 L_BUILD 64;
+
+-- Query shape is identical to HNSW
+SELECT *, embedding <|10, 40|> $query_vec AS score
+FROM document
+WHERE embedding <|10, 40|> $query_vec
+ORDER BY score DESC
+LIMIT 10;
+```
+
+| Consideration | HNSW | DiskANN |
+|---|---|---|
+| Best for | General-purpose ANN, in-memory or mixed | Very large indexes where graph lives primarily on disk |
+| Platform | All supported targets | **64-bit only** (gated in v3.1.3+) |
+| WASM / browser | Supported (subject to engine limits) | **Not supported** |
+| Key params | `M`, `M0`, `LM`, `EFC`, `HASHED_VECTOR` | `DEGREE`, `L_BUILD` |
+
+Choose HNSW unless profiling shows DiskANN wins on your dataset size and storage layout. See [Release 3.1](https://surrealdb.com/releases/3.1) for full parameter tables.
 
 #### Full Configuration Options
 

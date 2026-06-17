@@ -115,7 +115,7 @@ Need schema validation?
 1. Reference rules/surrealml.md
 2. Prerequisites: `surrealml` PyPI package 0.0.4 (extras: [sklearn] / [torch] /
    [tensorflow]); SurrealML is preview-stage and the SurrealQL invocation
-   surface is unstable as of 2026-05-14.
+   surface is unstable as of 2026-06-17.
 3. The v1.4.0 documentation for `DEFINE MODEL`, `INFO FOR MODEL`,
    `ml::name<version>(...)`, `surreal ml import`, `db.upload_ml(...)`, and
    `SurMlFile.from_<framework>(...)` was retracted in v1.4.1 -- those
@@ -133,28 +133,23 @@ Need schema validation?
 
 ```
 1. Reference rules/surrealmcp.md
-2. Choose transport:
-   stdio        -> local hosts (Claude Desktop, Cursor, Copilot in VS Code, Zed)
-   HTTP         -> remote / multi-tenant deployments
-   Unix socket  -> local high-throughput / IPC scenarios
-3. Install: `cargo install --path .` from a clone of github.com/surrealdb/surrealmcp,
+2. Choose MCP surface:
+   Built-in (SurrealDB 3.1+) -> `surreal mcp` stdio or HTTP POST /mcp on a running server
+   Standalone surrealmcp     -> extended tool catalog, cloud helpers, multi-endpoint switching
+3. Built-in stdio (local IDE hosts — Cursor, Claude Desktop, Copilot in VS Code, Zed):
+   surreal mcp --endpoint ws://localhost:8000/rpc --ns ... --db ... --user ... --pass ...
+   WARNING: stdio MCP grants owner-level tool access with no login step — do not expose to untrusted hosts.
+4. Standalone install (when built-in tools are insufficient):
+   `cargo install --path .` from github.com/surrealdb/surrealmcp,
    OR `docker run --rm -i --pull always surrealdb/surrealmcp:latest start`.
-   `surrealmcp` is NOT published to crates.io or npm; do not try
-   `cargo install surrealmcp` or `npm install -g @surrealdb/surrealmcp`.
-4. Add to host MCP config -- consult each host's own MCP docs for path/key
-   shape. Most hosts share the `mcpServers` top-level key but Codex/others
-   may differ.
-5. The binary requires the `start` subcommand: `surrealmcp start --ns ... --db ...`.
+   `surrealmcp` is NOT published to crates.io or npm.
+5. Add to host MCP config — consult each host's own MCP docs for path/key shape.
+6. Standalone binary requires `start` subcommand: `surrealmcp start --ns ... --db ...`.
    Connection env vars: SURREALDB_URL / SURREALDB_NS / SURREALDB_DB /
-   SURREALDB_USER / SURREALDB_PASS. Server-side env vars use the
-   SURREAL_MCP_* prefix.
-6. Verify: tools/list returns the upstream catalog -- query, select, insert,
-   create, upsert, update, delete, relate, connect_endpoint, use_namespace,
-   use_database, list_namespaces, list_databases, disconnect_endpoint, plus
-   cloud tools.
+   SURREALDB_USER / SURREALDB_PASS. Server-side env vars use SURREAL_MCP_* prefix.
 7. Production: scoped DB user (DEFINE USER ... ON DATABASE ROLES VIEWER),
-   TLS, JWT bearer auth, `--rate-limit-rps` / `--rate-limit-burst`,
-   `RUST_LOG` for structured logging, `GET /health` for health checks.
+   TLS, JWT bearer auth, `--rate-limit-rps` / `--rate-limit-burst` (standalone),
+   RUST_LOG for structured logging, GET /health for health checks (standalone HTTP).
 ```
 
 ### "User wants editor / IDE support"
@@ -162,7 +157,7 @@ Need schema validation?
 ```
 1. Reference rules/editor-tooling.md
 2. Prerequisites: an LSP binary on $PATH. First-party baseline:
-   `surrealql-language-server` v0.1.3. `surql-lsp` v0.1.1 is a separate
+   `surrealql-language-server` v0.1.6. `surql-lsp` v0.1.1 is a separate
    community crate.
 3. Pick the editor:
    VS Code / Cursor / Windsurf -> "SurrealQL" extension (Marketplace + OpenVSX)
@@ -170,7 +165,7 @@ Need schema validation?
    Neovim                       -> surrealdb/surrealql-neovim + nvim-treesitter
    Helix                        -> wire via languages.toml once LSP is on $PATH
    Zed                          -> Zed extensions panel
-4. Custom web editors -> `@surrealdb/codemirror` / `@surrealdb/lezer` v1.0.5
+4. Custom web editors -> `@surrealdb/codemirror` / `@surrealdb/lezer` v1.0.6
 5. Per-extension command palettes, settings catalogs, and config-file
    schemas must still be verified against each extension's own README.
 ```
@@ -190,7 +185,7 @@ Need schema validation?
    store = SurrealDBVectorStore(embeddings, conn)
    # Note: kwarg is `custom_filter`, not `filter`
    store.similarity_search_with_score(query=..., k=..., custom_filter={...})
-3. JS/TS: NO official `@langchain/surrealdb` npm package as of 2026-05-14;
+3. JS/TS: NO official `@langchain/surrealdb` npm package as of 2026-06-17;
    the v1.4.0 documentation for it was retracted in v1.4.1. Use the v2
    JavaScript SurrealDB SDK directly until an official integration ships.
 4. For multi-tenant:
@@ -378,7 +373,7 @@ uv run {baseDir}/scripts/schema.py introspect --endpoint $SURREAL_ENDPOINT
 | `rules/performance.md` | Index strategies (unique, search, HNSW), EXPLAIN for query analysis, batch operations, connection pooling, storage engine trade-offs, resource limits |
 | `rules/sdks.md` | Official SDK usage for JS/TS, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Swift, Ruby plus source-only C boundary: connection setup, authentication, CRUD, live queries, typed records |
 | `rules/surrealism.md` | Surrealism WASM extension system (new in v3): Rust SDK, custom functions, custom analyzers, module lifecycle, deployment |
-| `rules/surrealml.md` | SurrealML scope summary (preview/unstable as of 2026-05-14); `.surml` artifact format, supported pip extras, GitHub v0.1.2 vs PyPI 0.0.4 boundary, setup-time native-library download warning |
+| `rules/surrealml.md` | SurrealML scope summary (preview/unstable as of 2026-06-17); `.surml` artifact format, supported pip extras, GitHub v0.1.2 vs PyPI 0.0.4 boundary, setup-time native-library download warning |
 | `rules/surrealmcp.md` | Model Context Protocol server (`surrealdb/surrealmcp` v0.4.0): verified install (Cargo from source / Docker; not on crates.io or npm), `surrealmcp start` CLI shape, `SURREALDB_*` env-var conventions, snake_case tool catalog grouped per upstream README, host-config pointers for Claude Desktop / Cursor / Copilot in VS Code / Zed / n8n, JWT bearer auth for HTTP mode |
 | `rules/editor-tooling.md` | First-party `surrealql-language-server` v0.1.3, community `surql-lsp` boundary, `surrealql-tree-sitter`, CodeMirror packages, and discoverability pointers for VS Code / Cursor / Windsurf / VSCodium / JetBrains / Neovim / Helix / Sublime / Zed / Emacs extensions |
 | `rules/langchain.md` | LangChain integration: `langchain-surrealdb` 0.2.1 (Python only) -- verified deps (`langchain-core ~= 1.1.0`, `surrealdb ~= 1.0.8` v1 SDK), constructor-based `SurrealDBVectorStore(embeddings, conn)` API, `custom_filter` kwarg. JS package, async class, chat history, and hybrid retriever from v1.4.0 were retracted in v1.4.1 |
@@ -491,7 +486,7 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 ```json
 {
   "skill": "surrealdb",
-  "version": "1.6.6",
+  "version": "1.7.0",
   "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealml", "surrealmcp", "editor-tooling", "langchain", "ecosystem-integrations", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
   "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
   "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealml.md", "surrealmcp.md", "editor-tooling.md", "langchain.md", "ecosystem-integrations.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
@@ -524,8 +519,8 @@ Common errors:
 
 | Component | Version |
 |-----------|---------|
-| SurrealDB target | 3.0.5+ (main tracking v3.1.0-alpha) |
-| Skill version | 1.6.6 |
+| SurrealDB target | 3.1.4+ (recommend minimum for production) |
+| Skill version | 1.7.0 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 
@@ -541,13 +536,13 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 
 | Repository | Release | SHA (short) | Snapshot Date | Rules Affected |
 |------------|---------|-------------|---------------|----------------|
-| surrealdb/surrealdb | v3.0.5 (main toward v3.1.0-alpha) | `a97d3af85d79` | 2026-04-29 | surrealql, data-modeling, security, performance, deployment, surrealism, surrealml |
-| surrealdb/surrealist | surrealist-v3.8.5 | `cc19eb149dbc` | 2026-05-13 | surrealist |
-| surrealdb/surrealdb.js | v2.0.3 | `8533173ed3c9` | 2026-05-12 | sdks |
-| surrealdb/surrealdb.py | v2.0.0 (PyPI); main v3.0.0 unreleased | `846f5de6df41` | 2026-05-12 | sdks |
-| surrealdb/surrealdb.go | v1.4.0 (main) | `aef39d3a439f` | 2026-04-30 | sdks |
-| surrealdb/surrealdb.java | v2.0.1 | `6057d346c377` | 2026-04-28 | sdks |
-| surrealdb/surrealdb.net | v0.10.2 | `f6a7ce946e52` | 2026-05-13 | sdks |
+| surrealdb/surrealdb | v3.1.4 | `c9e039542e85` | 2026-06-10 | surrealql, data-modeling, security, performance, deployment, surrealism, surrealml, surrealmcp, vector-search, graph-queries |
+| surrealdb/surrealist | surrealist-v3.9.0 | `b0f4b03b3c6e` | 2026-06-16 | surrealist |
+| surrealdb/surrealdb.js | v2.0.3 | `c25ccbd12864` | 2026-06-17 | sdks |
+| surrealdb/surrealdb.py | v2.0.0 (PyPI); main 3.0.0 unreleased | `616cc6eb65e7` | 2026-06-17 | sdks |
+| surrealdb/surrealdb.go | v1.4.0 (main) | `82ed1db52c9e` | 2026-06-17 | sdks |
+| surrealdb/surrealdb.java | v2.1.1 | `175bf2584fb3` | 2026-06-10 | sdks |
+| surrealdb/surrealdb.net | v0.10.2 | `ab079d855b6f` | 2026-06-17 | sdks |
 | surrealdb/surrealdb.php | v1.0.1 | `2f8f7ade9c47` | 2026-03-02 | sdks |
 | surrealdb/surrealdb.c | -- | `039481e0c46f` | 2026-03-06 | sdks |
 | surrealdb/surrealdb.swift | -- | `046f7d5f2405` | 2026-04-29 | sdks |
@@ -555,16 +550,16 @@ uv run {baseDir}/scripts/check_upstream.py --stale   # only changed repos
 | surrealdb/surrealdb.rb | v0.7.0 | `5a98c3464b1f` | 2026-04-01 | sdks |
 | surrealdb/surreal-sync | v0.3.4 | `59b3166910f0` | 2026-03-11 | surreal-sync |
 | surrealdb/surrealfs | -- | `0008a3a94dbe` | 2026-01-29 | surrealfs |
-| surrealdb/surrealkit | v0.6.3 (pre-release) | `7771b93ea563` | 2026-05-13 | surrealkit |
-| surrealdb/surrealmcp | v0.4.0 | `6b82d699ece8` | 2026-01-14 | surrealmcp |
+| surrealdb/surrealkit | v0.7.0 | `8b83dd867338` | 2026-06-11 | surrealkit |
+| surrealdb/surrealmcp | v0.4.0 (standalone; built-in MCP in server 3.1+) | `6b82d699ece8` | 2026-01-14 | surrealmcp |
 | surrealdb/surrealml | v0.1.2 GitHub; 0.0.4 PyPI | `152ac2d508f1` | 2025-09-17 | surrealml |
-| surrealdb/surrealql-language-server | v0.1.3 | `6438d73c5c60` | 2026-05-08 | editor-tooling |
+| surrealdb/surrealql-language-server | v0.1.6 | `02706f9c6c98` | 2026-05-28 | editor-tooling |
 | surrealdb/surrealql-tree-sitter | -- | `5db387281bcc` | 2026-05-07 | editor-tooling |
-| surrealdb/codemirror | v1.0.5 | `72c367232b08` | 2026-05-12 | editor-tooling, ecosystem-integrations |
+| surrealdb/codemirror | v1.0.6 | `f88011f3ac07` | 2026-05-19 | editor-tooling, ecosystem-integrations |
 | surrealdb/langchain-surrealdb | v0.2.1 | `4cfecc53efbc` | 2026-03-16 | langchain |
 | surrealdb/n8n-nodes-surrealdb | v0.6.0 | `a14db7def6e2` | 2026-04-24 | ecosystem-integrations |
-| surrealdb/agent-skills | -- | `53ac3d2b7e4c` | 2026-04-13 | ecosystem-integrations |
+| surrealdb/agent-skills | -- | `95628976c277` | 2026-06-17 | ecosystem-integrations |
 
-Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-05-14.
+Documentation: [surrealdb.com/docs](https://surrealdb.com/docs) snapshot 2026-06-17.
 
 Full provenance data: `SOURCES.json` (machine-readable).
