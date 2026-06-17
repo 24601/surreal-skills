@@ -6,7 +6,19 @@ before implementation. Use this as an ecosystem map, not as a substitute for
 the focused rules (`rules/sdks.md`, `rules/langchain.md`,
 `rules/editor-tooling.md`, `rules/surrealmcp.md`).
 
-Verified snapshot: 2026-05-14.
+Verified snapshot: 2026-06-17.
+
+---
+
+## New Ecosystem Surfaces (since v1.6.6)
+
+| Project | Status | Skill pointer |
+|---|---|---|
+| [surqlize](https://github.com/surrealdb/surqlize) | Active development | Type-safe TypeScript ORM with graph support — verify API before examples |
+| [datasets](https://github.com/surrealdb/datasets) | Official sample data | Browse in Surrealist v3.9+ datasets panel |
+| [agent-memory](https://github.com/surrealdb/agent-memory) | Demo only | KG + vector agent memory reference; requires `--allow-experimental` |
+| [kaig](https://github.com/surrealdb/kaig) | Demo | Graph RAG knowledge AI sample |
+| Built-in MCP (`surreal mcp`) | GA in SurrealDB 3.1+ | `rules/surrealmcp.md` — prefer over standalone for local IDE hosts |
 
 ---
 
@@ -76,18 +88,20 @@ Default production pattern across these frameworks:
 
 ## Spectron / Agent Memory Context
 
-The docs source contains an "Agent memory context (Spectron)" page described as
-a persistent agent memory layer built on SurrealDB: knowledge graphs, entity
-extraction, GraphRAG, temporal facts, and hybrid retrieval. The page says the
-product/docs are "coming soon".
+Spectron remains **preview/alpha** — not a generally available runtime API.
+However, upstream SDK main branches now expose Spectron-related endpoints:
 
-Do not present Spectron as a generally available runtime API. Treat it as a
-roadmap / positioning surface until upstream publishes installable packages,
-schema/API docs, and operational guidance.
+- **surrealdb.js** main: Spectron package at `1.0.0-alpha.4` (unreleased on npm)
+- **surrealdb.py** main: Spectron SDK endpoints added (unreleased on PyPI)
+
+Do not present Spectron as stable. Pin to explicit commits and audit before
+production. The [`surrealdb/agent-memory`](https://github.com/surrealdb/agent-memory)
+demo shows a reference architecture combining graph + vectors; it requires
+experimental server flags and is not a production template.
 
 Stable building blocks available today:
 
-- `rules/vector-search.md` for HNSW vector storage and retrieval
+- `rules/vector-search.md` for HNSW and DiskANN vector storage and retrieval
 - `rules/graph-queries.md` for graph edges and traversal
 - `rules/security.md` for access control and tenant isolation
 - `rules/langchain.md` for the currently verified Python LangChain vector store
@@ -98,7 +112,7 @@ Stable building blocks available today:
 ## CodeMirror
 
 The official CodeMirror packages are tracked in `rules/editor-tooling.md`:
-`@surrealdb/codemirror` and `@surrealdb/lezer` v1.0.5. Use them when building a
+`@surrealdb/codemirror` and `@surrealdb/lezer` v1.0.6. Use them when building a
 custom web editor that needs SurrealQL syntax support. They are not database
 clients and do not replace the language server for schema-aware diagnostics.
 
@@ -107,7 +121,8 @@ clients and do not replace the language server for schema-aware diagnostics.
 ## Official Agent Skills Repo
 
 SurrealDB also maintains `surrealdb/agent-skills`, a separate Agent Skills
-standard repository. Current verified commit: `53ac3d2b7e4c` (2026-04-13).
+standard repository. Current verified commit: `95628976c277` (2026-06-17).
+Four additional upstream skills shipped since the v1.6.6 snapshot.
 
 Install all official upstream skills:
 

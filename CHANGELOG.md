@@ -3,6 +3,44 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.0] - 2026-06-17 — SurrealDB 3.1.4 GA tracking
+
+### Added
+
+- **Built-in MCP server** documentation in `rules/surrealmcp.md` (`surreal mcp`
+  stdio, HTTP `POST /mcp`) with standalone `surrealmcp` boundary guidance.
+- **DiskANN vector index** coverage in `rules/vector-search.md` alongside HNSW,
+  including 64-bit platform gate and shared `<|K, EF|>` query operator.
+- **Graph edge-case wisdom** in `rules/graph-queries.md`: inline edge filters
+  (v3.1.3 fix), `$parent` scope, RELATION + partial UNIQUE index (#7280),
+  record-links-vs-edges modeling, agent-memory demo pointer, official YouTube
+  references.
+- **3.0→3.1 upgrade guide** in `rules/deployment.md` with breaking-change table.
+- **Ecosystem pointers**: surqlize, datasets, agent-memory, kaig, built-in MCP
+  in `rules/ecosystem-integrations.md`; new entries in `SOURCES.json`.
+- **SurrealKit v0.7.0**, **Surrealist v3.9.0**, **Java SDK v2.1.1**, **LSP
+  v0.1.6**, **CodeMirror v1.0.6**, **VSX v0.4.2**, **JetBrains v0.2.3**.
+
+### Changed
+
+- **Target server**: v3.0.5 → **v3.1.4** (recommend minimum for production).
+- **`rules/surrealql.md`**: full ALTER coverage (v3.1.0+), `value::expect`,
+  v3.0.5 seven-target boundary preserved for older servers.
+- **`rules/surrealism.md` / deployment**: async Surrealism and `--allow-net`
+  hardening pointers (via deployment upgrade section).
+- **Spectron status**: roadmap-only → alpha in JS/Python SDK main (boundary
+  preserved in ecosystem-integrations).
+- **Provenance refresh** across `SOURCES.json`, `AGENTS.md`, and `SKILL.md`.
+
+### Security
+
+- Document **GHSA-8rw6-p7m8-63jp** array element-level SELECT permission fix
+  (v3.1.4) in `rules/security.md`.
+- Retain auditor-safe install guidance: brew/Docker/`surreal upgrade` only — no
+  `curl | sh` in skill scripts or primary install paths.
+- Built-in MCP stdio owner-level access warning added to MCP rules and AGENTS
+  decision tree.
+
 ## [1.6.6] - 2026-05-14 — ecosystem refresh, provenance normalization, and release workflow hardening
 
 ### Added

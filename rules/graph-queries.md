@@ -834,6 +834,72 @@ DEFINE FUNCTION fn::apply_transition($order: record<order>, $action: string) {
 
 ---
 
+## Graph Edge Cases and 3.1 Query-Engine Fixes
+
+Verified wisdom from SurrealDB 3.1 release notes, GitHub issues, and official
+modeling docs. Recommend **v3.1.4+** for production graph workloads.
+
+### Inline edge filters (fixed v3.1.3)
+
+Parenthesised edge filters now work reliably:
+
+```surrealql
+-- Returns matching edges (was empty on 3.1.0–3.1.2)
+SELECT * FROM person:1->(knows WHERE since > d'2020-01-01');
+```
+
+Prefer this form over post-filtering when the predicate applies to edge fields.
+
+### `$parent` scope in nested graph WHERE (fixed v3.1.0)
+
+In subqueries inside graph traversals, `$parent` refers to the **current SELECT
+row**, not an outer FOR/IF scope. `FROM ONLY $parent->edge->target` now
+propagates `ONLY` and respects `ORDER BY` / `WHERE` on the traversal path
+([PR #7194](https://github.com/surrealdb/surrealdb/pull/7194)).
+
+### RELATION + partial UNIQUE index (fixed v3.1.0)
+
+A three-field UNIQUE index on a RELATION table with a WHERE clause that only
+binds two fields via `type::record()` could return zero rows while traversal
+still worked ([#7280](https://github.com/surrealdb/surrealdb/issues/7280)).
+After upgrade, verify with `EXPLAIN`; prefer indexing the full composite key.
+
+### Single-scan traversals (v3.1.0 perf)
+
+When permissions allow, `->edge->vertex` traversals use a single scan instead
+of two. Deep multi-hop queries benefit without query changes.
+
+### Record links vs graph edges (modeling)
+
+Official guidance ([record links vs graph relations](https://surrealdb.com/docs/learn/data-models/graph/record-links-vs-graph-relations)):
+
+| Pattern | Use when |
+|---|---|
+| Record link field | Simple reference, no edge metadata, single hop |
+| Record reference (`DEFINE FIELD … TYPE record<table>`) | Typed FK-style reference |
+| `TYPE RELATION` + `RELATE` | Edge properties, multi-hop analytics, Surrealist graph designer |
+
+Use `ENFORCED` on relation tables when referential integrity matters. Set
+`TIMEOUT` on recursive traversals (max depth 256).
+
+### Agent memory + knowledge graph (demo pattern)
+
+The upstream [`surrealdb/agent-memory`](https://github.com/surrealdb/agent-memory)
+demo combines graph edges and vector search for agent memory. It requires
+experimental flags and API keys — treat as a **reference architecture**, not a
+production template. Stable building blocks: `rules/graph-queries.md`,
+`rules/vector-search.md`, `rules/security.md`, built-in MCP or `surrealmcp`.
+
+### Official video references
+
+- [Record IDs, Expressions and Graphs (Stream #10)](https://www.youtube.com/watch?v=VFXXEn40GCA) — record links vs edges, bidirectional traversal
+- [Graph-Style Relationships](https://www.youtube.com/watch?v=zwQwKvMa9sU) — RELATE and arrow syntax
+- [Surrealist Tips: GraphQL](https://www.youtube.com/watch?v=jmFPjyiJEeI) — note Apollo naming breaking changes in 3.1
+
+For MCP, DiskANN, and observability, prefer written [Release 3.1](https://surrealdb.com/releases/3.1) docs over pre-3.1 video content.
+
+---
+
 ## Performance Considerations
 
 ### Graph Index Strategies

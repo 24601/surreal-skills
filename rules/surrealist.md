@@ -2,12 +2,11 @@
 
 Surrealist is the official graphical management interface for SurrealDB. It is available as a web application at app.surrealdb.com and as a standalone desktop application built with Tauri.
 
-Current release: **v3.8.5** (2026-05-01). Current upstream main snapshot:
-`cc19eb149dbc` (2026-05-13). Since v3.8.5, main has fixed long
-namespace/database dropdown breakage and added supply-chain/workflow hardening
-(`bunfig` minimum release age and StepSecurity best-practice updates). No newer
-Surrealist release tag exists as of 2026-05-14. Distribution artifacts for the
-release are signed (per-asset `.sig` files in GitHub Releases).
+Current release: **surrealist-v3.9.0** (2026-06-16). Upstream main snapshot:
+`757abe441a9c` (2026-06-17). v3.9.0 adds schema designer ALTER support,
+official datasets browser, VIM mode in the query editor, unified namespace/database
+selector, and in-app Cloud upgrade to SurrealDB 3.1.x. Distribution artifacts
+for releases are signed (per-asset `.sig` files in GitHub Releases).
 
 ---
 

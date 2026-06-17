@@ -1261,6 +1261,11 @@ DEFINE TABLE user SCHEMAFULL
 
 ## Field-Level Permissions
 
+> **v3.1.4 security fix (GHSA-8rw6-p7m8-63jp):** array element-level
+> `PERMISSIONS FOR select WHERE …` on fields such as `items[*]` could leak
+> denied elements on 3.1.0–3.1.3. Upgrade to **v3.1.4+** before relying on
+> per-element array permissions in production.
+
 ### PERMISSIONS on DEFINE FIELD
 
 ```surrealql

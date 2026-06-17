@@ -154,7 +154,7 @@ similarity-search reads.
 
 ## Cross-References
 
-- `rules/vector-search.md` -- supported index types in v3 (HNSW only)
+- `rules/vector-search.md` -- HNSW and DiskANN index types in v3.1+
 - `rules/data-modeling.md` -- record IDs, schemafull definitions, edges
 - `rules/security.md` -- DEFINE ACCESS, row-level permissions
 - `rules/sdks.md` -- Python v1/v2 SurrealDB SDK details

@@ -2,25 +2,30 @@
 
 [![CI](https://github.com/24601/surreal-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/24601/surreal-skills/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.6.6-blue.svg)](https://github.com/24601/surreal-skills/releases)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/24601/surreal-skills/releases)
 [![skills.sh](https://img.shields.io/badge/skills.sh-surrealdb-purple.svg)](https://skills.sh)
 
-Expert SurrealDB 3 skill for AI coding agents. Complete coverage of SurrealQL, multi-model data modeling, graph traversal, vector search, security, deployment, performance tuning, SDK integration, WASM extensions, and the wider SurrealDB ecosystem, including SurrealKit, SurrealMCP, n8n, CodeMirror, and agent-skill workflows.
+Expert SurrealDB 3 skill for AI coding agents. Tracks **SurrealDB v3.1.4+**.
+Complete coverage of SurrealQL, multi-model data modeling, graph traversal,
+vector search (HNSW + DiskANN), security, deployment, performance tuning, SDK
+integration, WASM extensions, built-in MCP (v3.1+), standalone SurrealMCP,
+SurrealKit, Surrealist, n8n, CodeMirror, and agent-skill workflows.
 
 ## Features
 
 - **SurrealQL mastery** -- Complete language reference with statements, functions, operators, and idioms
 - **Multi-model data modeling** -- Document, graph, vector, relational, time-series, and geospatial patterns in a single schema
 - **Graph queries** -- First-class edge creation and traversal without JOINs
-- **Vector search** -- HNSW indexes, similarity functions, and RAG pipeline patterns
+- **Vector search** -- HNSW and DiskANN indexes, similarity functions, and RAG pipeline patterns
+- **Built-in MCP (v3.1+)** -- `surreal mcp` stdio and HTTP `/mcp` for AI agent hosts; standalone surrealmcp for extended tools
 - **Security** -- Row-level permissions, JWT auth, namespace/database/record-level access control
 - **Deployment** -- Storage engine selection, Docker, Kubernetes, production hardening
 - **Performance** -- Index strategies, EXPLAIN analysis, batch operations, connection pooling
 - **12+ SDK integrations** -- JavaScript/TypeScript, Python, Go, Rust, Java, Kotlin, .NET, C, PHP, Swift (iOS/macOS/visionOS), Ruby
 - **Surrealism WASM extensions** -- Custom functions and analyzers compiled from Rust (new in v3)
 - **SurrealML scope coverage** -- `.surml` artifact format (preview/unstable), PyPI-vs-GitHub release boundary, and native-library download warning
-- **SurrealMCP for AI agents** -- Official Model Context Protocol server (`surrealdb/surrealmcp`); MCP host integration patterns for Claude Desktop, Cursor, GitHub Copilot in VS Code, Zed, n8n
-- **Editor tooling pointers** -- first-party `surrealql-language-server` v0.1.3, tree-sitter grammar, CodeMirror packages, and discoverability pointers for VS Code / Cursor / Windsurf / VSCodium, JetBrains, Neovim, Helix, Sublime Text, Zed extensions
+- **SurrealMCP for AI agents** -- Built-in MCP in SurrealDB 3.1+ plus standalone `surrealdb/surrealmcp` v0.4.0
+- **Editor tooling pointers** -- first-party `surrealql-language-server` v0.1.6, tree-sitter grammar, CodeMirror v1.0.6, and discoverability pointers for VS Code / Cursor / Windsurf / VSCodium, JetBrains, Neovim, Helix, Sublime Text, Zed extensions
 - **LangChain integration (Python only)** -- `langchain-surrealdb` 0.2.1 (Python) -- vector store usage; `@langchain/surrealdb` JS package was retracted in v1.4.1 (does not exist on npm)
 - **`surrealdb/setup-surreal@v2` GitHub Action** -- Official Action for running SurrealDB inside CI workflows (the v1.4.0 documentation that described setup-surreal as a CLI bootstrap was retracted in v1.4.2)
 - **Full ecosystem** -- Surrealist IDE, Surreal-Sync CDC, SurrealFS agent filesystem, SurrealKit schema tooling, n8n community node, official Agent Skills repo, and Spectron roadmap boundary
@@ -320,15 +325,21 @@ SurrealDB schema management for application teams. Use desired-state `sync` for 
 
 ### SurrealMCP (Model Context Protocol Server)
 
-Official MCP server that exposes a SurrealDB instance to MCP-compatible AI hosts (Claude Desktop, Cursor, GitHub Copilot in VS Code, Zed, n8n, and others that follow the standard MCP host config). Install from source (`cargo install --path .`) or Docker (`docker run --rm -i --pull always surrealdb/surrealmcp:latest start`); not published to crates.io or npm. The binary requires the `start` subcommand; tool wire-names are snake_case. See `rules/surrealmcp.md` and `skills/surrealmcp/SKILL.md`.
+**Built-in (SurrealDB 3.1+):** `surreal mcp` stdio or HTTP `POST /mcp` — no separate install.
+**Standalone:** official `surrealdb/surrealmcp` v0.4.0 for extended tools and cloud helpers.
+Install standalone from source (`cargo install --path .`) or Docker; not on crates.io or npm.
+See `rules/surrealmcp.md` and `skills/surrealmcp/SKILL.md`.
 
 ### SurrealML (In-Database ML Inference) -- preview / unstable
 
-`surrealml` has a GitHub `v0.1.2` release, but PyPI still exposes `surrealml` 0.0.4 as latest as of 2026-05-14. The stable local guidance remains the `.surml` artifact format and `[sklearn]`, `[torch]`, `[tensorflow]` extras. Current upstream Python setup can download native libraries from GitHub Releases into `~/surrealml_deps` unless `LOCAL_BUILD=TRUE`; pin and audit before production use. See `rules/surrealml.md`.
+`surrealml` has a GitHub `v0.1.2` release, but PyPI still exposes `surrealml` 0.0.4 as latest as of 2026-06-17. The stable local guidance remains the `.surml` artifact format and `[sklearn]`, `[torch]`, `[tensorflow]` extras. Current upstream Python setup can download native libraries from GitHub Releases into `~/surrealml_deps` unless `LOCAL_BUILD=TRUE`; pin and audit before production use. See `rules/surrealml.md`.
 
 ### Editor Tooling
 
-First-party `surrealql-language-server` v0.1.3, community `surql-lsp` v0.1.1 boundary, tree-sitter grammar, `@surrealdb/codemirror` / `@surrealdb/lezer` v1.0.5, and pointer entries for VS Code / Cursor / Windsurf / VSCodium, JetBrains IDEs, Neovim, Helix, Sublime Text, Zed, and Emacs extensions. Consult each extension's own README for command and setting names. See `rules/editor-tooling.md`.
+First-party `surrealql-language-server` v0.1.6, community `surql-lsp` v0.1.1 boundary,
+tree-sitter grammar, `@surrealdb/codemirror` / `@surrealdb/lezer` v1.0.6, and pointer
+entries for VS Code / Cursor / Windsurf / VSCodium, JetBrains IDEs, Neovim, Helix,
+Sublime Text, Zed, and Emacs extensions. See `rules/editor-tooling.md`.
 
 ### LangChain Integration (Python only)
 

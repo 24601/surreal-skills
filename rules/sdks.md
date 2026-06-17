@@ -1177,7 +1177,7 @@ while let Some(notification) = stream.next().await {
 > at all.
 
 **Package**: `com.surrealdb:surrealdb` on Maven Central
-**Verified version at v1.6.6 cut**: `2.0.1` (2026-04-28; previous
+**Verified version at v1.7.0 cut**: `2.1.1` (2026-06-10; previous
 versions `0.1.0`, `0.2.0`, `0.2.1`, `1.0.0-beta.1`, `2.0.0-alpha.1`,
 `2.0.0`, `2.0.1`)
 **Repository**: `github.com/surrealdb/surrealdb.java`
@@ -1192,7 +1192,7 @@ macOS ARM/x86_64, Android Linux ARM/x86_64
 <dependency>
     <groupId>com.surrealdb</groupId>
     <artifactId>surrealdb</artifactId>
-    <version>2.0.1</version>
+    <version>2.1.1</version>
 </dependency>
 ```
 
