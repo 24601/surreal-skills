@@ -129,6 +129,21 @@ Need schema validation?
      transaction
 ```
 
+### "User hit a surprising SurrealDB behavior / gotcha"
+
+```
+1. Reference rules/gotchas.md first — cross-domain footgun catalog (v3.1.4+)
+2. Narrow by domain:
+   Graph / RELATE / traversal     -> rules/graph-queries.md
+   Vector / HNSW / DiskANN        -> rules/vector-search.md
+   Permissions / auth             -> rules/security.md
+   Upgrade / deploy / metrics     -> rules/deployment.md
+   MCP / agent tooling            -> rules/surrealmcp.md
+   Language / schema DDL          -> rules/surrealql.md
+3. Confirm server version — many gotchas are version-gated (3.0.5 vs 3.1.x)
+4. Recommend v3.1.4+ minimum for production when security fixes apply
+```
+
 ### "User wants AI agents to talk to SurrealDB"
 
 ```
@@ -382,6 +397,7 @@ uv run {baseDir}/scripts/schema.py introspect --endpoint $SURREAL_ENDPOINT
 | `rules/surreal-sync.md` | Surreal-Sync CDC tool: source connectors, target connectors, migration workflows, incremental sync, schema translation |
 | `rules/surrealfs.md` | SurrealFS AI agent filesystem: file storage and retrieval, metadata management, directory structures, agent integration patterns |
 | `rules/surrealkit.md` | SurrealKit schema sync, rollout-based migrations, seeding, and declarative schema/API tests |
+| `rules/gotchas.md` | Cross-domain edge cases, footguns, and verified gotchas (upgrade, graph, vector, security, MCP, SDKs) |
 
 ## Configuration Requirements
 
@@ -486,10 +502,10 @@ All scripts: **stderr** = human-readable (Rich), **stdout** = JSON.
 ```json
 {
   "skill": "surrealdb",
-  "version": "1.7.0",
-  "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealml", "surrealmcp", "editor-tooling", "langchain", "ecosystem-integrations", "surrealist", "surreal-sync", "surrealfs", "surrealkit"],
+  "version": "1.7.1",
+  "capabilities": ["surrealql", "data-modeling", "graph-queries", "vector-search", "security", "deployment", "performance", "sdks", "surrealism", "surrealml", "surrealmcp", "editor-tooling", "langchain", "ecosystem-integrations", "surrealist", "surreal-sync", "surrealfs", "surrealkit", "gotchas"],
   "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
-  "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealml.md", "surrealmcp.md", "editor-tooling.md", "langchain.md", "ecosystem-integrations.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md"],
+  "rules": ["surrealql.md", "data-modeling.md", "graph-queries.md", "vector-search.md", "security.md", "deployment.md", "performance.md", "sdks.md", "surrealism.md", "surrealml.md", "surrealmcp.md", "editor-tooling.md", "langchain.md", "ecosystem-integrations.md", "surrealist.md", "surreal-sync.md", "surrealfs.md", "surrealkit.md", "gotchas.md"],
   "prerequisites": {
     "surreal_cli": true,
     "python": true,
@@ -520,7 +536,7 @@ Common errors:
 | Component | Version |
 |-----------|---------|
 | SurrealDB target | 3.1.4+ (recommend minimum for production) |
-| Skill version | 1.7.0 |
+| Skill version | 1.7.1 |
 | SurrealQL compat | SurrealDB 3.x |
 | Python requirement | 3.10+ |
 

@@ -110,6 +110,7 @@ jobs:
             "rules/editor-tooling.md"
             "rules/langchain.md"
             "rules/ecosystem-integrations.md"
+            "rules/gotchas.md"
           )
           missing=0
           for rule in "${expected_rules[@]}"; do

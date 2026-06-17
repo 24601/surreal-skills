@@ -3,7 +3,7 @@ name: surrealmcp
 description: "SurrealDB MCP for AI agents: built-in server (SurrealDB 3.1+ `surreal mcp`) and standalone surrealmcp (surrealdb/surrealmcp v0.4.0). Part of the surreal-skills collection."
 license: MIT
 metadata:
-  version: "1.7.0"
+  version: "1.7.1"
   author: "24601"
   parent_skill: "surrealdb"
   snapshot_date: "2026-06-17"

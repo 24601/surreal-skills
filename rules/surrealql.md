@@ -2878,10 +2878,16 @@ Key fixes and changes in SurrealDB v3.0.5:
 - **Auth limits with `ALTER` fixed** (#7233): access-control edge cases introduced by broader `ALTER` support were corrected
 - **Parser v3 work merged** (#6938): parser infrastructure continues moving toward the v3 line and unblocks later syntax work
 
-### v3.1.0-alpha (in progress on main)
+### v3.1.4 Patch Notes (2026-06-10)
 
-The main branch tracks toward v3.1.0 with ongoing work on:
-- Error chaining infrastructure (#6969)
-- SurrealValue derive convenience (#6970)
-- Timestamp code refactoring (#6892)
-- Import overhead reduction and benchmarks (#7069)
+See `rules/gotchas.md` for a cross-domain gotcha catalog and
+`rules/deployment.md` for the 3.0→3.1 upgrade guide. Key items:
+
+- **Security:** array element-level SELECT permission leak fixed (GHSA-8rw6-p7m8-63jp)
+- **Query:** `type::field('id') = record:…` uses record-id point lookup
+- **Graph:** inline edge filters fixed in 3.1.3; `$parent` and single-scan traversals in 3.1.0
+- **Vector:** DiskANN index type (64-bit only); same `<|K, EF|>` operator as HNSW
+- **MCP:** built-in `surreal mcp` and HTTP `/mcp` (v3.1.0+)
+- **ALTER:** full DEFINE counterparts (v3.1.0+); seven-target limit on v3.0.5 only
+
+Full release notes: [surrealdb.com/releases/3.1](https://surrealdb.com/releases/3.1)

@@ -1,7 +1,7 @@
 {
   "$schema": "https://github.com/24601/surreal-skills/blob/main/SOURCES.json",
   "description": "Provenance tracking for upstream repos and docs used to build this skill. Compare HEAD SHAs against these baselines to identify what changed for incremental updates.",
-  "skill_version": "1.7.0",
+  "skill_version": "1.7.1",
   "snapshot_date": "2026-06-17",
   "repos": {
     "surrealdb/surrealdb": {
@@ -17,7 +17,8 @@
         "rules/performance.md",
         "rules/deployment.md",
         "rules/surrealism.md",
-        "rules/surrealml.md"
+        "rules/surrealml.md",
+        "rules/gotchas.md"
       ]
     },
     "surrealdb/surrealist": {
@@ -389,6 +390,7 @@
         "rules/editor-tooling.md",
         "rules/langchain.md",
         "rules/ecosystem-integrations.md",
+        "rules/gotchas.md",
         "references/surrealql_cheatsheet.md"
       ]
     }

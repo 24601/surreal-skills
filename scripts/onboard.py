@@ -208,6 +208,7 @@ CAPABILITIES_MANIFEST: dict = {
         "surreal-sync",
         "surrealfs",
         "surrealkit",
+        "gotchas",
     ],
     "scripts": ["doctor.py", "schema.py", "onboard.py", "check_upstream.py"],
     "commands": [
@@ -234,6 +235,7 @@ CAPABILITIES_MANIFEST: dict = {
         {"file": "surrealist.md", "topic": "Surrealist IDE/GUI"},
         {"file": "surrealfs.md", "topic": "AI agent virtual filesystem"},
         {"file": "surrealkit.md", "topic": "Schema sync, rollouts, seeding, and declarative database testing"},
+        {"file": "gotchas.md", "topic": "Cross-domain edge cases, footguns, and verified gotchas (v3.1.4+)"},
     ],
     "decision_trees": {
         "new_project": "Run doctor -> Design schema (data-modeling.md) -> Choose deployment (deployment.md) -> Configure security (security.md). For CI, wire surrealdb/setup-surreal@v2 GitHub Action.",
