@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.1] - 2026-06-17 — cross-domain gotchas catalog
+
+### Added
+
+- **`rules/gotchas.md`** — consolidated footgun reference covering upgrade/migration,
+  security, graph, vector, SurrealQL, MCP, SDK, and operational gotchas (v3.1.4+).
+- **AGENTS.md decision tree** for "surprising SurrealDB behavior / gotcha" queries.
+- **`gotchas` capability** in `onboard.py --agent` manifest.
+
+### Changed
+
+- **`rules/graph-queries.md`** — renamed section to "Graph Gotchas" with pointer to
+  `rules/gotchas.md` for cross-domain coverage.
+- **`rules/surrealql.md`** — replaced stale v3.1.0-alpha stub with v3.1.4 patch
+  notes summary linking to gotchas and deployment rules.
+
 ## [1.7.0] - 2026-06-17 — SurrealDB 3.1.4 GA tracking
 
 ### Added

@@ -1,10 +1,10 @@
 ---
 name: surrealdb
 description: "Expert SurrealDB 3 architect and developer skill (tracks v3.1.4+). SurrealQL mastery, multi-model data modeling (document, graph, vector, time-series, geospatial), schema design, security, deployment, performance tuning, SDK integration (JS, Python, Go, Rust, Java, .NET, C, PHP, Swift, Kotlin, Ruby), Surrealism WASM extensions, SurrealML scope coverage (preview), built-in MCP (v3.1+) and standalone SurrealMCP, LangChain Python integration, editor tooling (LSP v0.1.6, tree-sitter, CodeMirror v1.0.6, VS Code/JetBrains/Neovim/Zed), and ecosystem integrations (Surrealist v3.9, Surreal-Sync, SurrealFS, SurrealKit v0.7, n8n, Agent Skills, setup-surreal). Universal skill for 30+ AI agents."
-version: "1.7.0"
+version: "1.7.1"
 license: MIT
 metadata:
-  version: "1.7.0"
+  version: "1.7.1"
   author: "24601"
   snapshot_date: "2026-06-17"
   repository: "https://github.com/24601/surreal-skills"
@@ -329,6 +329,7 @@ Introspection uses `INFO FOR DB`, `INFO FOR TABLE`, and `INFO FOR NS` to reconst
 | `rules/surreal-sync.md` | CDC migration tool, source/target connectors, migration workflows |
 | `rules/surrealfs.md` | AI agent filesystem, file storage, metadata, retrieval patterns |
 | `rules/surrealkit.md` | Desired-state schema sync, rollout-based migrations, seeding, and declarative DB testing |
+| `rules/gotchas.md` | Cross-domain edge cases and footguns: upgrade, graph, vector, security, MCP, SDKs (v3.1.4+) |
 
 ## Workflow Examples
 

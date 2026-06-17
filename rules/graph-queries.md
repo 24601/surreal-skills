@@ -834,10 +834,11 @@ DEFINE FUNCTION fn::apply_transition($order: record<order>, $action: string) {
 
 ---
 
-## Graph Edge Cases and 3.1 Query-Engine Fixes
+## Graph Gotchas
 
-Verified wisdom from SurrealDB 3.1 release notes, GitHub issues, and official
-modeling docs. Recommend **v3.1.4+** for production graph workloads.
+Graph-specific footguns verified in SurrealDB 3.1. For the full cross-domain
+gotchas catalog (vector, security, MCP, migration, SDKs), see
+`rules/gotchas.md`. Recommend **v3.1.4+** for production graph workloads.
 
 ### Inline edge filters (fixed v3.1.3)
 

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/24601/surreal-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/24601/surreal-skills/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/24601/surreal-skills/releases)
+[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/24601/surreal-skills/releases)
 [![skills.sh](https://img.shields.io/badge/skills.sh-surrealdb-purple.svg)](https://skills.sh)
 
 Expert SurrealDB 3 skill for AI coding agents. Tracks **SurrealDB v3.1.4+**.
@@ -79,7 +79,7 @@ Load the SurrealDB 3 skill from ~/.claude/skills/surrealdb/AGENTS.md
 and use its rules for all SurrealDB architecture, development, and operations tasks.
 Available rules: surrealql, data-modeling, graph-queries, vector-search, security,
 deployment, performance, sdks, surrealism, surrealist, surreal-sync, surrealfs,
-surrealkit, surrealmcp, surrealml, editor-tooling, langchain, ecosystem-integrations.
+surrealkit, surrealmcp, surrealml, editor-tooling, langchain, ecosystem-integrations, gotchas.
 ```
 
 Then invoke with `/surrealdb` in any Claude Code session.
@@ -284,6 +284,7 @@ surreal-skills/
 | `surreal-sync.md` | Surreal-Sync CDC migration tool: source connectors (PostgreSQL, MySQL, MongoDB, etc.), SurrealDB as target, incremental change data capture, schema translation rules, migration workflow orchestration, conflict resolution, monitoring |
 | `surrealfs.md` | SurrealFS AI agent filesystem: file storage backed by SurrealDB, metadata management with SurrealQL queries, directory structures, file versioning, agent-friendly API patterns, integration with AI agent frameworks |
 | `surrealkit.md` | SurrealKit schema management for SurrealDB apps: desired-state sync for dev, rollout-based migrations for shared/prod, seeds, and declarative schema/permission/API tests |
+| `gotchas.md` | Cross-domain gotchas and footguns verified against v3.1.4+: migration, permissions, graph, vector, SurrealQL, MCP, SDKs |
 
 ## Scripts
 
